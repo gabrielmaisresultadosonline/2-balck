@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZAPMRO Cloud API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 14px;
+            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.18);
+            backdrop-filter: blur(8px);
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .brand .title {
+            font-weight: 900;
+            letter-spacing: 0.5px;
+        }
+
+        .brand .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.14);
+            border: 1px solid rgba(255,255,255,0.16);
+        }
+
+        .brand-logo {
+            width: min(180px, 56vw);
+            height: auto;
+            display: block;
+        }
+
+        .top-actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0 18px;
+        }
+
+        .tab {
+            flex: 1;
+            min-width: 120px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            background: #f8fafc;
+            cursor: pointer;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #0f172a;
+        }
+
+        .tab.active {
+            background: #111827;
+            color: #fff;
+            border-color: #111827;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .field label {
+            font-size: 0.9rem;
+            color: #111827;
+            font-weight: 800;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 12px 12px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            outline: none;
+            font-size: 1rem;
+        }
+
+        .field input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+        }
+
+        .hint {
+            font-size: 0.92rem;
+            color: #475569;
+            line-height: 1.35;
+        }
+
+        .muted {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .success {
+            color: #166534;
+            background: #dcfce7;
+            border: 1px solid #bbf7d0;
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-weight: 800;
+            margin-top: 14px;
+            display: none;
+        }
+
+        .error {
+            color: #991b1b;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-weight: 800;
+            margin-top: 14px;
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(to right, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-whatsapp {
+            background: #25D366;
+        }
+
+        .btn-dark {
+            background: #111827;
+        }
+        
+        .sessions-list {
+            margin-top: 20px;
+        }
+        
+        .session-card {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .session-info h4 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .session-info p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        #qrContainer {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #qrCode {
+            max-width: 300px;
+            margin: 20px auto;
+            border: 10px solid white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .current-session {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .session-details {
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+        
+        .no-session {
+            text-align: center;
+            color: #666;
+            padding: 40px 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            /* Responsive Admin Table */
+            .admin-table, .admin-table thead, .admin-table tbody, .admin-table th, .admin-table td, .admin-table tr {
+                display: block;
+            }
+            .admin-table thead tr {
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+            }
+            .admin-table tr {
+                border: 1px solid #e2e8f0;
+                margin-bottom: 12px;
+                border-radius: 10px;
+                background: #fff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                padding: 5px;
+            }
+            .admin-table td {
+                border: none;
+                border-bottom: 1px solid #f1f5f9;
+                position: relative;
+                padding: 12px 10px 12px 45% !important; /* Keep padding-left for label space */
+                text-align: right;
+                display: block; /* Use block to ensure height */
+                min-height: 40px;
+            }
+            .admin-table td:last-child {
+                border-bottom: none;
+            }
+            .admin-table td:before {
+                position: absolute;
+                top: 50%;
+                left: 10px;
+                width: 40%;
+                padding-right: 10px;
+                white-space: nowrap;
+                transform: translateY(-50%);
+                text-align: left;
+                font-weight: 700;
+                color: #64748b;
+                content: attr(data-label);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <img class="brand-logo" src="LOGOTRANSPARENTE01.png" alt="ZAPMRO">
+                <div class="tag"><i class="fas fa-flask"></i> EM TESTE</div>
+            </div>
+            <h1 style="margin-top:16px;">A melhor ferramenta do WhatsApp</h1>
+            <p>Fase de teste. Gostaria de testar? <span id="testSlotsAvailable" style="font-weight:bold; color:#111827; background:rgba(255,255,255,0.4); padding:2px 8px; border-radius:12px; font-size:0.9em; display:none;">Vagas: 0/10</span></p>
+            <div class="top-actions">
+                <a class="btn btn-whatsapp" id="waPromoBtn" target="_blank" rel="noopener noreferrer"
+                   href="https://wa.me/5551992036540?text=Ol%C3%A1%21%20Gostaria%20do%20c%C3%B3digo%20promocional%20para%20testar%20o%20sistema.">
+                    <i class="fab fa-whatsapp"></i> Pedir código no WhatsApp
+                </a>
+                <button class="btn btn-dark" id="logoutBtn" style="display:none;">
+                    <i class="fas fa-right-from-bracket"></i> Sair
+                </button>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="panel">
+                <h2><i class="fas fa-user-lock"></i> Acesso</h2>
+                <div class="hint">Use seu email e o código de teste que você recebeu no WhatsApp.</div>
+                <div class="tabs">
+                    <button class="tab active" data-tab="register"><i class="fas fa-user-plus"></i> Cadastrar</button>
+                    <button class="tab" data-tab="login"><i class="fas fa-right-to-bracket"></i> Entrar</button>
+                    <button class="tab" data-tab="admin"><i class="fas fa-shield-halved"></i> Admin</button>
+                </div>
+
+                <div id="authRegister">
+                    <div class="field">
+                        <label for="registerName">Nome</label>
+                        <input id="registerName" type="text" autocomplete="name" placeholder="Seu nome" />
+                    </div>
+                    <div class="field">
+                        <label for="registerEmail">Email</label>
+                        <input id="registerEmail" type="email" autocomplete="email" placeholder="seuemail@gmail.com" />
+                    </div>
+                    <div class="field">
+                        <label for="registerPromo">Código promocional</label>
+                        <input id="registerPromo" type="text" autocomplete="one-time-code" placeholder="ex: xxxxx" />
+                    </div>
+                    <button id="registerBtn" class="btn btn-dark" style="width:100%; justify-content:center;">
+                        <i class="fas fa-user-plus"></i> Cadastrar
+                    </button>
+                    <div class="muted" style="margin-top:10px;">Ao cadastrar, você terá 1 conexão por usuário.</div>
+                </div>
+
+                <div id="authLogin" style="display:none;">
+                    <div class="field">
+                        <label for="loginEmail">Email</label>
+                        <input id="loginEmail" type="email" autocomplete="email" placeholder="seuemail@gmail.com" />
+                    </div>
+                    <div class="field">
+                        <label for="loginPromo">Código de teste</label>
+                        <input id="loginPromo" type="text" autocomplete="one-time-code" placeholder="ex: xxxxx" />
+                    </div>
+                    <button id="loginBtn" class="btn btn-dark" style="width:100%; justify-content:center;">
+                        <i class="fas fa-right-to-bracket"></i> Entrar
+                    </button>
+                </div>
+
+                <div id="authAdmin" style="display:none;">
+                    <div class="field">
+                        <label for="adminEmail">Email</label>
+                        <input id="adminEmail" type="email" autocomplete="username" placeholder="( digite seu email )" />
+                    </div>
+                    <div class="field">
+                        <label for="adminPassword">Senha</label>
+                        <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" />
+                    </div>
+                    <button id="adminLoginBtn" class="btn btn-dark" style="width:100%; justify-content:center;">
+                        <i class="fas fa-shield-halved"></i> Entrar como admin
+                    </button>
+                </div>
+
+                <div id="authSuccess" class="success"></div>
+                <div id="authError" class="error"></div>
+
+                <div id="userConnectPanel" style="display:none; margin-top:18px;">
+                    <h2 style="margin-top:10px;"><i class="fas fa-link"></i> Conectar WhatsApp</h2>
+                    <div class="hint">Você pode conectar apenas 1 aparelho. Se já estiver conectado, é só abrir o painel.</div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+                        <button id="createSessionBtn" class="btn btn-whatsapp">
+                            <i class="fas fa-qrcode"></i> Gerar QR Code
+                        </button>
+                        <a id="openCrmBtn" class="btn" style="text-decoration:none; display:none;" href="/crm.html">
+                            <i class="fas fa-columns"></i> Abrir dashboard
+                        </a>
+                    </div>
+
+                    <div id="qrContainer" style="display: none;">
+                        <h3 style="margin-top:18px;">Escaneie o QR Code</h3>
+                        <p class="muted" style="margin-top:6px;">WhatsApp → Dispositivos conectados → Conectar um dispositivo</p>
+                        <img id="qrCode" src="" alt="QR Code">
+                        <div class="current-session">
+                            <h4>Sessão:</h4>
+                            <div id="sessionInfo" class="session-details">
+                                Aguardando leitura do QR Code...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel" id="connectionPanel" style="display:none;">
+                <h2 id="rightTitle"><i class="fas fa-plug"></i> Sua Conexão</h2>
+                <p id="rightHint">Acompanhe o status do seu WhatsApp. Seus dados não se misturam com outros usuários.</p>
+                
+                <div id="sessionsContainer" class="sessions-list">
+                    <div class="no-session">
+                        <i class="fas fa-plug" style="font-size: 3rem; color: #ddd; margin-bottom: 20px;"></i>
+                        <p>Faça login para ver sua conexão</p>
+                    </div>
+                </div>
+                
+                <button id="refreshSessionsBtn" class="btn btn-secondary" style="margin-top: 20px;">
+                    <i class="fas fa-sync-alt"></i> Atualizar Lista
+                </button>
+
+                <div id="adminPanel" style="display:none;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px;">
+                        <div class="hint" style="margin:0;">Usuários que cadastraram e conectaram o WhatsApp</div>
+                        <button id="refreshAdminBtn" class="btn btn-secondary" style="padding: 8px 12px;">
+                            <i class="fas fa-rotate"></i>
+                        </button>
+                    </div>
+                    <div style="overflow:auto; margin-top:14px;">
+                        <table class="admin-table" style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="text-align:left; color:#0f172a;">
+                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Usuário</th>
+                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Email</th>
+                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Status</th>
+                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Proxy</th>
+                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Número</th>
+                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Último QR</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUsersTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="config.js"></script>
+    <script>
+        document.write('<script src="' + window.ZAPMRO_CONFIG.socketIoScriptUrl + '"><\/script>');
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>

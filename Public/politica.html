@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Política de Privacidade | ZapmroCloud</title>
+    <meta name="description" content="Política de Privacidade do ZapmroCloud (Zapmro)." />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #0b1220;
+        --card: rgba(255, 255, 255, 0.08);
+        --text: #e5e7eb;
+        --muted: rgba(229, 231, 235, 0.75);
+        --border: rgba(148, 163, 184, 0.18);
+        --accent: #22c55e;
+        --link: #60a5fa;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+        background: radial-gradient(1200px 600px at 20% -10%, rgba(34, 197, 94, 0.22), transparent 60%),
+          radial-gradient(900px 500px at 90% 10%, rgba(96, 165, 250, 0.18), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .topbar {
+        position: sticky;
+        top: 0;
+        backdrop-filter: blur(12px);
+        background: rgba(11, 18, 32, 0.72);
+        border-bottom: 1px solid var(--border);
+        z-index: 10;
+      }
+      .topbar-inner {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .brand img {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        object-fit: contain;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--border);
+      }
+      .brand-title {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .brand-title strong {
+        font-size: 14px;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .brand-title span {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .nav {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .nav a {
+        font-size: 12px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .nav a.active {
+        border-color: rgba(34, 197, 94, 0.45);
+        background: rgba(34, 197, 94, 0.12);
+        color: #d1fae5;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 22px 18px 42px;
+      }
+      .hero {
+        padding: 18px 18px 14px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      }
+      .hero h1 {
+        margin: 0 0 8px;
+        font-size: 22px;
+        letter-spacing: -0.2px;
+      }
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .card {
+        margin-top: 16px;
+        padding: 18px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+      h2 {
+        margin: 18px 0 8px;
+        font-size: 16px;
+        letter-spacing: -0.1px;
+      }
+      p { margin: 10px 0; }
+      ul { margin: 10px 0 10px 18px; padding: 0; }
+      li { margin: 7px 0; color: var(--text); }
+      .muted { color: var(--muted); }
+      .kvs {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .kv {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 12px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .kv b { display: block; font-size: 12px; color: rgba(229,231,235,0.9); margin-bottom: 4px; }
+      .kv span { display: block; font-size: 12px; color: var(--muted); }
+      footer {
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      @media (min-width: 780px) {
+        .kvs { grid-template-columns: 1fr 1fr; }
+        .hero h1 { font-size: 26px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <img src="/LOGOICON.png" alt="Zapmro" />
+          <div class="brand-title">
+            <strong>ZapmroCloud</strong>
+            <span>Política de Privacidade</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <a class="active" href="/politica">Privacidade</a>
+          <a href="/termosdoservico">Termos</a>
+          <a href="/">Início</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="hero">
+        <h1>Política de Privacidade</h1>
+        <p>Última atualização: 30/12/2025</p>
+      </section>
+
+      <section class="card">
+        <p>
+          Esta Política de Privacidade descreve como o ZapmroCloud (Zapmro) coleta, usa, armazena e compartilha dados pessoais quando você utiliza
+          <a href="https://app.zapmro.com.br/">app.zapmro.com.br</a>.
+        </p>
+
+        <div class="kvs">
+          <div class="kv">
+            <b>Controlador</b>
+            <span>Gabriel Fernandes da Silva</span>
+          </div>
+          <div class="kv">
+            <b>CNPJ</b>
+            <span>54.840.738/0001-96</span>
+          </div>
+        </div>
+
+        <h2>1) Quais dados coletamos</h2>
+        <ul>
+          <li><b>Dados de cadastro</b>: nome, e-mail e informações necessárias para autenticação no serviço.</li>
+          <li><b>Dados de sessão do WhatsApp</b>: identificadores de sessão, nome exibido no WhatsApp, número do WhatsApp e status de conexão.</li>
+          <li><b>Dados de conversas (metadados)</b>: lista de conversas, nome/identificador do contato, contagem de não lidas, data/hora, e prévia da última mensagem (quando disponível).</li>
+          <li><b>Mensagens e mídias</b>: quando você abre uma conversa, podemos carregar o histórico e, quando aplicável, mídias para exibição/uso no app.</li>
+          <li><b>Contatos</b>: se você autorizar, podemos importar seus contatos associados à sua conta Google para facilitar a criação/organização de contatos no ZapmroCloud.</li>
+          <li><b>Dados técnicos</b>: registros de operação e segurança (por exemplo, logs de erro e eventos de conexão), necessários para manter o serviço estável.</li>
+        </ul>
+
+        <h2>2) Como usamos os dados</h2>
+        <ul>
+          <li>Fornecer, operar e melhorar o ZapmroCloud, incluindo sincronização e exibição das conversas.</li>
+          <li>Autenticar você e prevenir fraudes e acessos não autorizados.</li>
+          <li>Permitir importação e gestão de contatos, quando você autoriza o acesso.</li>
+          <li>Suporte, diagnóstico de falhas, auditoria e segurança do serviço.</li>
+        </ul>
+
+        <h2>3) Login com Google e acesso a contatos</h2>
+        <p>
+          Caso você escolha entrar com sua conta Google, usaremos a autenticação do Google para identificar você. Mediante sua autorização explícita,
+          o ZapmroCloud pode acessar seus contatos do Google para importação e exibição dentro do app, para você utilizar o ZapmroCloud com seus contatos já salvos.
+        </p>
+        <p class="muted">
+          Você pode revogar permissões a qualquer momento nas configurações da sua Conta Google. Se revogar, o app deixa de conseguir acessar/atualizar os contatos via Google.
+        </p>
+
+        <h2>4) Compartilhamento de dados</h2>
+        <p>Não vendemos seus dados pessoais. Podemos compartilhar dados apenas quando necessário:</p>
+        <ul>
+          <li><b>Com provedores de infraestrutura</b> para hospedagem, armazenamento e operação do serviço.</li>
+          <li><b>Com serviços integrados</b> que você utiliza (ex.: Google para login/contatos e WhatsApp para conexão).</li>
+          <li><b>Por obrigação legal</b>, ordem judicial ou solicitação válida de autoridade competente.</li>
+        </ul>
+
+        <h2>5) Armazenamento, segurança e retenção</h2>
+        <ul>
+          <li>Aplicamos medidas razoáveis de segurança para proteger os dados contra acesso não autorizado, perda e alteração.</li>
+          <li>Os dados são mantidos pelo tempo necessário para prestar o serviço, cumprir obrigações legais e resolver disputas.</li>
+          <li>Você pode solicitar exclusão/retificação, conforme descrito abaixo.</li>
+        </ul>
+
+        <h2>6) Seus direitos (LGPD)</h2>
+        <p>Você pode solicitar: confirmação de tratamento, acesso, correção, anonimização, portabilidade, eliminação e informação sobre compartilhamento.</p>
+
+        <h2>7) Crianças e adolescentes</h2>
+        <p>O ZapmroCloud não é direcionado a menores de 18 anos. Se você acredita que dados de menores foram fornecidos, entre em contato para tratarmos a solicitação.</p>
+
+        <h2>8) Alterações nesta política</h2>
+        <p>Podemos atualizar esta Política periodicamente. A versão vigente estará sempre disponível nesta página.</p>
+
+        <h2>9) Como falar conosco</h2>
+        <p>
+          Para solicitações de privacidade, acesse <a href="https://app.zapmro.com.br/">app.zapmro.com.br</a> e utilize o canal de suporte disponível no aplicativo.
+        </p>
+
+        <footer>
+          <span>© 2025 ZapmroCloud</span>
+          <span><a href="/termosdoservico">Termos de Serviço</a></span>
+        </footer>
+      </section>
+    </main>
+  </body>
+</html>
+
