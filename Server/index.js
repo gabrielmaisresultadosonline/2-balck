@@ -95,6 +95,7 @@ const AI_CHAT_STATUS_FILE = path.join(__dirname, '../data/ai_chat_status.json');
 const AI_TRANSCRIPTS_FILE = path.join(__dirname, '../data/ai_transcripts.json');
 const WINBACK_CAMPAIGNS_FILE = path.join(__dirname, '../data/winback_campaigns.json');
 const WINBACK_STATS_FILE = path.join(__dirname, '../data/winback_stats.json');
+const LID_PHONE_MAP_FILE = path.join(__dirname, '../data/lid_phone_map.json');
 
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
@@ -558,6 +559,33 @@ function normalizeEvolutionPhone(value) {
     return evolutionDigits(raw);
 }
 
+function loadLidPhoneMap() {
+    const data = loadData(LID_PHONE_MAP_FILE);
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+}
+
+function saveLidPhoneMap(data) {
+    saveData(LID_PHONE_MAP_FILE, data && typeof data === 'object' && !Array.isArray(data) ? data : {});
+}
+
+function getStoredPhoneForLid(chatId) {
+    const lid = normalizeEvolutionChatId(chatId);
+    if (!/@lid$/i.test(lid)) return '';
+    const stored = loadLidPhoneMap()[lid];
+    const digits = normalizeEvolutionPhone(stored || '');
+    return digits && digits.length >= 10 && digits.length <= 15 ? digits : '';
+}
+
+function rememberLidPhone(chatId, phoneNumber) {
+    const lid = normalizeEvolutionChatId(chatId);
+    const digits = normalizeEvolutionPhone(phoneNumber);
+    if (!/@lid$/i.test(lid) || !digits || digits.length < 10 || digits.length > 15) return;
+    const current = loadLidPhoneMap();
+    if (current[lid] === digits) return;
+    current[lid] = digits;
+    saveLidPhoneMap(current);
+}
+
 function toEvolutionApiTarget(value) {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -772,10 +800,12 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
         displayPhone !== remoteDigits &&
         /@(c\.us|s\.whatsapp\.net)$/i.test(rawRemoteJid)
     );
-    const normalizedPhone = explicitPhone || (rawRemoteJid.endsWith('@lid') ? displayPhone : '') || (shouldPreferDisplayPhone ? displayPhone : '') || remoteDigits;
+    const storedPhone = getStoredPhoneForLid(rawRemoteJid);
+    const normalizedPhone = explicitPhone || storedPhone || (rawRemoteJid.endsWith('@lid') ? displayPhone : '') || (shouldPreferDisplayPhone ? displayPhone : '') || remoteDigits;
     const remoteJid = (rawRemoteJid.endsWith('@lid') || shouldPreferDisplayPhone) && normalizedPhone
         ? `${normalizedPhone}@c.us`
         : rawRemoteJid;
+    if (rawRemoteJid.endsWith('@lid') && normalizedPhone) rememberLidPhone(rawRemoteJid, normalizedPhone);
     const shouldDebugSuspiciousChat = !!(
         rawRemoteJid &&
         (/@lid$/i.test(rawRemoteJid) || (/@c\.us$/i.test(rawRemoteJid) && remoteDigits && remoteDigits.length > 13)) &&
@@ -1397,6 +1427,9 @@ async function processEvolutionWebhookEvent(body) {
                 lastMessage: messagePayload.body || existingChat.lastMessage || '',
                 profilePic: existingChat.profilePic || null
             };
+            if (messagePayload.chatId.endsWith('@lid') && nextChat.phoneNumber) {
+                rememberLidPhone(messagePayload.chatId, nextChat.phoneNumber);
+            }
             cacheById.set(String(nextChat.id), nextChat);
 
             if (!messagePayload.fromMe) {
@@ -1550,6 +1583,8 @@ function getCachedChatByAnyId(sessionId, chatId) {
 function findStoredPhoneForLid(chatId) {
     const normalizedLid = normalizeEvolutionChatId(chatId);
     if (!/@lid$/i.test(normalizedLid)) return '';
+    const directStored = getStoredPhoneForLid(normalizedLid);
+    if (directStored) return directStored;
 
     const isValidDigits = (value) => {
         const digits = normalizeEvolutionPhone(value);
@@ -1567,7 +1602,10 @@ function findStoredPhoneForLid(chatId) {
                 const list = Array.isArray(rows) ? rows : [];
                 const match = list.find(item => item && String(item.id || '').trim() === normalizedLid);
                 const digits = isValidDigits(match?.phoneNumber || match?.name || '');
-                if (digits) return digits;
+                if (digits) {
+                    rememberLidPhone(normalizedLid, digits);
+                    return digits;
+                }
             } catch (e) {}
         }
     } catch (e) {}
@@ -1590,7 +1628,10 @@ function findStoredPhoneForLid(chatId) {
                         const raw = fs.readFileSync(fullPath, 'utf8');
                         if (!raw.includes(normalizedLid)) continue;
                         const digits = isValidDigits(fileName.replace(/\.json$/i, ''));
-                        if (digits) return digits;
+                        if (digits) {
+                            rememberLidPhone(normalizedLid, digits);
+                            return digits;
+                        }
                     } catch (e) {}
                 }
             }
@@ -1609,7 +1650,10 @@ function findStoredPhoneForLid(chatId) {
                     if (!raw.includes(normalizedLid)) continue;
                     const parsed = JSON.parse(raw);
                     const digits = isValidDigits(parsed?.chatId || '');
-                    if (digits) return digits;
+                    if (digits) {
+                        rememberLidPhone(normalizedLid, digits);
+                        return digits;
+                    }
                 } catch (e) {}
             }
         }
@@ -1630,6 +1674,7 @@ async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', ca
         : '';
     if (!output.phoneNumber && archivePhone) output.phoneNumber = archivePhone;
     if (!output.phoneNumber) output.phoneNumber = findStoredPhoneForLid(chatId);
+    if (output.phoneNumber) rememberLidPhone(chatId, output.phoneNumber);
 
     if (!USE_EVOLUTION || !evolutionApi) return output;
     if (output.phoneNumber && output.name && !/^[0-9@._+\-\s]+$/.test(output.name)) return output;
