@@ -276,6 +276,25 @@ function getProxyForSession(waSessionId) {
     return proxy.name || `${proxy.host}:${proxy.port}`;
 }
 
+function getProxyConfigForSession(waSessionId) {
+    const sid = normalizeText(waSessionId);
+    if (!sid) return null;
+    const data = loadData();
+    const proxyId = normalizeText(data.sessionAssignments[sid]);
+    if (!proxyId) return null;
+    const proxy = data.proxys.find(item => item && item.id === proxyId);
+    return buildProxyConfig(proxy);
+}
+
+function getProxyRecordForSession(waSessionId) {
+    const sid = normalizeText(waSessionId);
+    if (!sid) return null;
+    const data = loadData();
+    const proxyId = normalizeText(data.sessionAssignments[sid]);
+    if (!proxyId) return null;
+    return data.proxys.find(item => item && item.id === proxyId) || null;
+}
+
 function getAdminState() {
     return loadData();
 }
@@ -292,6 +311,8 @@ module.exports = {
     reassignProxy,
     getStats,
     getProxyForSession,
+    getProxyConfigForSession,
+    getProxyRecordForSession,
     getAdminState,
     saveAdminState
 };

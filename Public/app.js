@@ -810,9 +810,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!adminRealIpEl) return;
         if (__adminRealIpCache) { adminRealIpEl.textContent = __adminRealIpCache; return; }
         try {
-            const res = await fetch('https://api.ipify.org?format=json', { cache: 'no-store' });
-            const j = await res.json();
-            __adminRealIpCache = j && j.ip ? j.ip : 'indisponível';
+            const res = await authFetch('/api/network-info');
+            const j = await res.json().catch(() => ({}));
+            __adminRealIpCache = j && j.realIp ? j.realIp : 'indisponível';
         } catch (_) {
             __adminRealIpCache = 'indisponível';
         }
@@ -888,6 +888,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const numberDisplay = u.whatsappNumber ? escapeHtml(u.whatsappNumber) : '—';
         const proxyDisplay = u.proxy ? escapeHtml(u.proxy) : '—';
         const ipDisplay = u.ip || u.lastIp ? escapeHtml(u.ip || u.lastIp) : '—';
+        const realIpDisplay = u.realIp ? escapeHtml(u.realIp) : '—';
+        const proxyIpDisplay = u.proxyIp ? escapeHtml(u.proxyIp) : '—';
         const conversations = Number(u.totalConversations || u.conversations || 0) || 0;
         const contacts = Number(u.totalContacts || u.contacts || 0) || 0;
 
@@ -914,7 +916,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="admin-mini">
                     <div class="admin-mini__label"><i class="fas fa-globe"></i> IP</div>
-                    <div class="admin-mini__value" title="${ipDisplay}">${ipDisplay}</div>
+                    <div class="admin-mini__value" title="Atual: ${ipDisplay} | VPS: ${realIpDisplay} | Proxy: ${proxyIpDisplay}">${ipDisplay}</div>
+                </div>
+                <div class="admin-mini">
+                    <div class="admin-mini__label"><i class="fas fa-location-crosshairs"></i> IP VPS</div>
+                    <div class="admin-mini__value" title="${realIpDisplay}">${realIpDisplay}</div>
+                </div>
+                <div class="admin-mini">
+                    <div class="admin-mini__label"><i class="fas fa-shield-halved"></i> IP Proxy</div>
+                    <div class="admin-mini__value" title="${proxyIpDisplay}">${proxyIpDisplay}</div>
                 </div>
                 <div class="admin-mini">
                     <div class="admin-mini__label"><i class="fas fa-clock"></i> Último acesso</div>
@@ -1233,6 +1243,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 sessionCard.classList.add('unified-card');
                 const email = (localStorage.getItem('userEmail') || '').trim();
                 const displayName = email ? (email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1)) : 'Usuário';
+                const currentIp = escapeHtml(session.currentConnectionIp || session.realIp || '—');
+                const realIp = escapeHtml(session.realIp || '—');
+                const proxyIp = escapeHtml(session.proxyConnectionIp || '—');
+                const proxyLabel = escapeHtml(session.proxyName || (session.proxyHost ? `${session.proxyHost}${session.proxyPort ? ':' + session.proxyPort : ''}` : 'Sem proxy'));
                 sessionCard.innerHTML = `
                     <div class="uc-user">
                         <div class="uc-user__top">
@@ -1261,9 +1275,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="uc-conn__head">
                             <div class="uc-conn__icon"><i class="fab fa-whatsapp"></i></div>
                             <div class="uc-conn__title">${session.name || 'WhatsApp'}</div>
+                            <div style="margin-left:auto; text-align:right;">
+                                <div style="font-size:0.67rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:800;">IP Proxy</div>
+                                <div style="font-size:0.82rem; font-weight:800; color:#0f766e;">${proxyIp}</div>
+                            </div>
                         </div>
                         <div class="uc-conn__meta"><span>Número:</span> ${formatSessionPhone(session.phoneNumber) || 'Não conectado'}</div>
                         <div class="uc-conn__meta"><span>ID:</span> ${session.sessionId}</div>
+                        <div class="uc-conn__meta"><span>Seu IP atual da conexão:</span> <b>${currentIp}</b></div>
+                        <div class="uc-conn__meta"><span>IP real da VPS:</span> ${realIp}</div>
+                        <div class="uc-conn__meta"><span>Proxy em uso:</span> ${proxyLabel}</div>
                         <span class="uc-badge">CONECTADO</span>
                         <button type="button" class="uc-refresh" onclick="if(window.refreshSessionsBtn)window.refreshSessionsBtn.click();document.getElementById('refreshSessionsBtn')&&document.getElementById('refreshSessionsBtn').click();">
                             <i class="fas fa-sync-alt"></i> Atualizar conexão

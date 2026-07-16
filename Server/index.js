@@ -40,6 +40,87 @@ const evolutionApi = USE_EVOLUTION
         integration: String(process.env.EVOLUTION_INTEGRATION || 'WHATSAPP-BAILEYS').trim() || 'WHATSAPP-BAILEYS'
     })
     : null;
+const publicIpCache = new Map();
+const PUBLIC_IP_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function normalizePublicIp(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return raw.replace(/^::ffff:/i, '');
+}
+
+function getRemoteRequestIp(req) {
+    if (!req) return '';
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    return normalizePublicIp(forwarded || req.ip || (req.socket && req.socket.remoteAddress) || '');
+}
+
+async function fetchOutboundPublicIp(proxyConfig = null) {
+    const key = proxyConfig && proxyConfig.id ? `proxy:${proxyConfig.id}` : 'direct';
+    const now = Date.now();
+    const cached = publicIpCache.get(key);
+    if (cached && (now - cached.at) < PUBLIC_IP_CACHE_TTL_MS) {
+        return cached.value;
+    }
+
+    try {
+        const requestConfig = {
+            timeout: 8000,
+            headers: { 'User-Agent': 'zapmro-ip-check/1.0' }
+        };
+        if (proxyConfig && proxyConfig.host && proxyConfig.port) {
+            const protocol = String(proxyConfig.protocol || 'http').toLowerCase();
+            if (protocol === 'socks4' || protocol === 'socks5') {
+                publicIpCache.set(key, { at: now, value: '' });
+                return '';
+            }
+            requestConfig.proxy = {
+                protocol,
+                host: proxyConfig.host,
+                port: Number(proxyConfig.port),
+                auth: proxyConfig.username
+                    ? { username: proxyConfig.username, password: proxyConfig.password || '' }
+                    : undefined
+            };
+        }
+        const response = await axios.get('https://api.ipify.org?format=json', requestConfig);
+        const ip = normalizePublicIp(response && response.data && response.data.ip);
+        publicIpCache.set(key, { at: now, value: ip });
+        return ip;
+    } catch (e) {
+        publicIpCache.set(key, { at: now, value: '' });
+        return '';
+    }
+}
+
+async function buildSessionNetworkInfo(sessionId) {
+    const sid = String(sessionId || '').trim();
+    const serverRealIp = await fetchOutboundPublicIp(null);
+    if (!sid || sid === ADMIN_SELF_SESSION_ID) {
+        return {
+            serverRealIp,
+            currentConnectionIp: serverRealIp,
+            proxyConnectionIp: '',
+            proxyHost: '',
+            proxyPort: '',
+            proxyName: '',
+            usingProxy: false
+        };
+    }
+
+    const proxyConfig = proxyManager.getProxyConfigForSession(sid);
+    const proxyRecord = proxyManager.getProxyRecordForSession(sid);
+    const proxyConnectionIp = proxyConfig ? await fetchOutboundPublicIp(proxyConfig) : '';
+    return {
+        serverRealIp,
+        currentConnectionIp: proxyConnectionIp || serverRealIp,
+        proxyConnectionIp,
+        proxyHost: proxyRecord && proxyRecord.host ? String(proxyRecord.host) : '',
+        proxyPort: proxyRecord && proxyRecord.port ? String(proxyRecord.port) : '',
+        proxyName: proxyRecord && proxyRecord.name ? String(proxyRecord.name) : '',
+        usingProxy: !!proxyConfig
+    };
+}
 
 function shouldIgnoreFatalError(err) {
     const msg = err && (err.stack || err.message || String(err));
@@ -3048,17 +3129,18 @@ app.get('/api/me', requireUser, (req, res) => {
     res.json({ success: true, user: { name: u.name, email: u.email, sessionId: u.sessionId || null, whatsappNumber: u.whatsappNumber || null } });
 });
 
-app.get('/api/admin/users', requireAdmin, (req, res) => {
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
         const store = loadUsersStore();
         const users = Array.isArray(store.users) ? store.users : [];
         const sessions = loadSessionsData();
-        const out = users.map(u => {
+        const out = await Promise.all(users.map(async (u) => {
             const sid = u.sessionId || null;
             const live = sid ? activeClients.get(sid) : null;
             const saved = sid ? sessions[sid] : null;
             const status = live ? live.status : (saved ? 'authenticated' : 'none');
             const proxy = sid ? proxyManager.getProxyForSession(sid) : null;
+            const netInfo = sid ? await buildSessionNetworkInfo(sid) : await buildSessionNetworkInfo('');
             const history = Array.isArray(u.history) ? u.history.slice().sort((a, b) => Number(b.at || 0) - Number(a.at || 0)) : [];
             const lastDisconnect = history.find(h => h && (h.type === 'disconnect' || h.type === 'deleted' || h.type === 'auth_failed')) || null;
             return {
@@ -3075,12 +3157,31 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
                 disconnectedAt: u.disconnectedAt || (lastDisconnect && lastDisconnect.at) || null,
                 lastDisconnectedAt: u.lastDisconnectedAt || (lastDisconnect && lastDisconnect.at) || null,
                 lastQrAt: u.lastQrAt || null,
+                ip: netInfo.currentConnectionIp || null,
+                realIp: netInfo.serverRealIp || null,
+                proxyIp: netInfo.proxyConnectionIp || null,
+                proxyHost: netInfo.proxyHost || null,
+                proxyPort: netInfo.proxyPort || null,
+                usingProxy: !!netInfo.usingProxy,
                 history
             };
-        });
+        }));
         res.json({ success: true, users: out });
     } catch (e) {
         res.status(500).json({ success: false, error: 'erro interno' });
+    }
+});
+
+app.get('/api/network-info', async (req, res) => {
+    try {
+        const realIp = await fetchOutboundPublicIp(null);
+        res.json({
+            success: true,
+            realIp: realIp || null,
+            requestIp: getRemoteRequestIp(req) || null
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'erro ao consultar ip' });
     }
 });
 
@@ -5339,7 +5440,7 @@ app.get('/api/admin/self-session-status', requireAdmin, (req, res) => {
 });
 
 // Rota para listar sessões ativas
-app.get('/api/active-sessions', requireUser, (req, res) => {
+app.get('/api/active-sessions', requireUser, async (req, res) => {
     const sessions = [];
     const passwords = loadSessionPasswords();
     const sid = req.user && req.user.sessionId ? String(req.user.sessionId) : '';
@@ -5348,6 +5449,7 @@ app.get('/api/active-sessions', requireUser, (req, res) => {
         return;
     }
 
+    const netInfo = await buildSessionNetworkInfo(sid);
     const data = activeClients.get(sid);
     if (data) {
         let status = data.status;
@@ -5360,7 +5462,14 @@ app.get('/api/active-sessions', requireUser, (req, res) => {
             phoneNumber: fallbackPhone,
             name: fallbackName,
             connectedAt: data.connectedAt || req.user.connectedAt || null,
-            hasPassword: !!passwords[sid]
+            hasPassword: !!passwords[sid],
+            realIp: netInfo.serverRealIp || null,
+            currentConnectionIp: netInfo.currentConnectionIp || null,
+            proxyConnectionIp: netInfo.proxyConnectionIp || null,
+            proxyName: netInfo.proxyName || null,
+            proxyHost: netInfo.proxyHost || null,
+            proxyPort: netInfo.proxyPort || null,
+            usingProxy: !!netInfo.usingProxy
         });
         res.json({ sessions });
         return;
@@ -5375,7 +5484,14 @@ app.get('/api/active-sessions', requireUser, (req, res) => {
             phoneNumber: saved.phoneNumber || null,
             name: saved.name || null,
             connectedAt: saved.createdAt || null,
-            hasPassword: !!passwords[sid]
+            hasPassword: !!passwords[sid],
+            realIp: netInfo.serverRealIp || null,
+            currentConnectionIp: netInfo.currentConnectionIp || null,
+            proxyConnectionIp: netInfo.proxyConnectionIp || null,
+            proxyName: netInfo.proxyName || null,
+            proxyHost: netInfo.proxyHost || null,
+            proxyPort: netInfo.proxyPort || null,
+            usingProxy: !!netInfo.usingProxy
         });
     }
 
