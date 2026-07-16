@@ -24,6 +24,12 @@ function toMessageTarget(value) {
     return digits || raw;
 }
 
+function compactObject(value) {
+    return Object.fromEntries(
+        Object.entries(value || {}).filter(([, item]) => item !== undefined && item !== null && item !== '')
+    );
+}
+
 class EvolutionApi {
     constructor({ baseUrl, apiKey, integration = 'WHATSAPP-BAILEYS' }) {
         this.baseUrl = trimSlash(baseUrl);
@@ -243,17 +249,38 @@ class EvolutionApi {
 
     async sendButtons(instanceName, numberOrJid, payload = {}, options = {}) {
         const data = payload && typeof payload === 'object' ? payload : {};
+        const buttons = Array.isArray(data.buttons)
+            ? data.buttons.map((button) => {
+                const type = String(button && button.type || 'reply').toLowerCase();
+                const base = compactObject({
+                    type,
+                    displayText: button && button.displayText ? String(button.displayText).trim() : ''
+                });
+                if (type === 'reply') return compactObject({ ...base, id: button && button.id ? String(button.id).trim() : '' });
+                if (type === 'url') return compactObject({ ...base, url: button && button.url ? String(button.url).trim() : '' });
+                if (type === 'call') return compactObject({ ...base, phoneNumber: button && button.phoneNumber ? String(button.phoneNumber).trim() : '' });
+                if (type === 'copy') return compactObject({ ...base, copyCode: button && button.copyCode ? String(button.copyCode).trim() : '' });
+                if (type === 'pix') return compactObject({
+                    ...base,
+                    currency: button && button.currency ? String(button.currency).trim() : '',
+                    name: button && button.name ? String(button.name).trim() : '',
+                    keyType: button && button.keyType ? String(button.keyType).trim() : '',
+                    key: button && button.key ? String(button.key).trim() : ''
+                });
+                return base;
+            }).filter((button) => button.displayText)
+            : [];
         return this.request('post', `/message/sendButtons/${encodeURIComponent(instanceName)}`, {
             data: {
                 number: toMessageTarget(numberOrJid),
-                title: data.title || data.text || '',
-                text: data.text || data.description || data.title || '',
-                description: data.description || data.text || '',
-                footer: data.footer || data.footerText || '',
-                footerText: data.footerText || data.footer || '',
-                image: data.image || data.imageUrl || undefined,
-                imageUrl: data.imageUrl || data.image || undefined,
-                buttons: Array.isArray(data.buttons) ? data.buttons : [],
+                ...compactObject({
+                    title: data.title || '',
+                    description: data.description || data.text || '',
+                    footer: data.footer || data.footerText || '',
+                    image: data.image || data.imageUrl || undefined,
+                    imageUrl: data.imageUrl || data.image || undefined
+                }),
+                buttons,
                 ...options
             }
         });
@@ -261,16 +288,28 @@ class EvolutionApi {
 
     async sendList(instanceName, numberOrJid, payload = {}, options = {}) {
         const data = payload && typeof payload === 'object' ? payload : {};
+        const sections = Array.isArray(data.sections)
+            ? data.sections.map((section) => compactObject({
+                title: section && section.title ? String(section.title).trim() : '',
+                rows: Array.isArray(section && section.rows)
+                    ? section.rows.map((row) => compactObject({
+                        title: row && row.title ? String(row.title).trim() : '',
+                        description: row && row.description ? String(row.description).trim() : '',
+                        rowId: row && row.rowId ? String(row.rowId).trim() : ''
+                    })).filter((row) => row.title && row.rowId)
+                    : []
+            })).filter((section) => Array.isArray(section.rows) && section.rows.length > 0)
+            : [];
         return this.request('post', `/message/sendList/${encodeURIComponent(instanceName)}`, {
             data: {
                 number: toMessageTarget(numberOrJid),
-                title: data.title || '',
-                description: data.description || data.text || '',
-                text: data.text || data.description || '',
-                buttonText: data.buttonText || 'Abrir menu',
-                footer: data.footer || data.footerText || '',
-                footerText: data.footerText || data.footer || '',
-                sections: Array.isArray(data.sections) ? data.sections : [],
+                ...compactObject({
+                    title: data.title || '',
+                    description: data.description || data.text || '',
+                    buttonText: data.buttonText || 'Abrir menu',
+                    footerText: data.footerText || data.footer || ''
+                }),
+                sections,
                 ...options
             }
         });
@@ -278,14 +317,35 @@ class EvolutionApi {
 
     async sendCarousel(instanceName, numberOrJid, payload = {}, options = {}) {
         const data = payload && typeof payload === 'object' ? payload : {};
+        const cards = Array.isArray(data.cards)
+            ? data.cards.map((card) => compactObject({
+                title: card && card.title ? String(card.title).trim() : '',
+                description: card && card.description ? String(card.description).trim() : '',
+                image: card && card.image ? String(card.image).trim() : undefined,
+                imageUrl: card && card.imageUrl ? String(card.imageUrl).trim() : undefined,
+                buttons: Array.isArray(card && card.buttons)
+                    ? card.buttons.map((button) => {
+                        const type = String(button && button.type || 'reply').toLowerCase();
+                        const base = compactObject({
+                            type,
+                            displayText: button && (button.displayText || button.text) ? String(button.displayText || button.text).trim() : ''
+                        });
+                        if (type === 'reply') return compactObject({ ...base, id: button && button.id ? String(button.id).trim() : '' });
+                        if (type === 'url') return compactObject({ ...base, url: button && button.url ? String(button.url).trim() : '' });
+                        if (type === 'call') return compactObject({ ...base, phoneNumber: button && button.phoneNumber ? String(button.phoneNumber).trim() : '' });
+                        return base;
+                    }).filter((button) => button.displayText)
+                    : []
+            })).filter((card) => card.title || card.description || card.image || card.imageUrl)
+            : [];
         return this.request('post', `/message/sendCarousel/${encodeURIComponent(instanceName)}`, {
             data: {
                 number: toMessageTarget(numberOrJid),
-                text: data.text || data.description || '',
-                description: data.description || data.text || '',
-                footer: data.footer || data.footerText || '',
-                footerText: data.footerText || data.footer || '',
-                cards: Array.isArray(data.cards) ? data.cards : [],
+                ...compactObject({
+                    description: data.description || data.text || '',
+                    footerText: data.footerText || data.footer || ''
+                }),
+                cards,
                 ...options
             }
         });

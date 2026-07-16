@@ -3961,29 +3961,44 @@ function ensureFlowSupportsInteractiveSend(client, stepType) {
 function buildFlowButtonsPayload(step) {
     const buttons = (Array.isArray(step.buttons) ? step.buttons : []).map((button, index) => {
         const normalized = normalizeFlowButtonConfig(button, index, 'button');
+        if (normalized.type === 'reply') {
+            return {
+                type: normalized.type,
+                id: normalized.id,
+                displayText: normalized.displayText
+            };
+        }
+        if (normalized.type === 'url') {
+            return {
+                type: normalized.type,
+                displayText: normalized.displayText,
+                url: normalized.url || undefined
+            };
+        }
+        if (normalized.type === 'call') {
+            return {
+                type: normalized.type,
+                displayText: normalized.displayText,
+                phoneNumber: normalized.phoneNumber || undefined
+            };
+        }
+        if (normalized.type === 'copy') {
+            return {
+                type: normalized.type,
+                displayText: normalized.displayText,
+                copyCode: normalized.copyCode || undefined
+            };
+        }
         return {
             type: normalized.type,
-            id: normalized.id,
-            buttonId: normalized.id,
-            displayText: normalized.displayText,
-            buttonText: { displayText: normalized.displayText },
-            url: normalized.url || undefined,
-            phoneNumber: normalized.phoneNumber || undefined,
-            phone_number: normalized.phoneNumber || undefined,
-            copyCode: normalized.copyCode || undefined,
-            copy_code: normalized.copyCode || undefined,
-            pixKey: normalized.pixKey || undefined,
-            pix_key: normalized.pixKey || undefined
+            displayText: normalized.displayText
         };
     });
     return {
         title: String(step.title || '').trim(),
-        text: String(step.text || step.bodyText || step.content || '').trim(),
         description: String(step.text || step.bodyText || step.content || '').trim(),
-        footerText: String(step.footerText || '').trim(),
         footer: String(step.footerText || '').trim(),
         imageUrl: toPublicAssetUrl(step.imageUrl) || undefined,
-        image: toPublicAssetUrl(step.imageUrl) || undefined,
         buttons
     };
 }
@@ -3996,18 +4011,15 @@ function buildFlowListPayload(step) {
             rows: normalized.rows.map(row => ({
                 title: row.title,
                 description: row.description || undefined,
-                rowId: row.rowId,
-                id: row.rowId
+                rowId: row.rowId
             }))
         };
     });
     return {
         title: String(step.title || '').trim(),
         description: String(step.description || step.text || step.content || '').trim(),
-        text: String(step.description || step.text || step.content || '').trim(),
         buttonText: String(step.buttonText || 'Abrir menu').trim() || 'Abrir menu',
         footerText: String(step.footerText || '').trim(),
-        footer: String(step.footerText || '').trim(),
         sections
     };
 }
@@ -4018,26 +4030,19 @@ function buildFlowCarouselPayload(step) {
         return {
             title: normalized.title,
             description: normalized.description || '',
-            image: toPublicAssetUrl(normalized.image || normalized.imageUrl) || undefined,
             imageUrl: toPublicAssetUrl(normalized.imageUrl || normalized.image) || undefined,
             buttons: normalized.buttons.map(button => ({
                 type: button.type,
-                id: button.id,
-                buttonId: button.id,
-                text: button.displayText,
                 displayText: button.displayText,
-                buttonText: { displayText: button.displayText },
+                id: button.type === 'reply' ? button.id : undefined,
                 url: button.url || undefined,
-                phoneNumber: button.phoneNumber || undefined,
-                phone_number: button.phoneNumber || undefined
+                phoneNumber: button.phoneNumber || undefined
             }))
         };
     });
     return {
-        text: String(step.description || step.text || step.content || '').trim(),
         description: String(step.description || step.text || step.content || '').trim(),
         footerText: String(step.footerText || '').trim(),
-        footer: String(step.footerText || '').trim(),
         cards
     };
 }
