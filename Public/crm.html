@@ -1610,9 +1610,207 @@
             transition: transform .18s ease, box-shadow .25s ease;
         }
         #winbackView .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 28px -12px rgba(37,99,235,0.6) !important; }
+
+        /* Grupos+ */
+        #groupsplusView { background: linear-gradient(180deg, #f8fafc 0%, #edf7f2 100%); }
+        .groups-plus-shell {
+            max-width: 1380px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 18px;
+        }
+        .groups-plus-sidebar,
+        .groups-plus-card {
+            background: rgba(255,255,255,0.94);
+            border: 1px solid rgba(15,23,42,0.08);
+            border-radius: 18px;
+            box-shadow: 0 16px 40px -28px rgba(15,23,42,0.28);
+            backdrop-filter: blur(8px);
+        }
+        .groups-plus-sidebar {
+            padding: 18px;
+            position: sticky;
+            top: 18px;
+            height: fit-content;
+        }
+        .groups-plus-main { min-width: 0; }
+        .groups-plus-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+        .groups-plus-card { padding: 18px; }
+        .groups-plus-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin: 14px 0 16px;
+        }
+        .groups-plus-stat {
+            padding: 12px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(6,78,59,0.08), rgba(16,185,129,0.12));
+            border: 1px solid rgba(16,185,129,0.15);
+        }
+        .groups-plus-stat strong {
+            display: block;
+            font-size: 1.35rem;
+            color: #065f46;
+        }
+        .groups-plus-stat span {
+            display: block;
+            font-size: 0.78rem;
+            color: #4b5563;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .groups-plus-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 70vh;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+        .groups-plus-group-item,
+        .groups-plus-post-item,
+        .groups-plus-activity-item {
+            border-radius: 16px;
+            border: 1px solid rgba(148,163,184,0.24);
+            background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+            transition: transform .18s ease, box-shadow .22s ease, border-color .18s ease;
+        }
+        .groups-plus-group-item {
+            padding: 12px;
+            cursor: pointer;
+        }
+        .groups-plus-group-item:hover,
+        .groups-plus-post-item:hover,
+        .groups-plus-activity-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px -22px rgba(15,23,42,0.45);
+        }
+        .groups-plus-group-item.active {
+            border-color: rgba(13,122,95,0.5);
+            box-shadow: 0 18px 34px -26px rgba(13,122,95,0.55);
+            background: linear-gradient(180deg, rgba(236,253,245,0.98), rgba(240,253,250,0.96));
+        }
+        .groups-plus-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.74rem;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+        .groups-plus-badge.green { background: #dcfce7; color: #166534; }
+        .groups-plus-badge.blue { background: #dbeafe; color: #1d4ed8; }
+        .groups-plus-badge.amber { background: #fef3c7; color: #92400e; }
+        .groups-plus-badge.red { background: #fee2e2; color: #b91c1c; }
+        .groups-plus-form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .groups-plus-form-grid .full { grid-column: 1 / -1; }
+        .groups-plus-field label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: #334155;
+        }
+        .groups-plus-field input,
+        .groups-plus-field select,
+        .groups-plus-field textarea {
+            width: 100%;
+            border: 1px solid #dbe3ee;
+            background: #fff;
+            border-radius: 12px;
+            padding: 11px 12px;
+            font: inherit;
+            color: #0f172a;
+            transition: border-color .18s ease, box-shadow .18s ease;
+        }
+        .groups-plus-field input:focus,
+        .groups-plus-field select:focus,
+        .groups-plus-field textarea:focus {
+            outline: none;
+            border-color: rgba(13,122,95,0.6);
+            box-shadow: 0 0 0 4px rgba(16,185,129,0.12);
+        }
+        .groups-plus-switches {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .groups-plus-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            font-size: 0.85rem;
+            color: #334155;
+            font-weight: 600;
+        }
+        .groups-plus-phone {
+            border-radius: 26px;
+            padding: 16px;
+            background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 22px 50px -30px rgba(15,23,42,0.8);
+        }
+        .groups-plus-phone-screen {
+            border-radius: 20px;
+            background: linear-gradient(180deg, #d1fae5 0%, #f0fdf4 100%);
+            padding: 14px;
+            min-height: 360px;
+        }
+        .groups-plus-preview-bubble {
+            margin-top: 14px;
+            background: #fff;
+            border-radius: 18px 18px 6px 18px;
+            padding: 12px;
+            box-shadow: 0 10px 22px -18px rgba(15,23,42,0.45);
+            border: 1px solid rgba(13,122,95,0.12);
+        }
+        .groups-plus-post-item,
+        .groups-plus-activity-item { padding: 14px; margin-bottom: 10px; }
+        .groups-plus-empty {
+            border-radius: 16px;
+            border: 1px dashed rgba(148,163,184,0.5);
+            color: #64748b;
+            text-align: center;
+            padding: 24px 18px;
+            background: rgba(255,255,255,0.7);
+        }
         @media (max-width: 720px) {
             #winbackView > div > div:first-child > div:nth-child(2) { grid-template-columns: 1fr !important; }
             #winbackView > div { padding: 12px !important; }
+        }
+        @media (max-width: 980px) {
+            .groups-plus-shell,
+            .groups-plus-grid {
+                grid-template-columns: 1fr;
+            }
+            .groups-plus-sidebar {
+                position: static;
+            }
+        }
+        @media (max-width: 680px) {
+            .groups-plus-stats,
+            .groups-plus-form-grid,
+            .groups-plus-switches {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -1639,6 +1837,7 @@
             <button class="nav-tab" data-tab="agenda" onclick="switchTab('agenda')">Agenda</button>
             <button class="nav-tab" data-tab="contacts" onclick="switchTab('contacts')">Contatos</button>
             <button class="nav-tab" data-tab="winback" onclick="switchTab('winback')">WinBack</button>
+            <button class="nav-tab" data-tab="groupsplus" onclick="switchTab('groupsplus')">Grupos+</button>
         </div>
 
         <div id="headerActions" style="display: flex; gap: 10px; align-items: center;">
@@ -2220,6 +2419,15 @@
         window.columns = [];
         window.allFlows = [];
         window.pendingOutgoingMessages = {};
+        window.groupsPlusState = {
+            groups: [],
+            posts: [],
+            security: {},
+            activity: [],
+            selectedGroupId: '',
+            draftImagePath: '',
+            draftImagePublicPath: ''
+        };
 
         // Navigation Logic
         window.switchTab = function(tabName) {
@@ -2231,7 +2439,7 @@
             });
 
             // Hide all views
-            const views = ['kanban', 'whatsapp', 'flows', 'ai', 'agenda', 'contacts', 'winback'];
+            const views = ['kanban', 'whatsapp', 'flows', 'ai', 'agenda', 'contacts', 'winback', 'groupsplus'];
             views.forEach(v => {
                 const el = document.getElementById(v + 'View');
                 if(el) el.style.display = 'none';
@@ -2259,6 +2467,9 @@
             // AGENDA INIT
             if (tabName === 'agenda') {
                 if (window.initAgenda) window.initAgenda();
+            }
+            if (tabName === 'groupsplus') {
+                if (window.initGroupsPlus) window.initGroupsPlus();
             }
         };
 
@@ -2948,6 +3159,7 @@
             window.socket.emit('get-flows', window.sessionId);
             window.socket.emit('get-ai-config', window.sessionId);
             window.socket.emit('get-winback-stats', window.sessionId);
+            window.socket.emit('get-groups-plus-data', window.sessionId);
             window.socket.emit('get-tags', window.sessionId); // Ensure tags are loaded too
             window.socket.emit('get-google-contacts', window.sessionId); // Request Google Contacts
         });
@@ -3023,6 +3235,7 @@
             window.socket.emit('get-tags', window.sessionId);
             window.socket.emit('get-flows', window.sessionId);
             window.socket.emit('get-ai-config', window.sessionId);
+            window.socket.emit('get-groups-plus-data', window.sessionId);
             if (window.currentWaChatId) {
                 requestWaChatHistory(window.currentWaChatId, {
                     fullHistory: window.currentWaHistoryMode === 'full'
@@ -3059,6 +3272,9 @@
             renderKanban(chats);
             renderChatList(chats);
             if(window.renderAppContacts) window.renderAppContacts();
+            if (window.socket && window.sessionId) {
+                window.socket.emit('get-groups-plus-data', window.sessionId);
+            }
             
             const statusDisplay = document.getElementById('system-stats-display');
             if(statusDisplay) {
@@ -7519,6 +7735,210 @@
         </div>
     </div>
 
+    <!-- Grupos+ View -->
+    <div id="groupsplusView" class="view-section" style="display:none; padding:20px; overflow-y:auto;">
+        <div class="groups-plus-shell">
+            <aside class="groups-plus-sidebar">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                    <div>
+                        <h2 style="margin:0; color:#0f172a; display:flex; align-items:center; gap:10px;">
+                            <i class="fas fa-users-gear" style="color:#0d7a5f;"></i> Grupos+
+                        </h2>
+                        <p style="margin:8px 0 0; color:#475569; font-size:0.92rem; line-height:1.5;">
+                            Automatize publicações e proteja seus grupos com moderação, whitelist e agenda recorrente.
+                        </p>
+                    </div>
+                    <span class="groups-plus-badge green" id="groupsPlusSelectedBadge">Sem grupo</span>
+                </div>
+
+                <div class="groups-plus-stats">
+                    <div class="groups-plus-stat">
+                        <span>Grupos</span>
+                        <strong id="groupsPlusGroupsCount">0</strong>
+                    </div>
+                    <div class="groups-plus-stat">
+                        <span>Posts ativos</span>
+                        <strong id="groupsPlusPostsCount">0</strong>
+                    </div>
+                    <div class="groups-plus-stat">
+                        <span>Protegidos</span>
+                        <strong id="groupsPlusProtectedCount">0</strong>
+                    </div>
+                </div>
+
+                <div class="groups-plus-field" style="margin-bottom:12px;">
+                    <label for="groupsPlusSearch">Buscar grupo</label>
+                    <input id="groupsPlusSearch" type="text" placeholder="Nome ou ID do grupo" oninput="filterGroupsPlusGroups()">
+                </div>
+
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:10px 12px; font-size:0.82rem;">
+                    <i class="fas fa-shield-halved"></i>
+                    A moderação real depende de você ser admin do grupo.
+                </div>
+
+                <div id="groupsPlusGroupList" class="groups-plus-list"></div>
+            </aside>
+
+            <main class="groups-plus-main">
+                <div class="groups-plus-grid">
+                    <section class="groups-plus-card">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px;">
+                            <div>
+                                <h3 style="margin:0; color:#0f172a;">Automação de Publicações</h3>
+                                <p style="margin:6px 0 0; color:#475569; font-size:0.9rem;">
+                                    Agende várias mensagens por grupo com texto, link e imagem, repetindo por dia ou por semana.
+                                </p>
+                            </div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                <button class="btn-secondary" type="button" onclick="resetGroupsPlusPostForm()">
+                                    <i class="fas fa-eraser"></i> Limpar
+                                </button>
+                                <button class="btn-primary" type="button" onclick="saveGroupsPlusPost()">
+                                    <i class="fas fa-floppy-disk"></i> Salvar publicação
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="hidden" id="groupsPlusPostId">
+                        <div class="groups-plus-form-grid">
+                            <div class="groups-plus-field full">
+                                <label>Grupo selecionado</label>
+                                <div id="groupsPlusGroupHeadline" style="padding:12px 14px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; font-weight:700;">
+                                    Selecione um grupo ao lado para começar.
+                                </div>
+                            </div>
+
+                            <div class="groups-plus-field">
+                                <label for="groupsPlusPostKind">Tipo da publicação</label>
+                                <select id="groupsPlusPostKind" onchange="toggleGroupsPlusKind(this.value); renderGroupsPlusPreview();">
+                                    <option value="text">Texto + link</option>
+                                    <option value="image">Texto + imagem</option>
+                                </select>
+                            </div>
+
+                            <div class="groups-plus-field">
+                                <label for="groupsPlusRepeat">Repetição</label>
+                                <select id="groupsPlusRepeat" onchange="renderGroupsPlusPreview()">
+                                    <option value="once">Uma vez</option>
+                                    <option value="daily">Todo dia</option>
+                                    <option value="weekly">Toda semana</option>
+                                </select>
+                            </div>
+
+                            <div class="groups-plus-field full">
+                                <label for="groupsPlusPostText">Texto da publicação</label>
+                                <textarea id="groupsPlusPostText" rows="5" placeholder="Digite o texto do post. Se quiser, inclua um link no mesmo conteúdo." oninput="renderGroupsPlusPreview()"></textarea>
+                            </div>
+
+                            <div class="groups-plus-field" id="groupsPlusImageField" style="display:none;">
+                                <label>Imagem da publicação</label>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button class="btn-secondary" type="button" onclick="openGroupsPlusImagePicker()">
+                                        <i class="fas fa-image"></i> Enviar imagem
+                                    </button>
+                                    <button class="btn-secondary" type="button" onclick="clearGroupsPlusImage()">
+                                        <i class="fas fa-trash"></i> Remover imagem
+                                    </button>
+                                </div>
+                                <input id="groupsPlusImageFile" type="file" accept="image/*" style="display:none;" onchange="handleGroupsPlusImageUpload(this)">
+                                <div id="groupsPlusImageStatus" style="margin-top:8px; font-size:0.82rem; color:#475569;">Nenhuma imagem selecionada.</div>
+                            </div>
+
+                            <div class="groups-plus-field">
+                                <label for="groupsPlusScheduleAt">Data e hora</label>
+                                <input id="groupsPlusScheduleAt" type="datetime-local" onchange="renderGroupsPlusPreview()">
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="groups-plus-card">
+                        <h3 style="margin:0 0 12px; color:#0f172a;">Preview</h3>
+                        <div class="groups-plus-phone">
+                            <div class="groups-plus-phone-screen">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <div style="width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#0d7a5f,#10b981); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800;">
+                                        GP
+                                    </div>
+                                    <div>
+                                        <div id="groupsPlusPreviewGroupName" style="font-weight:800; color:#0f172a;">Grupo</div>
+                                        <div id="groupsPlusPreviewSchedule" style="font-size:0.78rem; color:#64748b;">Sem agendamento</div>
+                                    </div>
+                                </div>
+
+                                <div class="groups-plus-preview-bubble">
+                                    <div id="groupsPlusPreviewImageWrap" style="display:none; margin-bottom:10px;"></div>
+                                    <div id="groupsPlusPreviewText" style="white-space:pre-wrap; color:#111827; font-size:0.92rem; line-height:1.5;">
+                                        Seu conteúdo aparecerá aqui.
+                                    </div>
+                                    <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+                                        <span id="groupsPlusPreviewRepeat" class="groups-plus-badge blue">Uma vez</span>
+                                        <span style="font-size:0.72rem; color:#6b7280;">Automação Grupos+</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="groups-plus-grid">
+                    <section class="groups-plus-card">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                            <div>
+                                <h3 style="margin:0; color:#0f172a;">Grupo Segurança</h3>
+                                <p style="margin:6px 0 0; color:#475569; font-size:0.9rem;">
+                                    Bloqueie link, imagem, vídeo, áudio e arquivo. Quem não estiver na whitelist recebe exclusão e reação de proibido.
+                                </p>
+                            </div>
+                            <button class="btn-primary" type="button" onclick="saveGroupsPlusSecurity()">
+                                <i class="fas fa-shield"></i> Salvar segurança
+                            </button>
+                        </div>
+
+                        <div class="groups-plus-field">
+                            <label for="groupsPlusSecurityEnabled">Status da proteção</label>
+                            <select id="groupsPlusSecurityEnabled" onchange="renderGroupsPlusSecuritySummary()">
+                                <option value="true">Ativada</option>
+                                <option value="false">Desativada</option>
+                            </select>
+                        </div>
+
+                        <div class="groups-plus-switches">
+                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockLinks" onchange="renderGroupsPlusSecuritySummary()"> Bloquear links</label>
+                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockImage" onchange="renderGroupsPlusSecuritySummary()"> Bloquear imagens</label>
+                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockVideo" onchange="renderGroupsPlusSecuritySummary()"> Bloquear vídeos</label>
+                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockAudio" onchange="renderGroupsPlusSecuritySummary()"> Bloquear áudios</label>
+                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockDocument" onchange="renderGroupsPlusSecuritySummary()"> Bloquear arquivos</label>
+                        </div>
+
+                        <div class="groups-plus-field" style="margin-top:14px;">
+                            <label for="groupsPlusWhitelist">Whitelist do grupo</label>
+                            <textarea id="groupsPlusWhitelist" rows="5" placeholder="Um número ou ID por linha. Ex: 5599999999999 ou 5599999999999@c.us" oninput="renderGroupsPlusSecuritySummary()"></textarea>
+                        </div>
+
+                        <div id="groupsPlusSecuritySummary" style="margin-top:12px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; color:#334155; font-size:0.86rem;"></div>
+                    </section>
+
+                    <section class="groups-plus-card">
+                        <h3 style="margin:0 0 12px; color:#0f172a;">Atividade Recente</h3>
+                        <div id="groupsPlusActivityList"></div>
+                    </section>
+                </div>
+
+                <section class="groups-plus-card">
+                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                        <div>
+                            <h3 style="margin:0; color:#0f172a;">Publicações agendadas</h3>
+                            <p id="groupsPlusPostsSubtitle" style="margin:6px 0 0; color:#475569; font-size:0.9rem;">
+                                Selecione um grupo para ver os agendamentos.
+                            </p>
+                        </div>
+                    </div>
+                    <div id="groupsPlusPostsList"></div>
+                </section>
+            </main>
+        </div>
+    </div>
+
     <!-- Proofread Comparison Modal -->
     <div id="proofreadCompareModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
@@ -8689,6 +9109,540 @@
             };
         })();
 
+        // ============ GRUPOS+ ============
+        function getGroupsPlusState() {
+            if (!window.groupsPlusState || typeof window.groupsPlusState !== 'object') {
+                window.groupsPlusState = {
+                    groups: [],
+                    posts: [],
+                    security: {},
+                    activity: [],
+                    selectedGroupId: '',
+                    draftImagePath: '',
+                    draftImagePublicPath: ''
+                };
+            }
+            return window.groupsPlusState;
+        }
+
+        function resolveGroupsPlusImageUrl(value) {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            if (/^https?:\/\//i.test(raw)) return raw;
+            return buildApiUrl(raw.startsWith('/') ? raw : ('/' + raw.replace(/^\/+/, '')));
+        }
+
+        function formatGroupsPlusDateTime(timestamp) {
+            const ts = Number(timestamp || 0) || 0;
+            if (!ts) return 'Sem agendamento';
+            return new Date(ts).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatGroupsPlusInputDate(timestamp) {
+            const ts = Number(timestamp || 0) || 0;
+            const date = ts ? new Date(ts) : new Date(Date.now() + (30 * 60 * 1000));
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hour = String(date.getHours()).padStart(2, '0');
+            const minute = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hour}:${minute}`;
+        }
+
+        function getGroupsPlusRepeatLabel(repeat) {
+            if (repeat === 'daily') return 'Todo dia';
+            if (repeat === 'weekly') return 'Toda semana';
+            return 'Uma vez';
+        }
+
+        function getGroupsPlusSelectedGroup() {
+            const state = getGroupsPlusState();
+            return (state.groups || []).find((group) => String(group.id || '') === String(state.selectedGroupId || '')) || null;
+        }
+
+        function ensureGroupsPlusSelectedGroup() {
+            const state = getGroupsPlusState();
+            const hasSelected = (state.groups || []).some((group) => String(group.id || '') === String(state.selectedGroupId || ''));
+            if (!hasSelected) {
+                state.selectedGroupId = state.groups && state.groups[0] ? String(state.groups[0].id || '') : '';
+            }
+        }
+
+        function getGroupsPlusCurrentSecurity(groupId) {
+            const state = getGroupsPlusState();
+            return state.security && state.security[groupId] ? state.security[groupId] : null;
+        }
+
+        function setGroupsPlusDefaultSchedule() {
+            const input = document.getElementById('groupsPlusScheduleAt');
+            if (input && !input.value) input.value = formatGroupsPlusInputDate();
+        }
+
+        function renderGroupsPlusImageStatus() {
+            const state = getGroupsPlusState();
+            const statusEl = document.getElementById('groupsPlusImageStatus');
+            if (!statusEl) return;
+            if (state.draftImagePublicPath) {
+                statusEl.innerHTML = `<span class="groups-plus-badge green"><i class="fas fa-check"></i> Imagem pronta</span> ${escapeHtml(state.draftImagePath || state.draftImagePublicPath)}`;
+                return;
+            }
+            statusEl.textContent = 'Nenhuma imagem selecionada.';
+        }
+
+        function fillGroupsPlusSecurityForm(groupId) {
+            const config = getGroupsPlusCurrentSecurity(groupId) || {
+                enabled: false,
+                blockLinks: true,
+                blockImage: false,
+                blockVideo: false,
+                blockAudio: false,
+                blockDocument: false,
+                whitelist: []
+            };
+            const enabled = document.getElementById('groupsPlusSecurityEnabled');
+            const blockLinks = document.getElementById('groupsPlusBlockLinks');
+            const blockImage = document.getElementById('groupsPlusBlockImage');
+            const blockVideo = document.getElementById('groupsPlusBlockVideo');
+            const blockAudio = document.getElementById('groupsPlusBlockAudio');
+            const blockDocument = document.getElementById('groupsPlusBlockDocument');
+            const whitelist = document.getElementById('groupsPlusWhitelist');
+            if (enabled) enabled.value = config.enabled ? 'true' : 'false';
+            if (blockLinks) blockLinks.checked = config.blockLinks !== false;
+            if (blockImage) blockImage.checked = !!config.blockImage;
+            if (blockVideo) blockVideo.checked = !!config.blockVideo;
+            if (blockAudio) blockAudio.checked = !!config.blockAudio;
+            if (blockDocument) blockDocument.checked = !!config.blockDocument;
+            if (whitelist) whitelist.value = Array.isArray(config.whitelist) ? config.whitelist.join('\n') : '';
+            window.renderGroupsPlusSecuritySummary();
+        }
+
+        function renderGroupsPlusGroupList() {
+            const state = getGroupsPlusState();
+            const wrap = document.getElementById('groupsPlusGroupList');
+            const search = document.getElementById('groupsPlusSearch');
+            if (!wrap) return;
+            const q = String(search && search.value || '').trim().toLowerCase();
+            const groups = (state.groups || []).filter((group) => {
+                if (!q) return true;
+                return String(group.name || '').toLowerCase().includes(q) || String(group.id || '').toLowerCase().includes(q);
+            });
+            if (!groups.length) {
+                wrap.innerHTML = '<div class="groups-plus-empty">Nenhum grupo encontrado. Abra o WhatsApp da sessão e sincronize seus grupos.</div>';
+                return;
+            }
+            wrap.innerHTML = groups.map((group) => {
+                const isActive = String(group.id || '') === String(state.selectedGroupId || '');
+                const protection = getGroupsPlusCurrentSecurity(group.id);
+                const postCount = (state.posts || []).filter((post) => String(post.groupId || '') === String(group.id || '') && post.active !== false).length;
+                return `
+                    <div class="groups-plus-group-item ${isActive ? 'active' : ''}" onclick="selectGroupsPlusGroup(${JSON.stringify(group.id)})">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                            <div style="min-width:0; flex:1;">
+                                <div style="font-weight:800; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(group.name || group.id || 'Grupo')}</div>
+                                <div style="margin-top:4px; font-size:0.78rem; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(group.id || '')}</div>
+                            </div>
+                            <span class="groups-plus-badge ${protection && protection.enabled ? 'green' : 'amber'}">${protection && protection.enabled ? 'Seguro' : 'Livre'}</span>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                            <span class="groups-plus-badge blue">${postCount} post${postCount === 1 ? '' : 's'}</span>
+                            <span class="groups-plus-badge amber">${group.unreadCount || 0} pend.</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderGroupsPlusPosts() {
+            const state = getGroupsPlusState();
+            const wrap = document.getElementById('groupsPlusPostsList');
+            const subtitle = document.getElementById('groupsPlusPostsSubtitle');
+            if (!wrap) return;
+            const selected = getGroupsPlusSelectedGroup();
+            const posts = (state.posts || [])
+                .filter((post) => !selected || String(post.groupId || '') === String(selected.id || ''))
+                .sort((a, b) => (Number(a.nextRunAt || a.scheduleAt || 0) || 0) - (Number(b.nextRunAt || b.scheduleAt || 0) || 0));
+            if (subtitle) {
+                subtitle.textContent = selected
+                    ? `Agendamentos de ${selected.name || selected.id}`
+                    : 'Selecione um grupo para ver os agendamentos.';
+            }
+            if (!posts.length) {
+                wrap.innerHTML = '<div class="groups-plus-empty">Nenhuma publicação agendada para este grupo.</div>';
+                return;
+            }
+            wrap.innerHTML = posts.map((post) => {
+                const nextRun = Number(post.nextRunAt || post.scheduleAt || 0) || 0;
+                const imageUrl = resolveGroupsPlusImageUrl(post.imageUrl);
+                return `
+                    <div class="groups-plus-post-item">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+                            <div style="min-width:0; flex:1;">
+                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                                    <span class="groups-plus-badge ${post.active === false ? 'red' : 'green'}">${post.active === false ? 'Encerrado' : 'Ativo'}</span>
+                                    <span class="groups-plus-badge blue">${getGroupsPlusRepeatLabel(post.repeat)}</span>
+                                    <span class="groups-plus-badge amber">${post.kind === 'image' ? 'Imagem' : 'Texto'}</span>
+                                </div>
+                                <div style="font-weight:800; color:#0f172a;">${escapeHtml(post.groupName || post.groupId || 'Grupo')}</div>
+                                <div style="margin-top:4px; font-size:0.8rem; color:#64748b;">Próximo envio: ${escapeHtml(formatGroupsPlusDateTime(nextRun))}</div>
+                                <div style="margin-top:10px; color:#334155; white-space:pre-wrap; line-height:1.5;">${escapeHtml(post.text || '') || '<span style="color:#94a3b8;">Sem texto.</span>'}</div>
+                                ${imageUrl ? `<div style="margin-top:10px;"><img src="${imageUrl}" alt="Imagem do post" style="width:100%; max-width:240px; border-radius:14px; border:1px solid #dbe3ee;"></div>` : ''}
+                            </div>
+                            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                                <button class="btn-secondary" type="button" onclick="editGroupsPlusPost(${JSON.stringify(post.id)})"><i class="fas fa-pen"></i> Editar</button>
+                                <button class="btn-secondary" type="button" onclick="deleteGroupsPlusPost(${JSON.stringify(post.id)})" style="color:#b91c1c;"><i class="fas fa-trash"></i> Excluir</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderGroupsPlusActivity() {
+            const state = getGroupsPlusState();
+            const wrap = document.getElementById('groupsPlusActivityList');
+            if (!wrap) return;
+            const selected = getGroupsPlusSelectedGroup();
+            const items = (state.activity || [])
+                .filter((item) => !selected || !item.groupId || String(item.groupId || '') === String(selected.id || ''))
+                .slice(0, 10);
+            if (!items.length) {
+                wrap.innerHTML = '<div class="groups-plus-empty">Sem atividade recente nesse grupo.</div>';
+                return;
+            }
+            wrap.innerHTML = items.map((item) => {
+                const color = item.action === 'error' || item.deleteError || item.reactionError ? 'red'
+                    : item.action === 'sent' || item.action === 'saved' ? 'green'
+                    : 'blue';
+                const detail = item.error || item.message || item.label || item.action || 'Atualização';
+                return `
+                    <div class="groups-plus-activity-item">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+                            <div style="min-width:0; flex:1;">
+                                <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                                    <span class="groups-plus-badge ${color}">${escapeHtml(String(item.kind || 'atividade'))}</span>
+                                    <span class="groups-plus-badge blue">${escapeHtml(String(item.action || 'update'))}</span>
+                                </div>
+                                <div style="font-weight:700; color:#0f172a;">${escapeHtml(item.label || (selected && selected.name) || item.groupId || 'Grupo')}</div>
+                                <div style="margin-top:6px; color:#475569; font-size:0.84rem; line-height:1.45;">${escapeHtml(detail)}</div>
+                            </div>
+                            <div style="font-size:0.76rem; color:#64748b; white-space:nowrap;">${escapeHtml(formatGroupsPlusDateTime(item.createdAt))}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.renderGroupsPlusSecuritySummary = function() {
+            const wrap = document.getElementById('groupsPlusSecuritySummary');
+            if (!wrap) return;
+            const enabled = document.getElementById('groupsPlusSecurityEnabled') && document.getElementById('groupsPlusSecurityEnabled').value === 'true';
+            const blocked = [];
+            if (document.getElementById('groupsPlusBlockLinks') && document.getElementById('groupsPlusBlockLinks').checked) blocked.push('links');
+            if (document.getElementById('groupsPlusBlockImage') && document.getElementById('groupsPlusBlockImage').checked) blocked.push('imagens');
+            if (document.getElementById('groupsPlusBlockVideo') && document.getElementById('groupsPlusBlockVideo').checked) blocked.push('videos');
+            if (document.getElementById('groupsPlusBlockAudio') && document.getElementById('groupsPlusBlockAudio').checked) blocked.push('audios');
+            if (document.getElementById('groupsPlusBlockDocument') && document.getElementById('groupsPlusBlockDocument').checked) blocked.push('arquivos');
+            const whitelistRaw = document.getElementById('groupsPlusWhitelist') ? document.getElementById('groupsPlusWhitelist').value : '';
+            const whitelistCount = whitelistRaw
+                .split(/\r?\n|,|;/)
+                .map((item) => String(item || '').trim())
+                .filter(Boolean).length;
+            wrap.innerHTML = enabled
+                ? `Protecao ativa para <b>${blocked.length ? blocked.join(', ') : 'nenhum tipo selecionado'}</b>. Lista branca com <b>${whitelistCount}</b> contato(s).`
+                : 'Protecao desativada. O grupo ficara livre para mensagens, midias e links.';
+        };
+
+        window.renderGroupsPlusPreview = function() {
+            const selected = getGroupsPlusSelectedGroup();
+            const kind = document.getElementById('groupsPlusPostKind') ? document.getElementById('groupsPlusPostKind').value : 'text';
+            const text = document.getElementById('groupsPlusPostText') ? document.getElementById('groupsPlusPostText').value.trim() : '';
+            const scheduleValue = document.getElementById('groupsPlusScheduleAt') ? document.getElementById('groupsPlusScheduleAt').value : '';
+            const repeat = document.getElementById('groupsPlusRepeat') ? document.getElementById('groupsPlusRepeat').value : 'once';
+            const state = getGroupsPlusState();
+            const previewGroupName = document.getElementById('groupsPlusPreviewGroupName');
+            const previewSchedule = document.getElementById('groupsPlusPreviewSchedule');
+            const previewText = document.getElementById('groupsPlusPreviewText');
+            const previewRepeat = document.getElementById('groupsPlusPreviewRepeat');
+            const previewImageWrap = document.getElementById('groupsPlusPreviewImageWrap');
+            if (previewGroupName) previewGroupName.textContent = selected ? (selected.name || selected.id) : 'Grupo';
+            if (previewSchedule) previewSchedule.textContent = scheduleValue ? formatGroupsPlusDateTime(new Date(scheduleValue).getTime()) : 'Sem agendamento';
+            if (previewRepeat) previewRepeat.textContent = getGroupsPlusRepeatLabel(repeat);
+            if (previewText) {
+                previewText.innerHTML = text
+                    ? escapeHtml(text).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<span style="color:#0d9488; text-decoration:underline;">$1</span>')
+                    : '<span style="color:#94a3b8;">Digite o conteúdo para visualizar aqui.</span>';
+            }
+            if (previewImageWrap) {
+                const imageUrl = kind === 'image' ? resolveGroupsPlusImageUrl(state.draftImagePublicPath || state.draftImagePath) : '';
+                previewImageWrap.style.display = imageUrl ? 'block' : 'none';
+                previewImageWrap.innerHTML = imageUrl
+                    ? `<img src="${imageUrl}" alt="Preview da publicacao" style="width:100%; border-radius:14px; border:1px solid rgba(15,23,42,0.08);">`
+                    : '';
+            }
+        };
+
+        window.toggleGroupsPlusKind = function(value) {
+            const imageField = document.getElementById('groupsPlusImageField');
+            if (imageField) imageField.style.display = value === 'image' ? 'block' : 'none';
+            if (value !== 'image') {
+                const state = getGroupsPlusState();
+                state.draftImagePath = '';
+                state.draftImagePublicPath = '';
+                const input = document.getElementById('groupsPlusImageFile');
+                if (input) input.value = '';
+            }
+            renderGroupsPlusImageStatus();
+            window.renderGroupsPlusPreview();
+        };
+
+        window.openGroupsPlusImagePicker = function() {
+            const input = document.getElementById('groupsPlusImageFile');
+            if (input) input.click();
+        };
+
+        window.clearGroupsPlusImage = function() {
+            const state = getGroupsPlusState();
+            state.draftImagePath = '';
+            state.draftImagePublicPath = '';
+            const input = document.getElementById('groupsPlusImageFile');
+            if (input) input.value = '';
+            renderGroupsPlusImageStatus();
+            window.renderGroupsPlusPreview();
+        };
+
+        window.handleGroupsPlusImageUpload = async function(input) {
+            const file = input && input.files && input.files[0] ? input.files[0] : null;
+            if (!file) return;
+            const state = getGroupsPlusState();
+            const statusEl = document.getElementById('groupsPlusImageStatus');
+            if (statusEl) statusEl.innerHTML = '<span class="groups-plus-badge amber"><i class="fas fa-spinner fa-spin"></i> Enviando imagem...</span>';
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                const response = await fetch(buildApiUrl(`/api/upload?sessionId=${window.sessionId}`), {
+                    method: 'POST',
+                    body: formData
+                });
+                const raw = await response.text();
+                let parsed = null;
+                try {
+                    parsed = JSON.parse(raw);
+                } catch (error) {
+                    parsed = null;
+                }
+                if (!response.ok || !parsed || !parsed.success) {
+                    throw new Error(parsed && parsed.error ? parsed.error : 'Falha ao enviar imagem.');
+                }
+                state.draftImagePath = parsed.path || parsed.publicPath || '';
+                state.draftImagePublicPath = parsed.publicPath || resolveGroupsPlusImageUrl(parsed.path || '');
+                const kind = document.getElementById('groupsPlusPostKind');
+                if (kind) kind.value = 'image';
+                window.toggleGroupsPlusKind('image');
+            } catch (error) {
+                if (statusEl) statusEl.innerHTML = `<span class="groups-plus-badge red"><i class="fas fa-triangle-exclamation"></i> ${escapeHtml(error.message || 'Erro no upload')}</span>`;
+            }
+        };
+
+        window.resetGroupsPlusPostForm = function() {
+            const state = getGroupsPlusState();
+            const id = document.getElementById('groupsPlusPostId');
+            const kind = document.getElementById('groupsPlusPostKind');
+            const repeat = document.getElementById('groupsPlusRepeat');
+            const text = document.getElementById('groupsPlusPostText');
+            const scheduleAt = document.getElementById('groupsPlusScheduleAt');
+            if (id) id.value = '';
+            if (kind) kind.value = 'text';
+            if (repeat) repeat.value = 'once';
+            if (text) text.value = '';
+            if (scheduleAt) scheduleAt.value = formatGroupsPlusInputDate();
+            state.draftImagePath = '';
+            state.draftImagePublicPath = '';
+            const fileInput = document.getElementById('groupsPlusImageFile');
+            if (fileInput) fileInput.value = '';
+            window.toggleGroupsPlusKind('text');
+            window.renderGroupsPlusPreview();
+        };
+
+        window.selectGroupsPlusGroup = function(groupId) {
+            const state = getGroupsPlusState();
+            state.selectedGroupId = String(groupId || '');
+            window.resetGroupsPlusPostForm();
+            fillGroupsPlusSecurityForm(state.selectedGroupId);
+            window.renderGroupsPlus();
+        };
+
+        window.editGroupsPlusPost = function(postId) {
+            const state = getGroupsPlusState();
+            const post = (state.posts || []).find((item) => String(item.id || '') === String(postId || ''));
+            if (!post) return;
+            state.selectedGroupId = String(post.groupId || '');
+            const id = document.getElementById('groupsPlusPostId');
+            const kind = document.getElementById('groupsPlusPostKind');
+            const repeat = document.getElementById('groupsPlusRepeat');
+            const text = document.getElementById('groupsPlusPostText');
+            const scheduleAt = document.getElementById('groupsPlusScheduleAt');
+            if (id) id.value = post.id || '';
+            if (kind) kind.value = post.kind === 'image' ? 'image' : 'text';
+            if (repeat) repeat.value = post.repeat || 'once';
+            if (text) text.value = post.text || '';
+            if (scheduleAt) scheduleAt.value = formatGroupsPlusInputDate(post.scheduleAt || post.nextRunAt);
+            state.draftImagePath = post.imageUrl || '';
+            state.draftImagePublicPath = resolveGroupsPlusImageUrl(post.imageUrl || '');
+            window.toggleGroupsPlusKind(post.kind === 'image' ? 'image' : 'text');
+            fillGroupsPlusSecurityForm(state.selectedGroupId);
+            window.renderGroupsPlus();
+        };
+
+        window.saveGroupsPlusPost = function() {
+            const state = getGroupsPlusState();
+            const selected = getGroupsPlusSelectedGroup();
+            if (!selected) {
+                alert('Selecione um grupo para criar a publicacao.');
+                return;
+            }
+            const id = document.getElementById('groupsPlusPostId') ? document.getElementById('groupsPlusPostId').value.trim() : '';
+            const kind = document.getElementById('groupsPlusPostKind') ? document.getElementById('groupsPlusPostKind').value : 'text';
+            const repeat = document.getElementById('groupsPlusRepeat') ? document.getElementById('groupsPlusRepeat').value : 'once';
+            const text = document.getElementById('groupsPlusPostText') ? document.getElementById('groupsPlusPostText').value.trim() : '';
+            const scheduleValue = document.getElementById('groupsPlusScheduleAt') ? document.getElementById('groupsPlusScheduleAt').value : '';
+            if (!scheduleValue) {
+                alert('Informe a data e hora da publicacao.');
+                return;
+            }
+            const scheduleAt = new Date(scheduleValue).getTime();
+            if (!scheduleAt || Number.isNaN(scheduleAt)) {
+                alert('Data e hora invalidas.');
+                return;
+            }
+            if (kind === 'image' && !state.draftImagePath) {
+                alert('Envie uma imagem para essa publicacao.');
+                return;
+            }
+            if (!text && !state.draftImagePath) {
+                alert('Preencha o texto ou envie uma imagem.');
+                return;
+            }
+            window.socket.emit('save-groups-plus-post', {
+                sessionId: window.sessionId,
+                post: {
+                    id: id || undefined,
+                    groupId: selected.id,
+                    groupName: selected.name || selected.id,
+                    kind,
+                    repeat,
+                    text,
+                    imageUrl: state.draftImagePath || '',
+                    scheduleAt
+                }
+            }, function(res) {
+                if (!res || !res.ok) {
+                    alert((res && res.error) || 'Falha ao salvar a publicacao.');
+                    return;
+                }
+                window.resetGroupsPlusPostForm();
+            });
+        };
+
+        window.deleteGroupsPlusPost = function(postId) {
+            if (!confirm('Deseja excluir esta publicacao do grupo?')) return;
+            window.socket.emit('delete-groups-plus-post', {
+                sessionId: window.sessionId,
+                postId
+            }, function(res) {
+                if (!res || !res.ok) {
+                    alert((res && res.error) || 'Falha ao excluir a publicacao.');
+                }
+            });
+        };
+
+        window.saveGroupsPlusSecurity = function() {
+            const selected = getGroupsPlusSelectedGroup();
+            if (!selected) {
+                alert('Selecione um grupo para configurar a seguranca.');
+                return;
+            }
+            const config = {
+                enabled: document.getElementById('groupsPlusSecurityEnabled') && document.getElementById('groupsPlusSecurityEnabled').value === 'true',
+                blockLinks: !!(document.getElementById('groupsPlusBlockLinks') && document.getElementById('groupsPlusBlockLinks').checked),
+                blockImage: !!(document.getElementById('groupsPlusBlockImage') && document.getElementById('groupsPlusBlockImage').checked),
+                blockVideo: !!(document.getElementById('groupsPlusBlockVideo') && document.getElementById('groupsPlusBlockVideo').checked),
+                blockAudio: !!(document.getElementById('groupsPlusBlockAudio') && document.getElementById('groupsPlusBlockAudio').checked),
+                blockDocument: !!(document.getElementById('groupsPlusBlockDocument') && document.getElementById('groupsPlusBlockDocument').checked),
+                whitelistText: document.getElementById('groupsPlusWhitelist') ? document.getElementById('groupsPlusWhitelist').value : ''
+            };
+            window.socket.emit('save-groups-plus-security', {
+                sessionId: window.sessionId,
+                groupId: selected.id,
+                config
+            }, function(res) {
+                if (!res || !res.ok) {
+                    alert((res && res.error) || 'Falha ao salvar a seguranca.');
+                    return;
+                }
+                window.renderGroupsPlusSecuritySummary();
+            });
+        };
+
+        window.renderGroupsPlus = function() {
+            const state = getGroupsPlusState();
+            ensureGroupsPlusSelectedGroup();
+            const selected = getGroupsPlusSelectedGroup();
+            const groupsCount = document.getElementById('groupsPlusGroupsCount');
+            const postsCount = document.getElementById('groupsPlusPostsCount');
+            const protectedCount = document.getElementById('groupsPlusProtectedCount');
+            const badge = document.getElementById('groupsPlusSelectedBadge');
+            const headline = document.getElementById('groupsPlusGroupHeadline');
+            const protectedGroups = Object.values(state.security || {}).filter((config) => config && config.enabled).length;
+            if (groupsCount) groupsCount.textContent = String((state.groups || []).length);
+            if (postsCount) postsCount.textContent = String((state.posts || []).filter((post) => post.active !== false).length);
+            if (protectedCount) protectedCount.textContent = String(protectedGroups);
+            if (badge) {
+                badge.className = `groups-plus-badge ${selected ? 'green' : 'amber'}`;
+                badge.textContent = selected ? (selected.name || selected.id) : 'Sem grupo';
+            }
+            if (headline) {
+                headline.innerHTML = selected
+                    ? `<div style="font-weight:800;">${escapeHtml(selected.name || selected.id)}</div><div style="margin-top:4px; font-size:0.8rem; color:#64748b;">${escapeHtml(selected.id || '')}</div>`
+                    : 'Selecione um grupo ao lado para começar.';
+            }
+            if (selected) fillGroupsPlusSecurityForm(selected.id);
+            renderGroupsPlusGroupList();
+            renderGroupsPlusPosts();
+            renderGroupsPlusActivity();
+            renderGroupsPlusImageStatus();
+            window.renderGroupsPlusPreview();
+        };
+
+        window.initGroupsPlus = function() {
+            setGroupsPlusDefaultSchedule();
+            if (window.socket && window.sessionId) {
+                window.socket.emit('get-groups-plus-data', window.sessionId);
+            }
+            window.renderGroupsPlus();
+        };
+
+        if (window.socket) {
+            window.socket.on('groups-plus-data', function(data) {
+                const state = getGroupsPlusState();
+                state.groups = Array.isArray(data && data.groups) ? data.groups : [];
+                state.posts = Array.isArray(data && data.posts) ? data.posts : [];
+                state.security = data && data.security && typeof data.security === 'object' ? data.security : {};
+                state.activity = Array.isArray(data && data.activity) ? data.activity : [];
+                ensureGroupsPlusSelectedGroup();
+                window.renderGroupsPlus();
+            });
+
+            window.socket.on('groups-plus-error', function(payload) {
+                if (payload && payload.message) alert(payload.message);
+            });
+        }
+
         // Modo demonstração: libera o dashboard completo sem depender de uma conexão real.
         (function initDemoCrmMode() {
             if (!window.isDemoCrmSession) return;
@@ -8759,6 +9713,53 @@
                 proofreadProvider: 'same',
                 proofreadModel: ''
             };
+            const demoGroupsPlus = {
+                groups: [
+                    { id: '120363200000001@g.us', name: 'Clientes Premium', unreadCount: 3, timestamp: now - 600, lastMessage: 'Bom dia, equipe!' },
+                    { id: '120363200000002@g.us', name: 'Ofertas da Semana', unreadCount: 0, timestamp: now - 3600, lastMessage: 'Nova campanha publicada.' }
+                ],
+                posts: [
+                    {
+                        id: 'gpost_demo_1',
+                        groupId: '120363200000001@g.us',
+                        groupName: 'Clientes Premium',
+                        text: 'Bom dia! Confira a condicao especial de hoje: https://zapmro.com/oferta',
+                        imageUrl: '',
+                        kind: 'text',
+                        repeat: 'daily',
+                        active: true,
+                        scheduleAt: Date.now() + 3600000,
+                        nextRunAt: Date.now() + 3600000
+                    },
+                    {
+                        id: 'gpost_demo_2',
+                        groupId: '120363200000002@g.us',
+                        groupName: 'Ofertas da Semana',
+                        text: 'Imagem da promocao com CTA no grupo.',
+                        imageUrl: '/uploads/demo-oferta.png',
+                        kind: 'image',
+                        repeat: 'weekly',
+                        active: true,
+                        scheduleAt: Date.now() + 7200000,
+                        nextRunAt: Date.now() + 7200000
+                    }
+                ],
+                security: {
+                    '120363200000001@g.us': {
+                        enabled: true,
+                        blockLinks: true,
+                        blockImage: true,
+                        blockVideo: true,
+                        blockAudio: false,
+                        blockDocument: true,
+                        whitelist: ['5599999999999@c.us']
+                    }
+                },
+                activity: [
+                    { id: 'gact_demo_1', createdAt: Date.now() - 540000, kind: 'post', action: 'sent', groupId: '120363200000001@g.us', label: 'Clientes Premium', message: 'Publicacao enviada no grupo' },
+                    { id: 'gact_demo_2', createdAt: Date.now() - 240000, kind: 'security', action: 'saved', groupId: '120363200000001@g.us', label: 'Clientes Premium', message: 'Protecao de grupo atualizada' }
+                ]
+            };
 
             function trigger(eventName, payload) {
                 if (window.socket && typeof window.socket.trigger === 'function') {
@@ -8788,6 +9789,7 @@
                     trigger('winback-campaigns-list', demoCampaigns);
                 }
                 if (eventName === 'get-scheduled-messages') trigger('scheduled-messages-list', demoScheduled);
+                if (eventName === 'get-groups-plus-data') trigger('groups-plus-data', demoGroupsPlus);
             }
 
             window.__zapmroHandleDemoEmit = function(eventName, args) {
@@ -8855,6 +9857,72 @@
                     return window.socket;
                 }
 
+                if (eventName === 'save-groups-plus-post') {
+                    const post = payload.post || {};
+                    const nextPost = {
+                        id: post.id || ('gpost_demo_' + Date.now()),
+                        groupId: post.groupId,
+                        groupName: post.groupName || ((demoGroupsPlus.groups.find((group) => group.id === post.groupId) || {}).name || post.groupId),
+                        text: post.text || '',
+                        imageUrl: post.imageUrl || '',
+                        kind: post.kind || 'text',
+                        repeat: post.repeat || 'once',
+                        active: true,
+                        scheduleAt: post.scheduleAt,
+                        nextRunAt: post.scheduleAt
+                    };
+                    const index = demoGroupsPlus.posts.findIndex((item) => item.id === nextPost.id);
+                    if (index >= 0) demoGroupsPlus.posts[index] = nextPost;
+                    else demoGroupsPlus.posts.unshift(nextPost);
+                    demoGroupsPlus.activity.unshift({
+                        id: 'gact_demo_' + Date.now(),
+                        createdAt: Date.now(),
+                        kind: 'post',
+                        action: index >= 0 ? 'updated' : 'created',
+                        groupId: nextPost.groupId,
+                        label: nextPost.groupName,
+                        message: 'Publicacao salva no modo demonstracao'
+                    });
+                    trigger('groups-plus-data', demoGroupsPlus);
+                    if (callback) callback({ ok: true, post: nextPost });
+                    return window.socket;
+                }
+
+                if (eventName === 'delete-groups-plus-post') {
+                    const index = demoGroupsPlus.posts.findIndex((item) => item.id === payload.postId);
+                    if (index >= 0) demoGroupsPlus.posts.splice(index, 1);
+                    trigger('groups-plus-data', demoGroupsPlus);
+                    if (callback) callback({ ok: true });
+                    return window.socket;
+                }
+
+                if (eventName === 'save-groups-plus-security') {
+                    demoGroupsPlus.security[payload.groupId] = {
+                        enabled: !!(payload.config && payload.config.enabled),
+                        blockLinks: !!(payload.config && payload.config.blockLinks),
+                        blockImage: !!(payload.config && payload.config.blockImage),
+                        blockVideo: !!(payload.config && payload.config.blockVideo),
+                        blockAudio: !!(payload.config && payload.config.blockAudio),
+                        blockDocument: !!(payload.config && payload.config.blockDocument),
+                        whitelist: String(payload.config && payload.config.whitelistText || '')
+                            .split(/\r?\n|,|;/)
+                            .map((item) => String(item || '').trim())
+                            .filter(Boolean)
+                    };
+                    demoGroupsPlus.activity.unshift({
+                        id: 'gact_demo_' + Date.now(),
+                        createdAt: Date.now(),
+                        kind: 'security',
+                        action: 'saved',
+                        groupId: payload.groupId,
+                        label: ((demoGroupsPlus.groups.find((group) => group.id === payload.groupId) || {}).name || payload.groupId),
+                        message: 'Seguranca atualizada no modo demonstracao'
+                    });
+                    trigger('groups-plus-data', demoGroupsPlus);
+                    if (callback) callback({ ok: true, config: demoGroupsPlus.security[payload.groupId] });
+                    return window.socket;
+                }
+
                 if (eventName === 'schedule-message') {
                     const scheduled = { id: 'sch_demo_' + Date.now(), chatId: payload.chatId, body: payload.message || 'Mensagem agendada', timestamp: payload.timestamp };
                     demoScheduled.push(scheduled);
@@ -8882,7 +9950,7 @@
 
             function renderDemoDashboard() {
                 trigger('connect');
-                ['get-chats', 'get-kanban-columns', 'get-flows', 'get-ai-config', 'get-tags', 'get-google-contacts', 'get-winback-stats', 'get-scheduled-messages'].forEach(sendDemoData);
+                ['get-chats', 'get-kanban-columns', 'get-flows', 'get-ai-config', 'get-tags', 'get-google-contacts', 'get-winback-stats', 'get-scheduled-messages', 'get-groups-plus-data'].forEach(sendDemoData);
                 if (window.renderGoogleContacts) window.renderGoogleContacts(demoGoogleContacts);
                 if (window.renderAppContacts) window.renderAppContacts();
                 if (window.renderAgendaContacts) window.renderAgendaContacts();

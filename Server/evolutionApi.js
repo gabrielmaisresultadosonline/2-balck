@@ -247,6 +247,28 @@ class EvolutionApi {
         });
     }
 
+    async sendReaction(instanceName, payload = {}, options = {}) {
+        return this.request('post', `/message/sendReaction/${encodeURIComponent(instanceName)}`, {
+            data: {
+                reaction: String(payload.reaction || options.reaction || '').trim(),
+                key: payload.key || options.key || null,
+                ...options
+            }
+        });
+    }
+
+    async deleteMessage(instanceName, payload = {}, options = {}) {
+        return this.request('delete', `/message/delete/${encodeURIComponent(instanceName)}`, {
+            data: {
+                chat: String(payload.chat || payload.remoteJid || '').trim(),
+                messageId: String(payload.messageId || payload.id || '').trim(),
+                fromMe: payload.fromMe === true,
+                participant: payload.participant ? String(payload.participant).trim() : undefined,
+                ...options
+            }
+        });
+    }
+
     async sendButtons(instanceName, numberOrJid, payload = {}, options = {}) {
         const data = payload && typeof payload === 'object' ? payload : {};
         const buttons = Array.isArray(data.buttons)

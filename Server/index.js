@@ -245,6 +245,7 @@ const AI_TRANSCRIPTS_FILE = path.join(__dirname, '../data/ai_transcripts.json');
 const WINBACK_CAMPAIGNS_FILE = path.join(__dirname, '../data/winback_campaigns.json');
 const WINBACK_STATS_FILE = path.join(__dirname, '../data/winback_stats.json');
 const LID_PHONE_MAP_FILE = path.join(__dirname, '../data/lid_phone_map.json');
+const GROUPS_PLUS_FILE = path.join(__dirname, '../data/groups_plus.json');
 
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
@@ -700,6 +701,288 @@ function saveUsersStore(store) { saveData(USERS_FILE, store && typeof store === 
 
 function loadWinbackCampaigns() { return loadData(WINBACK_CAMPAIGNS_FILE); }
 function saveWinbackCampaigns(data) { saveData(WINBACK_CAMPAIGNS_FILE, data); }
+function loadGroupsPlusStore() { return loadData(GROUPS_PLUS_FILE); }
+function saveGroupsPlusStore(data) { saveData(GROUPS_PLUS_FILE, data); }
+
+function normalizeGroupsPlusPost(post = {}) {
+    const raw = post && typeof post === 'object' ? post : {};
+    const repeat = ['once', 'daily', 'weekly'].includes(String(raw.repeat || '').toLowerCase())
+        ? String(raw.repeat || '').toLowerCase()
+        : 'once';
+    const kind = String(raw.kind || raw.type || '').toLowerCase() === 'image' ? 'image' : 'text';
+    const scheduleAt = Number(raw.scheduleAt || raw.timestamp || 0) || 0;
+    const nextRunAt = Number(raw.nextRunAt || scheduleAt || 0) || 0;
+    return {
+        id: String(raw.id || `gpost_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`),
+        groupId: normalizeEvolutionChatId(raw.groupId || raw.chatId || ''),
+        groupName: String(raw.groupName || '').trim(),
+        text: String(raw.text || raw.body || '').trim(),
+        imageUrl: String(raw.imageUrl || raw.image || '').trim(),
+        kind,
+        repeat,
+        active: raw.active !== false,
+        scheduleAt,
+        nextRunAt,
+        lastRunAt: Number(raw.lastRunAt || 0) || 0,
+        runsCount: Number(raw.runsCount || 0) || 0,
+        createdAt: Number(raw.createdAt || Date.now()) || Date.now(),
+        updatedAt: Number(raw.updatedAt || Date.now()) || Date.now()
+    };
+}
+
+function normalizeGroupsPlusSecurityConfig(config = {}) {
+    const raw = config && typeof config === 'object' ? config : {};
+    const whitelist = Array.isArray(raw.whitelist)
+        ? raw.whitelist
+        : String(raw.whitelistText || raw.whitelistRaw || '')
+            .split(/\r?\n|,|;/)
+            .map(item => String(item || '').trim())
+            .filter(Boolean);
+    return {
+        enabled: !!raw.enabled,
+        blockLinks: raw.blockLinks !== false,
+        blockImage: !!raw.blockImage,
+        blockVideo: !!raw.blockVideo,
+        blockAudio: !!raw.blockAudio,
+        blockDocument: !!raw.blockDocument,
+        whitelist: whitelist.map(item => normalizeEvolutionChatId(item) || normalizeEvolutionPhone(item) || String(item).trim()).filter(Boolean)
+    };
+}
+
+function normalizeGroupsPlusSessionData(data = {}) {
+    const raw = data && typeof data === 'object' ? data : {};
+    const securityRaw = raw.security && typeof raw.security === 'object' ? raw.security : {};
+    const security = {};
+    Object.keys(securityRaw).forEach((groupId) => {
+        security[normalizeEvolutionChatId(groupId)] = normalizeGroupsPlusSecurityConfig(securityRaw[groupId]);
+    });
+    const activity = Array.isArray(raw.activity) ? raw.activity.slice(0, 120) : [];
+    return {
+        posts: Array.isArray(raw.posts) ? raw.posts.map(normalizeGroupsPlusPost) : [],
+        security,
+        activity
+    };
+}
+
+let groupsPlusStore = normalizeGroupsPlusStore(loadGroupsPlusStore());
+
+function normalizeGroupsPlusStore(store = {}) {
+    const raw = store && typeof store === 'object' ? store : {};
+    const out = {};
+    Object.keys(raw).forEach((sessionId) => {
+        out[String(sessionId)] = normalizeGroupsPlusSessionData(raw[sessionId]);
+    });
+    return out;
+}
+
+function persistGroupsPlusStore() {
+    saveGroupsPlusStore(groupsPlusStore);
+}
+
+function getGroupsPlusSessionData(sessionId) {
+    const sid = String(sessionId || '');
+    if (!sid) return normalizeGroupsPlusSessionData();
+    if (!groupsPlusStore[sid]) groupsPlusStore[sid] = normalizeGroupsPlusSessionData();
+    return groupsPlusStore[sid];
+}
+
+function setGroupsPlusSessionData(sessionId, data) {
+    const sid = String(sessionId || '');
+    if (!sid) return normalizeGroupsPlusSessionData();
+    groupsPlusStore[sid] = normalizeGroupsPlusSessionData(data);
+    persistGroupsPlusStore();
+    return groupsPlusStore[sid];
+}
+
+function computeGroupsPlusNextRun(post, baseTs = Date.now()) {
+    const repeat = String(post && post.repeat || 'once').toLowerCase();
+    const ref = Number(baseTs || Date.now()) || Date.now();
+    if (repeat === 'daily') return ref + (24 * 60 * 60 * 1000);
+    if (repeat === 'weekly') return ref + (7 * 24 * 60 * 60 * 1000);
+    return 0;
+}
+
+function listKnownGroupsForSession(sessionId) {
+    const cache = loadChatCache(sessionId);
+    return (Array.isArray(cache) ? cache : [])
+        .filter(chat => String(chat && chat.id || '').endsWith('@g.us'))
+        .map(chat => ({
+            id: String(chat.id || ''),
+            name: getChatDisplayNameSafe(chat),
+            profilePic: chat.profilePic || '',
+            lastMessage: getChatPreviewSafe(chat.lastMessage || ''),
+            unreadCount: Number(chat.unreadCount || 0) || 0,
+            timestamp: Number(chat.timestamp || 0) || 0
+        }))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+function getChatDisplayNameSafe(chat) {
+    return sanitizeEvolutionText(
+        chat && (
+            chat.name ||
+            chat.pushName ||
+            chat.subject ||
+            chat.phoneNumber ||
+            chat.id
+        ) || ''
+    );
+}
+
+function emitGroupsPlusData(sessionId) {
+    const state = getGroupsPlusSessionData(sessionId);
+    emitToSessionClients(sessionId, 'groups-plus-data', {
+        sessionId,
+        groups: listKnownGroupsForSession(sessionId),
+        posts: state.posts,
+        security: state.security,
+        activity: state.activity
+    });
+}
+
+function recordGroupsPlusActivity(sessionId, payload = {}) {
+    const state = getGroupsPlusSessionData(sessionId);
+    state.activity.unshift({
+        id: `gact_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: Date.now(),
+        ...payload
+    });
+    state.activity = state.activity.slice(0, 120);
+    setGroupsPlusSessionData(sessionId, state);
+}
+
+function findKnownGroupForSession(sessionId, groupId) {
+    const normalizedGroupId = normalizeEvolutionChatId(groupId);
+    return listKnownGroupsForSession(sessionId).find((group) => String(group.id || '') === normalizedGroupId) || null;
+}
+
+function upsertGroupsPlusPost(sessionId, rawPost = {}) {
+    const sid = String(sessionId || '').trim();
+    if (!sid) throw new Error('Sessão inválida.');
+
+    const groupId = normalizeEvolutionChatId(rawPost.groupId || rawPost.chatId || '');
+    if (!/@g\.us$/i.test(groupId)) {
+        throw new Error('Selecione um grupo válido.');
+    }
+
+    const scheduleAt = Number(rawPost.scheduleAt || rawPost.timestamp || rawPost.nextRunAt || 0) || 0;
+    if (!scheduleAt || Number.isNaN(scheduleAt)) {
+        throw new Error('Informe a data e hora da publicação.');
+    }
+    if (scheduleAt <= (Date.now() - 15000)) {
+        throw new Error('A publicação precisa estar no futuro.');
+    }
+
+    const kind = String(rawPost.kind || rawPost.type || 'text').toLowerCase() === 'image' ? 'image' : 'text';
+    const text = String(rawPost.text || rawPost.body || '').trim();
+    const imageUrl = String(rawPost.imageUrl || rawPost.image || '').trim();
+    const repeat = ['once', 'daily', 'weekly'].includes(String(rawPost.repeat || '').toLowerCase())
+        ? String(rawPost.repeat || '').toLowerCase()
+        : 'once';
+
+    if (kind === 'image' && !imageUrl) {
+        throw new Error('Envie uma imagem para esse tipo de publicação.');
+    }
+    if (!text && !imageUrl) {
+        throw new Error('Preencha um texto ou envie uma imagem.');
+    }
+
+    const state = getGroupsPlusSessionData(sid);
+    const currentPosts = Array.isArray(state.posts) ? state.posts : [];
+    const existingIndex = currentPosts.findIndex((item) => String(item && item.id || '') === String(rawPost.id || ''));
+    const existingPost = existingIndex >= 0 ? normalizeGroupsPlusPost(currentPosts[existingIndex]) : null;
+    const knownGroup = findKnownGroupForSession(sid, groupId);
+    const normalized = normalizeGroupsPlusPost({
+        ...(existingPost || {}),
+        ...rawPost,
+        id: existingPost ? existingPost.id : rawPost.id,
+        groupId,
+        groupName: String(rawPost.groupName || (knownGroup && knownGroup.name) || (existingPost && existingPost.groupName) || '').trim(),
+        text,
+        imageUrl,
+        kind,
+        repeat,
+        active: rawPost.active !== false,
+        scheduleAt,
+        nextRunAt: scheduleAt,
+        lastRunAt: 0,
+        runsCount: 0,
+        createdAt: existingPost ? existingPost.createdAt : Date.now(),
+        updatedAt: Date.now()
+    });
+
+    if (existingIndex >= 0) {
+        currentPosts.splice(existingIndex, 1, normalized);
+    } else {
+        currentPosts.push(normalized);
+    }
+
+    state.posts = currentPosts.sort((a, b) => {
+        const left = Number(a && a.nextRunAt || a && a.scheduleAt || 0) || 0;
+        const right = Number(b && b.nextRunAt || b && b.scheduleAt || 0) || 0;
+        return left - right;
+    });
+    setGroupsPlusSessionData(sid, state);
+    recordGroupsPlusActivity(sid, {
+        kind: 'post',
+        action: existingPost ? 'updated' : 'created',
+        groupId,
+        postId: normalized.id,
+        label: normalized.groupName || groupId,
+        message: existingPost ? 'Publicação atualizada no Grupos+' : 'Nova publicação agendada no Grupos+'
+    });
+    emitGroupsPlusData(sid);
+    return normalized;
+}
+
+function deleteGroupsPlusPost(sessionId, postId) {
+    const sid = String(sessionId || '').trim();
+    const id = String(postId || '').trim();
+    if (!sid || !id) throw new Error('Publicação inválida.');
+
+    const state = getGroupsPlusSessionData(sid);
+    const currentPosts = Array.isArray(state.posts) ? state.posts : [];
+    const found = currentPosts.find((item) => String(item && item.id || '') === id);
+    if (!found) throw new Error('Publicação não encontrada.');
+
+    state.posts = currentPosts.filter((item) => String(item && item.id || '') !== id);
+    setGroupsPlusSessionData(sid, state);
+    recordGroupsPlusActivity(sid, {
+        kind: 'post',
+        action: 'deleted',
+        groupId: found.groupId,
+        postId: found.id,
+        label: found.groupName || found.groupId,
+        message: 'Publicação removida do Grupos+'
+    });
+    emitGroupsPlusData(sid);
+    return found;
+}
+
+function saveGroupsPlusSecurity(sessionId, groupId, rawConfig = {}) {
+    const sid = String(sessionId || '').trim();
+    const normalizedGroupId = normalizeEvolutionChatId(groupId || rawConfig.groupId || '');
+    if (!sid || !/@g\.us$/i.test(normalizedGroupId)) {
+        throw new Error('Selecione um grupo válido para segurança.');
+    }
+
+    const state = getGroupsPlusSessionData(sid);
+    const knownGroup = findKnownGroupForSession(sid, normalizedGroupId);
+    const config = normalizeGroupsPlusSecurityConfig(rawConfig);
+    state.security[normalizedGroupId] = config;
+    setGroupsPlusSessionData(sid, state);
+    recordGroupsPlusActivity(sid, {
+        kind: 'security',
+        action: 'saved',
+        groupId: normalizedGroupId,
+        label: (knownGroup && knownGroup.name) || normalizedGroupId,
+        message: config.enabled
+            ? 'Proteção de grupo atualizada'
+            : 'Proteção de grupo desativada'
+    });
+    emitGroupsPlusData(sid);
+    return config;
+}
 
 // --- HISTORY PERSISTENCE HELPERS ---
 function getHistoryFilePath(sessionId, chatId) {
@@ -1280,6 +1563,35 @@ function extractEvolutionContactInfo(payload) {
     return { remoteJid: '', phoneDigits: '', name: '', profilePictureUrl: '' };
 }
 
+function collectEvolutionPhoneCandidates(payload, chatId = '', bucket = new Set(), keyHint = '', depth = 0) {
+    if (depth > 5 || payload == null) return bucket;
+    if (Array.isArray(payload)) {
+        payload.forEach((item) => collectEvolutionPhoneCandidates(item, chatId, bucket, keyHint, depth + 1));
+        return bucket;
+    }
+    if (typeof payload === 'object') {
+        Object.entries(payload).forEach(([key, value]) => {
+            collectEvolutionPhoneCandidates(value, chatId, bucket, key, depth + 1);
+        });
+        return bucket;
+    }
+
+    const raw = String(payload || '').trim();
+    if (!raw) return bucket;
+
+    const hint = String(keyHint || '').toLowerCase();
+    const looksLikeWhatsAppJid = /@(c\.us|s\.whatsapp\.net)$/i.test(raw);
+    const trustedKey = /(phone|number|jid|wid|owner|participant|user)/i.test(hint);
+    if (!looksLikeWhatsAppJid && !trustedKey) return bucket;
+
+    const digits = normalizeEvolutionPhone(raw);
+    if (!digits || digits.length < 10 || digits.length > 15) return bucket;
+    if (isSuspiciousLidPhone(chatId, digits)) return bucket;
+
+    bucket.add(digits);
+    return bucket;
+}
+
 async function fetchEvolutionContactIdentity(sessionId, chatId) {
     if (!USE_EVOLUTION || !evolutionApi) return { remoteJid: '', phoneDigits: '', name: '', profilePictureUrl: '' };
     const candidates = collectPossibleChatIds(sessionId, chatId);
@@ -1306,6 +1618,24 @@ async function fetchEvolutionContactIdentity(sessionId, chatId) {
                 sort: { field: 'updatedAt', order: 'desc' }
             });
             const info = extractEvolutionContactInfo(result || {});
+            if (info.remoteJid || info.phoneDigits || info.name || info.profilePictureUrl) {
+                best = info;
+                break;
+            }
+        } catch (e) {}
+
+        try {
+            const result = await evolutionApi.findChats(evolutionInstanceName(sessionId), {
+                where: { remoteJid: candidateId },
+                limit: 5,
+                offset: 0,
+                sort: { field: 'updatedAt', order: 'desc' }
+            });
+            const info = extractEvolutionContactInfo(result || {});
+            if (!info.phoneDigits) {
+                const candidates = Array.from(collectEvolutionPhoneCandidates(result || {}, candidateId));
+                if (candidates.length === 1) info.phoneDigits = candidates[0];
+            }
             if (info.remoteJid || info.phoneDigits || info.name || info.profilePictureUrl) {
                 best = info;
                 break;
@@ -1606,6 +1936,7 @@ function createEvolutionClientWrapper(sessionId) {
             return rows.map(item => {
                 const normalized = normalizeEvolutionChatRecord(sessionId, item);
                 const chat = createEvolutionChatWrapper(sessionId, normalized.id);
+                chat.__evoRawChat = item;
                 chat.name = normalized.name;
                 chat.phoneNumber = normalized.phoneNumber || '';
                 chat.unreadCount = normalized.unreadCount;
@@ -1839,6 +2170,123 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
     }
 }
 
+function hasGroupsPlusLink(text) {
+    const value = String(text || '').trim();
+    if (!value) return false;
+    return /(https?:\/\/|www\.|[a-z0-9-]+\.(com|com\.br|net|org|io|app|co|me|xyz|info|shop|store|site|link)(\/|\b))/i.test(value);
+}
+
+function getGroupsPlusSenderId(messagePayload) {
+    const raw = messagePayload && messagePayload._evoRaw && typeof messagePayload._evoRaw === 'object'
+        ? messagePayload._evoRaw
+        : {};
+    return normalizeEvolutionChatId(
+        raw?.key?.participant ||
+        raw?.participant ||
+        raw?.sender ||
+        raw?.message?.senderKeyDistributionMessage?.groupId ||
+        ''
+    );
+}
+
+function isGroupsPlusWhitelisted(senderId, whitelist = []) {
+    const normalizedSender = normalizeEvolutionChatId(senderId || '');
+    const senderDigits = normalizeEvolutionPhone(senderId || '');
+    return (Array.isArray(whitelist) ? whitelist : []).some((entry) => {
+        const normalizedEntry = normalizeEvolutionChatId(entry || '');
+        const entryDigits = normalizeEvolutionPhone(entry || '');
+        return (normalizedSender && normalizedEntry && normalizedSender === normalizedEntry)
+            || (senderDigits && entryDigits && senderDigits === entryDigits);
+    });
+}
+
+function getGroupsPlusViolation(messagePayload, config = {}) {
+    const type = String(messagePayload && messagePayload.type || '').toLowerCase();
+    const body = String(messagePayload && messagePayload.body || '').trim();
+    if (config.blockLinks && hasGroupsPlusLink(body)) {
+        return { type: 'link', label: 'Link não permitido' };
+    }
+    if (config.blockImage && type === 'image') {
+        return { type: 'image', label: 'Imagem bloqueada' };
+    }
+    if (config.blockVideo && type === 'video') {
+        return { type: 'video', label: 'Vídeo bloqueado' };
+    }
+    if (config.blockAudio && (type === 'audio' || type === 'ptt')) {
+        return { type: 'audio', label: 'Áudio bloqueado' };
+    }
+    if (config.blockDocument && (type === 'document' || type === 'documentmessage')) {
+        return { type: 'document', label: 'Arquivo bloqueado' };
+    }
+    return null;
+}
+
+async function enforceGroupsPlusSecurity(sessionId, messagePayload, client) {
+    if (!messagePayload || messagePayload.fromMe || !String(messagePayload.chatId || '').endsWith('@g.us')) return;
+    if (!USE_EVOLUTION || !evolutionApi || !hasReadyClient(activeClients.get(sessionId))) return;
+
+    const state = getGroupsPlusSessionData(sessionId);
+    const config = state.security && state.security[messagePayload.chatId] ? normalizeGroupsPlusSecurityConfig(state.security[messagePayload.chatId]) : null;
+    if (!config || !config.enabled) return;
+
+    const senderId = getGroupsPlusSenderId(messagePayload);
+    if (senderId && isGroupsPlusWhitelisted(senderId, config.whitelist)) return;
+
+    const violation = getGroupsPlusViolation(messagePayload, config);
+    if (!violation) return;
+
+    const key = messagePayload._evoRaw && messagePayload._evoRaw.key ? messagePayload._evoRaw.key : null;
+    const reactionKey = key ? {
+        remoteJid: key.remoteJid || messagePayload.chatId,
+        fromMe: false,
+        id: key.id || messagePayload.id,
+        participant: key.participant || senderId || undefined
+    } : null;
+
+    let deleteOk = false;
+    let reactionOk = false;
+    let deleteError = '';
+    let reactionError = '';
+
+    try {
+        await evolutionApi.deleteMessage(evolutionInstanceName(sessionId), {
+            chat: messagePayload.chatId,
+            messageId: messagePayload.id,
+            fromMe: false,
+            participant: senderId || undefined
+        });
+        deleteOk = true;
+    } catch (error) {
+        deleteError = error && error.message ? String(error.message) : 'Falha ao excluir';
+    }
+
+    try {
+        if (reactionKey) {
+            await evolutionApi.sendReaction(evolutionInstanceName(sessionId), {
+                reaction: '🚫',
+                key: reactionKey
+            });
+            reactionOk = true;
+        }
+    } catch (error) {
+        reactionError = error && error.message ? String(error.message) : 'Falha ao reagir';
+    }
+
+    recordGroupsPlusActivity(sessionId, {
+        groupId: messagePayload.chatId,
+        senderId: senderId || '',
+        messageId: messagePayload.id,
+        kind: 'security',
+        action: violation.type,
+        label: violation.label,
+        deleteOk,
+        reactionOk,
+        deleteError,
+        reactionError
+    });
+    emitGroupsPlusData(sessionId);
+}
+
 async function processEvolutionWebhookEvent(body) {
     if (!USE_EVOLUTION || !evolutionApi) return;
     const payload = body && typeof body === 'object' ? body : {};
@@ -1913,7 +2361,8 @@ async function processEvolutionWebhookEvent(body) {
                     item?.profileName,
                     existingChat.name
                 ),
-                existingChat
+                existingChat,
+                item
             );
             const explicitPhoneNumber = normalizeEvolutionPhone(
                 item?.phone ||
@@ -1950,6 +2399,7 @@ async function processEvolutionWebhookEvent(body) {
 
             if (!messagePayload.fromMe) {
                 await processIncomingFlowMessage(sessionId, messagePayload, sessionData.client);
+                await enforceGroupsPlusSecurity(sessionId, messagePayload, sessionData.client);
                 emitToSessionClients(sessionId, 'new-message', {
                     sessionId,
                     message: messagePayload,
@@ -2227,7 +2677,7 @@ function findStoredPhoneForLid(chatId) {
     return '';
 }
 
-async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', cached = null) {
+async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', cached = null, rawPayload = null) {
     const output = {
         phoneNumber: normalizeEvolutionPhone(cached?.phoneNumber || chatId),
         name: String(baseName || cached?.name || '').trim(),
@@ -2246,6 +2696,18 @@ async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', ca
     if (output.phoneNumber) rememberLidPhone(chatId, output.phoneNumber);
 
     if (!USE_EVOLUTION || !evolutionApi) return output;
+    if (!output.phoneNumber) {
+        const payloadCandidates = Array.from(collectEvolutionPhoneCandidates(rawPayload || {}, chatId));
+        const cachedCandidates = Array.from(collectEvolutionPhoneCandidates(cached || {}, chatId));
+        const allCandidates = Array.from(new Set([...payloadCandidates, ...cachedCandidates]));
+        if (allCandidates.length === 1) {
+            output.phoneNumber = allCandidates[0];
+        } else if (allCandidates.length > 1) {
+            const verified = await resolveVerifiedEvolutionNumber(sessionId, allCandidates);
+            if (verified && verified.number) output.phoneNumber = verified.number;
+        }
+        if (output.phoneNumber) rememberLidPhone(chatId, output.phoneNumber);
+    }
     if (!output.phoneNumber || !output.name || /^[0-9@._+\-\s]+$/.test(output.name) || !output.profilePictureUrl) {
         try {
             const contactInfo = await fetchEvolutionContactIdentity(sessionId, chatId);
@@ -3167,6 +3629,11 @@ function removeSessionFromStores(sessionId) {
         saveAiTranscripts(aiTranscripts);
     }
 
+    if (groupsPlusStore && groupsPlusStore[sid]) {
+        delete groupsPlusStore[sid];
+        persistGroupsPlusStore();
+    }
+
     const archiveLogFile = path.join(ARCHIVE_DIR, 'archive_log.json');
     const archiveLog = loadData(archiveLogFile);
     if (archiveLog && archiveLog[sid]) {
@@ -3506,6 +3973,40 @@ function startFlowNow(sessionId, chatId, flowId, client) {
     return { ok: true, flow };
 }
 
+async function sendGroupsPlusPost(sessionId, sessionData, post) {
+    const chatId = normalizeEvolutionChatId(post.groupId);
+    const apiTarget = toEvolutionApiTarget(chatId);
+    const text = String(post.text || '').trim();
+
+    if (String(post.kind || 'text') === 'image' && String(post.imageUrl || '').trim()) {
+        const publicMedia = toPublicAssetUrl(post.imageUrl);
+        const result = await evolutionApi.sendMedia(
+            evolutionInstanceName(sessionId),
+            apiTarget,
+            {
+                mediatype: 'image',
+                media: publicMedia,
+                caption: text || undefined
+            }
+        );
+        const sentMsg = createSyntheticEvolutionSentMessage(sessionId, chatId, text || '📎 Mídia', result, {
+            type: 'image',
+            hasMedia: true,
+            media: {
+                mimetype: 'image/jpeg',
+                data: null,
+                filename: path.basename(publicMedia || 'imagem')
+            }
+        });
+        await handleSentMessage(sessionId, sentMsg, sessionData.client);
+        return sentMsg;
+    }
+
+    const sentMsg = await sessionData.client.sendMessage(chatId, text, { linkPreview: true });
+    await handleSentMessage(sessionId, sentMsg, sessionData.client);
+    return sentMsg;
+}
+
 // Check for scheduled messages every 30 seconds
 setInterval(async () => {
     const now = Date.now();
@@ -3616,6 +4117,72 @@ setInterval(async () => {
 
     if (changed) {
         saveScheduledMessages(scheduledMessages);
+    }
+
+    let groupsChanged = false;
+    for (const sessionId of Object.keys(groupsPlusStore || {})) {
+        const sessionState = getGroupsPlusSessionData(sessionId);
+        if (!Array.isArray(sessionState.posts) || sessionState.posts.length === 0) continue;
+        const sessionData = activeClients.get(sessionId);
+        const ready = hasReadyClient(sessionData);
+        const nextPosts = [];
+
+        for (const rawPost of sessionState.posts) {
+            const post = normalizeGroupsPlusPost(rawPost);
+            if (!post.active || !post.groupId || !post.nextRunAt || post.nextRunAt > now) {
+                nextPosts.push(post);
+                continue;
+            }
+            if (!ready) {
+                nextPosts.push(post);
+                continue;
+            }
+
+            try {
+                await sendGroupsPlusPost(sessionId, sessionData, post);
+                post.lastRunAt = now;
+                post.runsCount = Number(post.runsCount || 0) + 1;
+                post.updatedAt = now;
+                const nextRun = computeGroupsPlusNextRun(post, post.nextRunAt || now);
+                if (nextRun) {
+                    post.nextRunAt = nextRun;
+                    nextPosts.push(post);
+                } else {
+                    post.active = false;
+                }
+                recordGroupsPlusActivity(sessionId, {
+                    kind: 'post',
+                    action: 'sent',
+                    groupId: post.groupId,
+                    postId: post.id,
+                    label: post.groupName || post.groupId,
+                    message: 'Publicação enviada no grupo'
+                });
+                groupsChanged = true;
+            } catch (error) {
+                post.updatedAt = now;
+                nextPosts.push(post);
+                recordGroupsPlusActivity(sessionId, {
+                    kind: 'post',
+                    action: 'error',
+                    groupId: post.groupId,
+                    postId: post.id,
+                    label: post.groupName || post.groupId,
+                    error: error && error.message ? String(error.message) : 'Falha ao publicar'
+                });
+                groupsChanged = true;
+            }
+        }
+
+        if (JSON.stringify(nextPosts) !== JSON.stringify(sessionState.posts)) {
+            sessionState.posts = nextPosts;
+            setGroupsPlusSessionData(sessionId, sessionState);
+            emitGroupsPlusData(sessionId);
+        }
+    }
+
+    if (groupsChanged) {
+        persistGroupsPlusStore();
     }
 }, 30000);
 
@@ -7316,7 +7883,8 @@ io.on('connection', (socket) => {
                                 sessionId,
                                 displayChatId,
                                 chat.name || (cached && cached.name ? String(cached.name) : ''),
-                                cached
+                                cached,
+                                chat && chat.__evoRawChat ? chat.__evoRawChat : null
                             );
                             if (resolvedIdentity.phoneNumber) derivedPhoneNumber = resolvedIdentity.phoneNumber;
                             if (resolvedIdentity.name && (!chat.name || /^[0-9@._+\-\s]+$/.test(String(chat.name)))) {
@@ -8633,6 +9201,56 @@ io.on('connection', (socket) => {
         socket.emit('winback-campaigns-list', campaigns[sessionId]);
         io.to(`session:${sessionId}`).emit('winback-stats-update', stats[sessionId]);
         io.to(`session:${sessionId}`).emit('scheduled-messages-update', scheduled[sessionId]);
+    });
+
+    socket.on('get-groups-plus-data', (sessionId, cb) => {
+        const sid = String(sessionId || '').trim();
+        if (!sid) {
+            if (typeof cb === 'function') cb({ ok: false, error: 'Sessão inválida.' });
+            return;
+        }
+        const payload = {
+            sessionId: sid,
+            groups: listKnownGroupsForSession(sid),
+            posts: getGroupsPlusSessionData(sid).posts,
+            security: getGroupsPlusSessionData(sid).security,
+            activity: getGroupsPlusSessionData(sid).activity
+        };
+        socket.emit('groups-plus-data', payload);
+        if (typeof cb === 'function') cb({ ok: true, data: payload });
+    });
+
+    socket.on('save-groups-plus-post', ({ sessionId, post }, cb) => {
+        try {
+            const saved = upsertGroupsPlusPost(sessionId, post || {});
+            if (typeof cb === 'function') cb({ ok: true, post: saved });
+        } catch (error) {
+            const message = error && error.message ? String(error.message) : 'Falha ao salvar publicação.';
+            if (typeof cb === 'function') cb({ ok: false, error: message });
+            socket.emit('groups-plus-error', { message, scope: 'post' });
+        }
+    });
+
+    socket.on('delete-groups-plus-post', ({ sessionId, postId }, cb) => {
+        try {
+            const removed = deleteGroupsPlusPost(sessionId, postId);
+            if (typeof cb === 'function') cb({ ok: true, post: removed });
+        } catch (error) {
+            const message = error && error.message ? String(error.message) : 'Falha ao excluir publicação.';
+            if (typeof cb === 'function') cb({ ok: false, error: message });
+            socket.emit('groups-plus-error', { message, scope: 'delete' });
+        }
+    });
+
+    socket.on('save-groups-plus-security', ({ sessionId, groupId, config }, cb) => {
+        try {
+            const saved = saveGroupsPlusSecurity(sessionId, groupId, config || {});
+            if (typeof cb === 'function') cb({ ok: true, config: saved });
+        } catch (error) {
+            const message = error && error.message ? String(error.message) : 'Falha ao salvar segurança do grupo.';
+            if (typeof cb === 'function') cb({ ok: false, error: message });
+            socket.emit('groups-plus-error', { message, scope: 'security' });
+        }
     });
 
     socket.on('bulk-delete-chats', ({ sessionId, chatIds }) => {
