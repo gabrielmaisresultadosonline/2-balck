@@ -560,9 +560,35 @@ function normalizeEvolutionPhone(value) {
     return evolutionDigits(raw);
 }
 
+function getLidDigits(chatId) {
+    const lid = normalizeEvolutionChatId(chatId);
+    if (!/@lid$/i.test(lid)) return '';
+    return evolutionDigits(lid.replace(/@lid$/i, ''));
+}
+
+function isSuspiciousLidPhone(chatId, phoneNumber) {
+    const digits = normalizeEvolutionPhone(phoneNumber);
+    const lidDigits = getLidDigits(chatId);
+    return !!(digits && lidDigits && digits === lidDigits);
+}
+
 function loadLidPhoneMap() {
     const data = loadData(LID_PHONE_MAP_FILE);
-    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+    const raw = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+    const cleaned = {};
+    let changed = false;
+    for (const [lid, value] of Object.entries(raw)) {
+        const normalizedLid = normalizeEvolutionChatId(lid);
+        const digits = normalizeEvolutionPhone(value || '');
+        if (!/@lid$/i.test(normalizedLid) || !digits || digits.length < 10 || digits.length > 15 || isSuspiciousLidPhone(normalizedLid, digits)) {
+            changed = true;
+            continue;
+        }
+        cleaned[normalizedLid] = digits;
+        if (normalizedLid !== lid || digits !== value) changed = true;
+    }
+    if (changed) saveData(LID_PHONE_MAP_FILE, cleaned);
+    return cleaned;
 }
 
 function saveLidPhoneMap(data) {
@@ -574,13 +600,16 @@ function getStoredPhoneForLid(chatId) {
     if (!/@lid$/i.test(lid)) return '';
     const stored = loadLidPhoneMap()[lid];
     const digits = normalizeEvolutionPhone(stored || '');
-    return digits && digits.length >= 10 && digits.length <= 15 ? digits : '';
+    if (!digits || digits.length < 10 || digits.length > 15) return '';
+    if (isSuspiciousLidPhone(lid, digits)) return '';
+    return digits;
 }
 
 function rememberLidPhone(chatId, phoneNumber) {
     const lid = normalizeEvolutionChatId(chatId);
     const digits = normalizeEvolutionPhone(phoneNumber);
     if (!/@lid$/i.test(lid) || !digits || digits.length < 10 || digits.length > 15) return;
+    if (isSuspiciousLidPhone(lid, digits)) return;
     const current = loadLidPhoneMap();
     if (current[lid] === digits) return;
     current[lid] = digits;
@@ -1659,7 +1688,9 @@ function findStoredPhoneForLid(chatId) {
 
     const isValidDigits = (value) => {
         const digits = normalizeEvolutionPhone(value);
-        return digits && digits.length >= 10 && digits.length <= 15 ? digits : '';
+        if (!digits || digits.length < 10 || digits.length > 15) return '';
+        if (isSuspiciousLidPhone(normalizedLid, digits)) return '';
+        return digits;
     };
 
     try {
@@ -1738,11 +1769,14 @@ async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', ca
         phoneNumber: normalizeEvolutionPhone(cached?.phoneNumber || chatId),
         name: String(baseName || cached?.name || '').trim()
     };
+    if (isSuspiciousLidPhone(chatId, output.phoneNumber)) output.phoneNumber = '';
 
+    const storedPhone = getStoredPhoneForLid(chatId);
     const archive = loadArchiveFallback(sessionId, [chatId]);
     const archivePhone = Array.isArray(archive?.numbers)
-        ? archive.numbers.find(num => num && num.length >= 10 && num.length <= 15)
+        ? archive.numbers.find(num => num && num.length >= 10 && num.length <= 15 && !isSuspiciousLidPhone(chatId, num))
         : '';
+    if (!output.phoneNumber && storedPhone) output.phoneNumber = storedPhone;
     if (!output.phoneNumber && archivePhone) output.phoneNumber = archivePhone;
     if (!output.phoneNumber) output.phoneNumber = findStoredPhoneForLid(chatId);
     if (output.phoneNumber) rememberLidPhone(chatId, output.phoneNumber);
