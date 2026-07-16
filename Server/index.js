@@ -43,6 +43,13 @@ const evolutionApi = USE_EVOLUTION
 const publicIpCache = new Map();
 const PUBLIC_IP_CACHE_TTL_MS = 2 * 60 * 1000;
 
+const PUBLIC_IP_CHECK_ENDPOINTS = [
+    { url: 'https://api.ipify.org?format=json', type: 'json' },
+    { url: 'http://api.ipify.org?format=json', type: 'json' },
+    { url: 'https://ipv4.icanhazip.com', type: 'text' },
+    { url: 'http://ifconfig.me/ip', type: 'text' }
+];
+
 function normalizePublicIp(value) {
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -63,39 +70,67 @@ async function fetchOutboundPublicIp(proxyConfig = null) {
         return cached.value;
     }
 
-    try {
-        const requestConfig = {
-            timeout: 8000,
-            headers: { 'User-Agent': 'zapmro-ip-check/1.0' }
-        };
-        if (proxyConfig && proxyConfig.host && proxyConfig.port) {
-            const protocol = String(proxyConfig.protocol || 'http').toLowerCase();
-            if (protocol === 'socks4' || protocol === 'socks5') {
-                publicIpCache.set(key, { at: now, value: '' });
-                return '';
-            }
-            requestConfig.proxy = {
-                protocol,
-                host: proxyConfig.host,
-                port: Number(proxyConfig.port),
-                auth: proxyConfig.username
-                    ? { username: proxyConfig.username, password: proxyConfig.password || '' }
-                    : undefined
-            };
+    const requestConfig = {
+        timeout: 8000,
+        headers: { 'User-Agent': 'zapmro-ip-check/1.0' }
+    };
+    if (proxyConfig && proxyConfig.host && proxyConfig.port) {
+        const protocol = String(proxyConfig.protocol || 'http').toLowerCase();
+        if (protocol === 'socks4' || protocol === 'socks5') {
+            const result = { ip: '', endpoint: '', error: `Protocolo ${protocol} nao suportado na validacao HTTP` };
+            publicIpCache.set(key, { at: now, value: result });
+            return result;
         }
-        const response = await axios.get('https://api.ipify.org?format=json', requestConfig);
-        const ip = normalizePublicIp(response && response.data && response.data.ip);
-        publicIpCache.set(key, { at: now, value: ip });
-        return ip;
-    } catch (e) {
-        publicIpCache.set(key, { at: now, value: '' });
-        return '';
+        requestConfig.proxy = {
+            protocol,
+            host: proxyConfig.host,
+            port: Number(proxyConfig.port),
+            auth: proxyConfig.username
+                ? { username: proxyConfig.username, password: proxyConfig.password || '' }
+                : undefined
+        };
     }
+
+    const errors = [];
+    for (const endpoint of PUBLIC_IP_CHECK_ENDPOINTS) {
+        try {
+            const response = await axios.get(endpoint.url, requestConfig);
+            const ip = endpoint.type === 'json'
+                ? normalizePublicIp(response && response.data && response.data.ip)
+                : normalizePublicIp(response && response.data);
+            if (ip) {
+                const result = { ip, endpoint: endpoint.url, error: '' };
+                publicIpCache.set(key, { at: now, value: result });
+                return result;
+            }
+            errors.push(`${endpoint.url}: resposta sem ip`);
+        } catch (e) {
+            const reason = e && e.response
+                ? `${e.response.status} ${e.response.statusText || ''}`.trim()
+                : (e && (e.code || e.message)) || 'erro desconhecido';
+            errors.push(`${endpoint.url}: ${reason}`);
+        }
+    }
+
+    const result = { ip: '', endpoint: '', error: errors.join(' | ').slice(0, 800) };
+    if (proxyConfig) {
+        console.warn('[proxy-ip-validation-failed]', JSON.stringify({
+            proxyId: proxyConfig.id || '',
+            proxyName: proxyConfig.name || '',
+            proxyHost: proxyConfig.host || '',
+            proxyPort: proxyConfig.port || '',
+            protocol: proxyConfig.protocol || '',
+            error: result.error
+        }));
+    }
+    publicIpCache.set(key, { at: now, value: result });
+    return result;
 }
 
 async function buildSessionNetworkInfo(sessionId) {
     const sid = String(sessionId || '').trim();
-    const serverRealIp = await fetchOutboundPublicIp(null);
+    const serverNetwork = await fetchOutboundPublicIp(null);
+    const serverRealIp = serverNetwork.ip || '';
     if (!sid || sid === ADMIN_SELF_SESSION_ID) {
         return {
             serverRealIp,
@@ -105,13 +140,16 @@ async function buildSessionNetworkInfo(sessionId) {
             proxyPort: '',
             proxyName: '',
             usingProxy: false,
-            proxyIpValidated: false
+            proxyIpValidated: false,
+            proxyValidationError: '',
+            proxyValidationEndpoint: serverNetwork.endpoint || ''
         };
     }
 
     const proxyConfig = proxyManager.getProxyConfigForSession(sid);
     const proxyRecord = proxyManager.getProxyRecordForSession(sid);
-    const proxyConnectionIp = proxyConfig ? await fetchOutboundPublicIp(proxyConfig) : '';
+    const proxyNetwork = proxyConfig ? await fetchOutboundPublicIp(proxyConfig) : { ip: '', endpoint: '', error: '' };
+    const proxyConnectionIp = proxyNetwork.ip || '';
     const usingProxy = !!proxyConfig;
     const proxyIpValidated = !!(usingProxy && proxyConnectionIp);
     return {
@@ -122,7 +160,9 @@ async function buildSessionNetworkInfo(sessionId) {
         proxyPort: proxyRecord && proxyRecord.port ? String(proxyRecord.port) : '',
         proxyName: proxyRecord && proxyRecord.name ? String(proxyRecord.name) : '',
         usingProxy,
-        proxyIpValidated
+        proxyIpValidated,
+        proxyValidationError: proxyNetwork.error || '',
+        proxyValidationEndpoint: proxyNetwork.endpoint || ''
     };
 }
 
@@ -3168,6 +3208,8 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
                 proxyPort: netInfo.proxyPort || null,
                 usingProxy: !!netInfo.usingProxy,
                 proxyIpValidated: !!netInfo.proxyIpValidated,
+                proxyValidationError: netInfo.proxyValidationError || null,
+                proxyValidationEndpoint: netInfo.proxyValidationEndpoint || null,
                 history
             };
         }));
@@ -5475,7 +5517,9 @@ app.get('/api/active-sessions', requireUser, async (req, res) => {
             proxyHost: netInfo.proxyHost || null,
             proxyPort: netInfo.proxyPort || null,
             usingProxy: !!netInfo.usingProxy,
-            proxyIpValidated: !!netInfo.proxyIpValidated
+            proxyIpValidated: !!netInfo.proxyIpValidated,
+            proxyValidationError: netInfo.proxyValidationError || null,
+            proxyValidationEndpoint: netInfo.proxyValidationEndpoint || null
         });
         res.json({ sessions });
         return;
@@ -5498,7 +5542,9 @@ app.get('/api/active-sessions', requireUser, async (req, res) => {
             proxyHost: netInfo.proxyHost || null,
             proxyPort: netInfo.proxyPort || null,
             usingProxy: !!netInfo.usingProxy,
-            proxyIpValidated: !!netInfo.proxyIpValidated
+            proxyIpValidated: !!netInfo.proxyIpValidated,
+            proxyValidationError: netInfo.proxyValidationError || null,
+            proxyValidationEndpoint: netInfo.proxyValidationEndpoint || null
         });
     }
 

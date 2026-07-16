@@ -1245,6 +1245,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 sessionCard.classList.add('unified-card');
                 const email = (localStorage.getItem('userEmail') || '').trim();
                 const displayName = email ? (email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1)) : 'Usuário';
+                const proxyHint = escapeHtml(session.proxyValidationError || '');
+                const proxySource = escapeHtml(session.proxyValidationEndpoint || '');
                 const currentIp = session.usingProxy
                     ? (session.proxyIpValidated ? escapeHtml(session.currentConnectionIp || '—') : 'Proxy não validado')
                     : escapeHtml(session.currentConnectionIp || session.realIp || '—');
@@ -1283,14 +1285,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="uc-conn__title">${session.name || 'WhatsApp'}</div>
                             <div style="margin-left:auto; text-align:right;">
                                 <div style="font-size:0.67rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:800;">IP Proxy</div>
-                                <div style="font-size:0.82rem; font-weight:800; color:#0f766e;">${proxyIp}</div>
+                                <div style="font-size:0.82rem; font-weight:800; color:#0f766e;" title="${proxySource || proxyHint}">${proxyIp}</div>
                             </div>
                         </div>
                         <div class="uc-conn__meta"><span>Número:</span> ${formatSessionPhone(session.phoneNumber) || 'Não conectado'}</div>
                         <div class="uc-conn__meta"><span>ID:</span> ${session.sessionId}</div>
-                        <div class="uc-conn__meta"><span>Seu IP atual da conexão:</span> <b>${currentIp}</b></div>
+                        <div class="uc-conn__meta"><span>Seu IP atual da conexão:</span> <b title="${proxySource || proxyHint}">${currentIp}</b></div>
                         <div class="uc-conn__meta"><span>IP real da VPS:</span> ${realIp}</div>
                         <div class="uc-conn__meta"><span>Proxy em uso:</span> ${proxyLabel}</div>
+                        ${session.usingProxy && !session.proxyIpValidated ? `<div class="uc-conn__meta" style="color:#b45309;"><span>Validação do proxy:</span> ${proxyHint || 'Falhou ao consultar IP externo pelo proxy'}</div>` : ''}
                         <span class="uc-badge">CONECTADO</span>
                         <button type="button" class="uc-refresh" onclick="if(window.refreshSessionsBtn)window.refreshSessionsBtn.click();document.getElementById('refreshSessionsBtn')&&document.getElementById('refreshSessionsBtn').click();">
                             <i class="fas fa-sync-alt"></i> Atualizar conexão
