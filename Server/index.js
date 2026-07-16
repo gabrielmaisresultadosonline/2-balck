@@ -2647,7 +2647,7 @@ const FLOW_TIME_UNITS = Object.freeze({
     hours: 3600000
 });
 const FLOW_TEXT_MIN_TYPING_MS = 3000;
-const FLOW_INTERACTIVE_DELIVERY_MODE = 'compatibility_text_on_error';
+const FLOW_INTERACTIVE_DELIVERY_MODE = 'native_only';
 
 function getFlowTimeUnit(unit, fallback = 'milliseconds') {
     return Object.prototype.hasOwnProperty.call(FLOW_TIME_UNITS, unit) ? unit : fallback;
