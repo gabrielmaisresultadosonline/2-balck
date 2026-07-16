@@ -866,8 +866,34 @@ document.addEventListener('DOMContentLoaded', function() {
         return { label: 'Pendente', cls: 'is-warn' };
     }
 
+    function proxyBadgeMeta(data) {
+        if (data && data.usingProxy) {
+            if (data.proxyIpValidated) {
+                return {
+                    label: 'Proxy ativo real',
+                    bg: 'rgba(16,185,129,0.12)',
+                    color: '#047857',
+                    border: 'rgba(16,185,129,0.22)'
+                };
+            }
+            return {
+                label: 'Proxy não validado',
+                bg: 'rgba(245,158,11,0.12)',
+                color: '#b45309',
+                border: 'rgba(245,158,11,0.24)'
+            };
+        }
+        return {
+            label: 'Sem proxy',
+            bg: 'rgba(100,116,139,0.12)',
+            color: '#64748b',
+            border: 'rgba(148,163,184,0.26)'
+        };
+    }
+
     function buildAdminCard(u) {
         const st = statusMeta(u.status || 'none');
+        const proxyBadge = proxyBadgeMeta(u);
         const history = Array.isArray(u.history) ? u.history : [];
         const renderHistoryItem = (h) => {
             const isOn = h.type === 'connect' || h.type === 'connected';
@@ -905,6 +931,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="admin-card__email">${escapeHtml(u.email || '—')}</div>
                 </div>
                 <span class="admin-card__pill ${st.cls}"><span class="dot"></span>${st.label}</span>
+            </div>
+
+            <div style="display:flex; margin-top:10px;">
+                <span style="display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; letter-spacing:.03em; background:${proxyBadge.bg}; color:${proxyBadge.color}; border:1px solid ${proxyBadge.border};">
+                    <span style="width:8px; height:8px; border-radius:50%; background:currentColor;"></span>${proxyBadge.label}
+                </span>
             </div>
 
             <div class="admin-card__stats">
@@ -1245,6 +1277,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 sessionCard.classList.add('unified-card');
                 const email = (localStorage.getItem('userEmail') || '').trim();
                 const displayName = email ? (email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1)) : 'Usuário';
+                const proxyBadge = proxyBadgeMeta(session);
                 const proxyHint = escapeHtml(session.proxyValidationError || '');
                 const proxySource = escapeHtml(session.proxyValidationEndpoint || '');
                 const currentIp = session.usingProxy
@@ -1294,7 +1327,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="uc-conn__meta"><span>${userConnectionLabel}</span> <b title="${proxySource || proxyHint}">${currentIp}</b></div>
                         <div class="uc-conn__meta"><span>Proxy em uso:</span> ${proxyLabel}</div>
                         ${session.usingProxy && !session.proxyIpValidated ? `<div class="uc-conn__meta" style="color:#b45309;"><span>Validação do proxy:</span> ${proxyHint || 'Falhou ao consultar IP externo pelo proxy'}</div>` : ''}
-                        <span class="uc-badge">CONECTADO</span>
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <span class="uc-badge">CONECTADO</span>
+                            <span style="display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; font-size:0.72rem; font-weight:800; letter-spacing:.03em; background:${proxyBadge.bg}; color:${proxyBadge.color}; border:1px solid ${proxyBadge.border};">
+                                <span style="width:8px; height:8px; border-radius:50%; background:currentColor;"></span>${proxyBadge.label}
+                            </span>
+                        </div>
                         <button type="button" class="uc-refresh" onclick="if(window.refreshSessionsBtn)window.refreshSessionsBtn.click();document.getElementById('refreshSessionsBtn')&&document.getElementById('refreshSessionsBtn').click();">
                             <i class="fas fa-sync-alt"></i> Atualizar conexão
                             <strong style="margin-left:6px;">Conexão ativa e estável</strong>
