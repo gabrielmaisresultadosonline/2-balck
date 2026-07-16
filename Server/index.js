@@ -4326,6 +4326,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 (function restoreSessions() {
     const sessions = loadSessionsData();
     Object.keys(sessions).forEach(sessionId => {
+        if (String(sessionId) === ADMIN_SELF_SESSION_ID) return;
         console.log(`Restaurando sessão: ${sessionId}`);
         initializeClient(sessionId, sessions[sessionId]);
     });
@@ -5013,7 +5014,7 @@ app.post('/api/create-session', (req, res) => {
     }
 
     if (!activeClients.get(sessionId)) {
-        initializeClient(sessionId, loadSessionsData()[sessionId] || null);
+        initializeClient(sessionId, null);
     }
     res.json({ success: true, sessionId, message: 'Sessão do admin iniciada com sucesso' });
 });

@@ -858,7 +858,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function statusMeta(status) {
-        if (status === 'connected' || status === 'authenticated') return { label: 'Conectado', cls: 'is-on' };
+        if (status === 'connected') return { label: 'Conectado', cls: 'is-on' };
+        if (status === 'authenticated' || status === 'initializing') return { label: 'Preparando', cls: 'is-warn' };
         if (status === 'disconnected' || status === 'auth_failed') return { label: 'Desconectado', cls: 'is-off' };
         if (status === 'reconnecting') return { label: 'Reconectando', cls: 'is-warn' };
         if (status === 'none') return { label: 'Sem sessão', cls: 'is-mute' };
@@ -1106,8 +1107,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (adminIntroCard) adminIntroCard.style.display = 'none';
             return;
         }
-        const hasConnectedLike = list.some(s => s && (s.status === 'connected' || s.status === 'authenticated'));
-        const firstConnected = list.find(s => s && (s.status === 'connected' || s.status === 'authenticated')) || null;
+        const hasConnectedLike = list.some(s => s && s.status === 'connected');
+        const firstConnected = list.find(s => s && s.status === 'connected') || null;
 
         // Persistir/detectar histórico do número conectado
         if (firstConnected && firstConnected.phoneNumber) {
@@ -1178,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionCard.className = 'session-card';
             
             let statusClass = 'pending';
-            const isConnectedLike = session.status === 'connected' || session.status === 'authenticated';
+            const isConnectedLike = session.status === 'connected';
             const crmUrl = getCrmUrl(session.sessionId);
             if (isConnectedLike) statusClass = 'connected';
             if (session.status === 'auth_failed') statusClass = 'disconnected';
@@ -1724,9 +1725,14 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.on('session-status', (data) => {
                 if (!data) return;
                 if (String(data.sessionId || '') !== String(adminSessionId || ADMIN_SELF_SESSION_ID)) return;
-                if (data.status === 'connected' || data.status === 'authenticated') {
+                if (data.status === 'connected') {
                     showConnected();
                     if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
+                    return;
+                }
+                if (data.status === 'authenticated' || data.status === 'initializing') {
+                    resetQr();
+                    setMsg('Sessão criada. Aguardando QR Code ou confirmação real da conexão.', 'info');
                     return;
                 }
                 if (data.status === 'disconnected' || data.status === 'auth_failed') {
