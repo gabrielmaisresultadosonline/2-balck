@@ -1249,13 +1249,11 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
                 whatsappName: sessionData.name || user.whatsappName || null
             });
         }
-        if (sessionData.socketId) {
-            io.to(sessionData.socketId).emit('client-ready', {
-                sessionId,
-                phoneNumber: sessionData.phoneNumber,
-                name: sessionData.name
-            });
-        }
+        emitToSessionClients(sessionId, 'client-ready', {
+            sessionId,
+            phoneNumber: sessionData.phoneNumber,
+            name: sessionData.name
+        });
         io.to('admin').emit('client-ready', {
             sessionId,
             phoneNumber: sessionData.phoneNumber,
@@ -1263,9 +1261,7 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
         });
     }
 
-    if (sessionData.socketId) {
-        io.to(sessionData.socketId).emit('session-status', { sessionId, status: mappedStatus });
-    }
+    emitToSessionClients(sessionId, 'session-status', { sessionId, status: mappedStatus });
     io.to('admin').emit('session-status', { sessionId, status: mappedStatus });
 
     if (!options.silent && previousStatus !== mappedStatus) {
@@ -1289,9 +1285,7 @@ async function processEvolutionWebhookEvent(body) {
             sessionData.latestQr = qr.base64.startsWith('data:') ? qr.base64 : `data:image/png;base64,${qr.base64}`;
             const user = getUserBySessionId(sessionId);
             if (user) upsertUser({ ...user, lastQrAt: Date.now() });
-            if (sessionData.socketId) {
-                io.to(sessionData.socketId).emit('qr-generated', { sessionId, qr: sessionData.latestQr });
-            }
+            emitToSessionClients(sessionId, 'qr-generated', { sessionId, qr: sessionData.latestQr });
             io.to('admin').emit('qr-generated', { sessionId });
         }
         return;
@@ -1323,9 +1317,7 @@ async function processEvolutionWebhookEvent(body) {
                     }
                 }
             } catch (e) {}
-            if (sessionData.socketId) {
-                io.to(sessionData.socketId).emit('message-ack', { sessionId, msgId: id, chatId, ack });
-            }
+            emitToSessionClients(sessionId, 'message-ack', { sessionId, msgId: id, chatId, ack });
         });
         return;
     }
@@ -1354,8 +1346,8 @@ async function processEvolutionWebhookEvent(body) {
             };
             cacheById.set(String(nextChat.id), nextChat);
 
-            if (!messagePayload.fromMe && sessionData.socketId) {
-                io.to(sessionData.socketId).emit('new-message', {
+            if (!messagePayload.fromMe) {
+                emitToSessionClients(sessionId, 'new-message', {
                     sessionId,
                     message: messagePayload,
                     chat: {
@@ -1395,7 +1387,7 @@ async function handleSentMessage(sessionId, sentMsg, client) {
         saveMessageToHistory(sessionId, sentMsg.id.remote, messagePayload);
 
         const sessionData = activeClients.get(sessionId);
-        if (sessionData && sessionData.socketId) {
+        if (sessionData) {
              let contact;
              let profilePic = null;
              try {
@@ -1403,7 +1395,7 @@ async function handleSentMessage(sessionId, sentMsg, client) {
                 contact = await chat.getContact();
                 profilePic = await contact.getProfilePicUrl().catch(() => null);
                 
-                io.to(sessionData.socketId).emit('new-message', {
+                emitToSessionClients(sessionId, 'new-message', {
                     sessionId,
                     message: messagePayload,
                     chat: {
@@ -1486,6 +1478,11 @@ function getChatPreviewSafe(value) {
         );
     }
     return '';
+}
+
+function emitToSessionClients(sessionId, eventName, payload) {
+    if (!sessionId || !eventName) return;
+    io.to(`session:${sessionId}`).emit(eventName, payload);
 }
 
 function getCachedChatByAnyId(sessionId, chatId) {
@@ -2239,7 +2236,7 @@ setInterval(async () => {
 
                             // Notify frontend
                             if (sessionData.socketId) {
-                                io.to(sessionData.socketId).emit('message-sent', {
+                                emitToSessionClients(sessionId, 'message-sent', {
                                     chatId: msg.chatId,
                                     message: {
                                         id: sentMsg.id._serialized,
@@ -2253,7 +2250,7 @@ setInterval(async () => {
                                 });
                                 
                                 // Notify that a scheduled message was processed
-                                io.to(sessionData.socketId).emit('scheduled-message-sent', {
+                                emitToSessionClients(sessionId, 'scheduled-message-sent', {
                                     id: msg.id,
                                     chatId: msg.chatId,
                                     campaignId: msg.campaignId
@@ -3017,15 +3014,13 @@ function startReadyProbe(sessionId) {
                         whatsappName: sessionData.name
                     });
                 }
-                if (sessionData.socketId) io.to(sessionData.socketId).emit('session-status', { sessionId, status: 'connected' });
+                emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'connected' });
                 io.to('admin').emit('session-status', { sessionId, status: 'connected' });
-                if (sessionData.socketId) {
-                    io.to(sessionData.socketId).emit('client-ready', {
-                        sessionId,
-                        phoneNumber: sessionData.phoneNumber,
-                        name: sessionData.name
-                    });
-                }
+                emitToSessionClients(sessionId, 'client-ready', {
+                    sessionId,
+                    phoneNumber: sessionData.phoneNumber,
+                    name: sessionData.name
+                });
                 io.to('admin').emit('client-ready', { sessionId, phoneNumber: sessionData.phoneNumber, name: sessionData.name });
                 stopReadyProbe(sessionId);
             }
@@ -3620,16 +3615,14 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             }
             
             // Enviar status para frontend
-            if (sessionData.socketId) io.to(sessionData.socketId).emit('session-status', { sessionId, status: 'connected' });
+            emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'connected' });
             io.to('admin').emit('session-status', { sessionId, status: 'connected' });
             
-            if (sessionData.socketId) {
-                io.to(sessionData.socketId).emit('client-ready', {
-                    sessionId,
-                    phoneNumber: sessionData.phoneNumber,
-                    name: sessionData.name
-                });
-            }
+            emitToSessionClients(sessionId, 'client-ready', {
+                sessionId,
+                phoneNumber: sessionData.phoneNumber,
+                name: sessionData.name
+            });
             io.to('admin').emit('client-ready', { sessionId, phoneNumber: sessionData.phoneNumber, name: sessionData.name });
         }
     });
@@ -3911,7 +3904,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                 };
                 saveMessageToHistory(sessionId, msg.id.remote, messagePayload);
 
-                io.to(sessionData.socketId).emit('new-message', {
+                emitToSessionClients(sessionId, 'new-message', {
                     sessionId,
                     message: messagePayload,
                     chat: {

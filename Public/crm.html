@@ -2315,6 +2315,7 @@
             }
 
             console.log('Requesting data for session:', window.sessionId);
+            window.socket.emit('bind-session', window.sessionId);
             
             // Emit all requests
             window.socket.emit('get-chats', window.sessionId);
