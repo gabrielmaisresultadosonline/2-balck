@@ -1958,6 +1958,15 @@
                     selectedView.style.display = 'block';
                 }
             }
+
+            if (tabName === 'whatsapp') {
+                try {
+                    const chats = Object.values(window.allChatsData || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    renderChatList(chats);
+                } catch (e) {
+                    console.error('Erro ao renderizar lista do WhatsApp:', e);
+                }
+            }
             
             // AGENDA INIT
             if (tabName === 'agenda') {
@@ -1975,6 +1984,40 @@
                     loadingScreen.style.display = 'none';
                 }, 500);
             }
+        }
+
+        function extractDigits(value) {
+            return String(value || '').replace(/\D+/g, '');
+        }
+
+        function formatPhoneDisplay(value) {
+            const digits = extractDigits(value);
+            if (!digits) return '';
+            if (digits.length === 13) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,9)}-${digits.slice(9)}`;
+            if (digits.length === 12) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,8)}-${digits.slice(8)}`;
+            if (digits.length === 11) return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+            if (digits.length === 10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+            return digits;
+        }
+
+        function getChatPhone(chat) {
+            const direct = extractDigits(chat && (chat.phoneNumber || chat.phone || ''));
+            if (direct) return direct;
+            const id = String(chat && chat.id || '');
+            if (!id) return '';
+            return extractDigits(id.split('@')[0] || '');
+        }
+
+        function getChatDisplayName(chat) {
+            const rawName = String(chat && chat.name || '').trim();
+            const phone = getChatPhone(chat);
+            const formattedPhone = formatPhoneDisplay(phone);
+            const looksLikeIdOnly = rawName && /^[0-9@._+\-\s]+$/.test(rawName);
+            if (rawName && !looksLikeIdOnly && rawName !== '[object Object]') return rawName;
+            if (formattedPhone) return formattedPhone;
+            if (phone) return phone;
+            const id = String(chat && chat.id || '');
+            return id ? id.replace(/@(c\.us|s\.whatsapp\.net|g\.us|lid)$/, '') : 'Sem nome';
         }
 
         function getChatPreviewText(chat) {
@@ -2141,6 +2184,7 @@
             
             const time = new Date(chat.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const lastMsg = getChatPreviewText(chat);
+            const displayName = getChatDisplayName(chat);
             
             const avatarHtml = chat.profilePic ? 
                 `<img src="${chat.profilePic}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">` : 
@@ -2151,7 +2195,7 @@
                     ${avatarHtml}
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
                         <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                            <span class="card-name" style="font-weight: 600; font-size: 0.95rem; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${chat.name || chat.id.replace('@c.us', '')}</span>
+                            <span class="card-name" style="font-weight: 600; font-size: 0.95rem; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${displayName}</span>
                             <span class="card-time" style="font-size: 0.7rem; color: #64748b; flex-shrink: 0;">${time}</span>
                         </div>
                         <div class="card-preview" style="font-size: 0.85rem; color: #64748b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;">${lastMsg}</div>
@@ -2410,6 +2454,8 @@
                 
                 const time = new Date(chat.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const lastMsg = getChatPreviewText(chat);
+                const displayName = getChatDisplayName(chat);
+                const displayPhone = formatPhoneDisplay(getChatPhone(chat));
                 const avatar = chat.profilePic ? `<img src="${chat.profilePic}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">` : '<div style="width:100%; height:100%; background:#ddd; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#666;"><i class="fas fa-user"></i></div>';
                 
                 const aiIcon = chat.aiActive ? '<i class="fas fa-robot ai-sidebar-icon" title="I.A. Ativa"></i>' : '';
@@ -2428,7 +2474,7 @@
                     <div class="wa-chat-info">
                         <div class="wa-chat-top">
                             <div style="display:flex; align-items:center; flex:1; min-width:0; margin-right:5px;">
-                                <span class="wa-chat-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${chat.name || chat.id.replace('@c.us', '')}</span>
+                                <span class="wa-chat-name" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${displayName}</span>
                                 ${aiIcon}
                             </div>
                             <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
@@ -2437,7 +2483,7 @@
                             </div>
                         </div>
                         <div class="wa-chat-bottom">
-                            <span class="wa-chat-preview">${lastMsg.substring(0, 30)}${lastMsg.length > 30 ? '...' : ''}</span>
+                            <span class="wa-chat-preview">${displayPhone || (lastMsg.substring(0, 30) + (lastMsg.length > 30 ? '...' : ''))}</span>
                             ${chat.unreadCount > 0 ? `<span class="unread-badge">${chat.unreadCount}</span>` : ''}
                         </div>
                     </div>
