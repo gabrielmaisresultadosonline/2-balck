@@ -1321,12 +1321,19 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
         saveSessionsData(sessions);
         const user = getUserBySessionId(sessionId);
         if (user) {
-            upsertUser({
+            const updatedUser = upsertUser({
                 ...user,
                 connectedAt: Date.now(),
                 whatsappNumber: sessionData.phoneNumber || user.whatsappNumber || null,
                 whatsappName: sessionData.name || user.whatsappName || null
             });
+            if (previousStatus !== 'connected') {
+                appendUserHistory(updatedUser, {
+                    type: 'connect',
+                    label: 'Conectou',
+                    number: sessionData.phoneNumber || updatedUser.whatsappNumber || ''
+                });
+            }
         }
         emitToSessionClients(sessionId, 'client-ready', {
             sessionId,
@@ -1906,6 +1913,40 @@ function upsertUser(user) {
     store.users = users;
     saveUsersStore(store);
     return next;
+}
+
+function appendUserHistory(user, entry, options = {}) {
+    if (!user || !user.id || !entry || !entry.type) return user;
+    const now = Number(entry.at || Date.now());
+    const normalized = {
+        type: String(entry.type),
+        at: now,
+        label: entry.label ? String(entry.label) : '',
+        number: entry.number ? String(entry.number) : ''
+    };
+    const history = Array.isArray(user.history) ? user.history.slice() : [];
+    const last = history[0];
+    const dedupeWindowMs = Number(options.dedupeWindowMs || 15000);
+    const sameAsLast = last
+        && String(last.type || '') === normalized.type
+        && String(last.label || '') === normalized.label
+        && String(last.number || '') === normalized.number
+        && Math.abs(Number(last.at || 0) - normalized.at) <= dedupeWindowMs;
+    if (!sameAsLast) history.unshift(normalized);
+    const next = {
+        ...user,
+        history: history.slice(0, 100),
+        updatedAt: now
+    };
+    if (normalized.type === 'connect' || normalized.type === 'connected') {
+        next.connectedAt = now;
+        if (!next.firstConnectedAt) next.firstConnectedAt = now;
+    }
+    if (normalized.type === 'disconnect' || normalized.type === 'deleted' || normalized.type === 'auth_failed') {
+        next.disconnectedAt = now;
+        next.lastDisconnectedAt = now;
+    }
+    return upsertUser(next);
 }
 
 function loadAuthTokens() {
@@ -2923,6 +2964,8 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
             const saved = sid ? sessions[sid] : null;
             const status = live ? live.status : (saved ? 'authenticated' : 'none');
             const proxy = sid ? proxyManager.getProxyForSession(sid) : null;
+            const history = Array.isArray(u.history) ? u.history.slice().sort((a, b) => Number(b.at || 0) - Number(a.at || 0)) : [];
+            const lastDisconnect = history.find(h => h && (h.type === 'disconnect' || h.type === 'deleted' || h.type === 'auth_failed')) || null;
             return {
                 id: u.id,
                 name: u.name,
@@ -2934,7 +2977,10 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
                 whatsappName: (u.whatsappName || (saved && saved.name) || null),
                 createdAt: u.createdAt || null,
                 connectedAt: u.connectedAt || null,
-                lastQrAt: u.lastQrAt || null
+                disconnectedAt: u.disconnectedAt || (lastDisconnect && lastDisconnect.at) || null,
+                lastDisconnectedAt: u.lastDisconnectedAt || (lastDisconnect && lastDisconnect.at) || null,
+                lastQrAt: u.lastQrAt || null,
+                history
             };
         });
         res.json({ success: true, users: out });
@@ -3322,12 +3368,17 @@ function startReadyProbe(sessionId) {
                 sessionData.name = info.pushname;
                 const user = getUserBySessionId(sessionId);
                 if (user) {
-                    upsertUser({
+        const updatedUser = upsertUser({
                         ...user,
                         connectedAt: Date.now(),
                         whatsappNumber: sessionData.phoneNumber,
                         whatsappName: sessionData.name
                     });
+        appendUserHistory(updatedUser, {
+            type: 'connect',
+            label: 'Conectou',
+            number: sessionData.phoneNumber || ''
+        });
                 }
                 emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'connected' });
                 io.to('admin').emit('session-status', { sessionId, status: 'connected' });
@@ -4259,6 +4310,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
     client.on('auth_failure', (msg) => {
         console.log(`Falha na autenticação: ${sessionId}`, msg);
         const sessionData = activeClients.get(sessionId);
+        const user = getUserBySessionId(sessionId);
         if (sessionData) {
             sessionData.status = 'auth_failed';
             sessionData.ready = false;
@@ -4275,12 +4327,20 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             if (sessionData.socketId) io.to(sessionData.socketId).emit('session-status', { sessionId, status: 'auth_failed' });
             io.to('admin').emit('session-status', { sessionId, status: 'auth_failed' });
         }
+        if (user) {
+            appendUserHistory(user, {
+                type: 'auth_failed',
+                label: 'Falha de autenticação',
+                number: user.whatsappNumber || (sessionData && sessionData.phoneNumber) || ''
+            });
+        }
 
         scheduleReconnect(sessionId, 'auth_failure');
     });
 
     client.on('disconnected', (reason) => {
         console.log(`Cliente desconectado: ${sessionId}`, reason);
+        const user = getUserBySessionId(sessionId);
         if (isSessionManuallyStopped(sessionId)) {
             const sessionData = activeClients.get(sessionId);
             if (sessionData) {
@@ -4302,6 +4362,13 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             stopReadyProbe(sessionId);
             if (sessionData.socketId) io.to(sessionData.socketId).emit('session-status', { sessionId, status: 'reconnecting' });
             io.to('admin').emit('session-status', { sessionId, status: 'reconnecting' });
+        }
+        if (user) {
+            appendUserHistory(user, {
+                type: 'disconnect',
+                label: 'Desconectou',
+                number: user.whatsappNumber || (sessionData && sessionData.phoneNumber) || ''
+            });
         }
 
         scheduleReconnect(sessionId, reason || 'disconnected');
@@ -5045,6 +5112,7 @@ app.post('/api/disconnect-session', async (req, res) => {
     stopEvolutionConnectionPoll(sessionId);
 
     const sessionData = activeClients.get(sessionId);
+    const userBeforeDisconnect = getUserBySessionId(sessionId);
     if (sessionData && sessionData.client) {
         try { await sessionData.client.destroy(); } catch (e) {}
     }
@@ -5053,6 +5121,13 @@ app.post('/api/disconnect-session', async (req, res) => {
     }
     activeClients.delete(sessionId);
     clearPersistedConnectionState(sessionId, { keepUserBinding: true });
+    if (userBeforeDisconnect) {
+        appendUserHistory(userBeforeDisconnect, {
+            type: 'disconnect',
+            label: 'Desconectou manualmente',
+            number: userBeforeDisconnect.whatsappNumber || (sessionData && sessionData.phoneNumber) || ''
+        });
+    }
 
     emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'disconnected' });
     io.to('admin').emit('session-status', { sessionId, status: 'disconnected' });
@@ -5273,7 +5348,14 @@ io.on('connection', (socket) => {
             } catch (e) {}
 
             const u = getUserBySessionId(sid);
-            if (u) upsertUser({ ...u, sessionId: null, whatsappNumber: null, whatsappName: null, connectedAt: null, lastQrAt: null, updatedAt: Date.now() });
+            if (u) {
+                const updatedUser = appendUserHistory(u, {
+                    type: 'deleted',
+                    label: 'Sessão excluída permanentemente',
+                    number: u.whatsappNumber || (sessionData && sessionData.phoneNumber) || ''
+                });
+                upsertUser({ ...updatedUser, sessionId: null, whatsappNumber: null, whatsappName: null, connectedAt: null, lastQrAt: null, updatedAt: Date.now() });
+            }
             io.to(`session:${sid}`).emit('sessions-list-update');
             io.to('admin').emit('sessions-list-update');
             if (typeof cb === 'function') cb({ ok: true });
