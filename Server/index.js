@@ -5137,6 +5137,50 @@ app.post('/api/disconnect-session', async (req, res) => {
     res.json({ success: true, message: 'Sessão desconectada' });
 });
 
+app.get('/api/admin/self-session-status', requireAdmin, (req, res) => {
+    const sessionId = ADMIN_SELF_SESSION_ID;
+    const passwords = loadSessionPasswords();
+    let sessionData = activeClients.get(sessionId) || null;
+
+    if (!sessionData) {
+        const saved = loadSessionsData()[sessionId];
+        if (saved) {
+            clearSessionManualStop(sessionId);
+            initializeClient(sessionId, saved);
+            sessionData = activeClients.get(sessionId) || null;
+        }
+    }
+
+    if (sessionData) {
+        let status = sessionData.status || 'initializing';
+        if (status === 'initializing' && (sessionData.phoneNumber || sessionData.name)) status = 'authenticated';
+        return res.json({
+            success: true,
+            session: {
+                sessionId,
+                status,
+                phoneNumber: sessionData.phoneNumber || null,
+                name: sessionData.name || null,
+                connectedAt: sessionData.connectedAt || null,
+                hasPassword: !!passwords[sessionId]
+            }
+        });
+    }
+
+    const saved = loadSessionsData()[sessionId];
+    return res.json({
+        success: true,
+        session: {
+            sessionId,
+            status: saved ? 'authenticated' : 'none',
+            phoneNumber: saved && saved.phoneNumber ? saved.phoneNumber : null,
+            name: saved && saved.name ? saved.name : null,
+            connectedAt: saved && saved.createdAt ? saved.createdAt : null,
+            hasPassword: !!passwords[sessionId]
+        }
+    });
+});
+
 // Rota para listar sessões ativas
 app.get('/api/active-sessions', requireUser, (req, res) => {
     const sessions = [];

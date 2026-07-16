@@ -1614,6 +1614,35 @@ document.addEventListener('DOMContentLoaded', function() {
             setMsg('WhatsApp do admin desconectado. Gere um novo QR Code para conectar novamente.', 'info');
         }
 
+        async function refreshAdminSelfState() {
+            try {
+                const response = await authFetch('/api/admin/self-session-status');
+                const data = await response.json().catch(() => ({}));
+                const session = data && data.session ? data.session : null;
+                adminSessionId = (session && session.sessionId) ? session.sessionId : ADMIN_SELF_SESSION_ID;
+                if (socket) socket.emit('bind-session', adminSessionId);
+                if (!response.ok || !session) {
+                    resetQr();
+                    return;
+                }
+                if (session.status === 'connected') {
+                    showConnected();
+                    setMsg('WhatsApp conectado com sucesso via IP real.', 'ok');
+                    if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
+                    return;
+                }
+                if (session.status === 'authenticated' || session.status === 'initializing' || session.status === 'reconnecting') {
+                    resetQr();
+                    setMsg('Sessão do admin encontrada. Aguardando sincronização da conexão...', 'info');
+                    if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
+                    return;
+                }
+                setDisconnectedState();
+            } catch (_) {
+                resetQr();
+            }
+        }
+
         function startCountdown(sec) {
             stopCountdown();
             let n = sec;
@@ -1641,6 +1670,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const ipNow = document.getElementById('adminRealIp');
                     if (ipEl && ipNow) ipEl.textContent = ipNow.textContent;
                 }, 1200);
+                refreshAdminSelfState();
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             } else {
                 panel.setAttribute('hidden', '');
@@ -1707,6 +1737,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function bindSocketOnce() {
             if (!socket || socket.__adminMyWhatsBound) return;
             socket.__adminMyWhatsBound = true;
+            try { socket.emit('bind-session', adminSessionId || ADMIN_SELF_SESSION_ID); } catch (_) {}
             socket.on('qr-generated', (data) => {
                 if (!data) return;
                 if (String(data.sessionId || '') !== String(adminSessionId || ADMIN_SELF_SESSION_ID)) return;
@@ -1746,6 +1777,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         const bindInterval = setInterval(() => { if (typeof socket !== 'undefined' && socket) { bindSocketOnce(); clearInterval(bindInterval); } }, 500);
+        setTimeout(() => {
+            try { refreshAdminSelfState(); } catch (_) {}
+        }, 800);
     })();
 
     // Carregar sessões ao iniciar
