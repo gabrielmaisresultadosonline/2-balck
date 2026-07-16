@@ -53,6 +53,16 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         writeHistoryStore(store);
     }
+
+    function formatSessionPhone(value) {
+        const digits = String(value || '').replace(/\D+/g, '');
+        if (!digits) return '';
+        if (digits.length === 13) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,9)}-${digits.slice(9)}`;
+        if (digits.length === 12) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,8)}-${digits.slice(8)}`;
+        if (digits.length === 11) return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+        if (digits.length === 10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+        return `+${digits}`;
+    }
     function clearWhatsHistory() {
         const store = readHistoryStore();
         delete store[getUserHistoryId()];
@@ -237,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     info.innerHTML = `
                         <p><strong>ID da Sessão:</strong> ${data.sessionId}</p>
                         <p><strong>Status:</strong> <span class="status connected">Conectado</span></p>
-                        <p><strong>Número:</strong> ${data.phoneNumber}</p>
+                        <p><strong>Número:</strong> ${formatSessionPhone(data.phoneNumber) || data.phoneNumber || 'Não informado'}</p>
                         <p><strong>Nome:</strong> ${data.name || 'Não informado'}</p>
                     `;
                 }
@@ -1218,7 +1228,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="uc-conn__icon"><i class="fab fa-whatsapp"></i></div>
                             <div class="uc-conn__title">${session.name || 'WhatsApp'}</div>
                         </div>
-                        <div class="uc-conn__meta"><span>Número:</span> ${session.phoneNumber || 'Não conectado'}</div>
+                        <div class="uc-conn__meta"><span>Número:</span> ${formatSessionPhone(session.phoneNumber) || 'Não conectado'}</div>
                         <div class="uc-conn__meta"><span>ID:</span> ${session.sessionId}</div>
                         <span class="uc-badge">CONECTADO</span>
                         <button type="button" class="uc-refresh" onclick="if(window.refreshSessionsBtn)window.refreshSessionsBtn.click();document.getElementById('refreshSessionsBtn')&&document.getElementById('refreshSessionsBtn').click();">
@@ -1235,7 +1245,7 @@ document.addEventListener('DOMContentLoaded', function() {
             sessionCard.innerHTML = `
                 <div class="session-info">
                     <h4>${session.name || 'WhatsApp'}</h4>
-                    <p><strong>Numero:</strong> ${session.phoneNumber || 'Nao conectado'}</p>
+                    <p><strong>Numero:</strong> ${formatSessionPhone(session.phoneNumber) || 'Nao conectado'}</p>
                     <p><strong>ID:</strong> ${session.sessionId}</p>
                 </div>
                 <div>
