@@ -2838,6 +2838,8 @@
             }
 
             window.allFlows.forEach(flow => {
+                const activeInfo = window.flowUsageCache && window.flowUsageCache.active ? window.flowUsageCache.active[String(flow.id)] : null;
+                const activeCount = activeInfo && Number.isFinite(Number(activeInfo.count)) ? Number(activeInfo.count) : 0;
                 const div = document.createElement('div');
                 div.className = 'flow-item';
                 div.style.cssText = `
@@ -2869,10 +2871,14 @@
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; justify-content:space-between; padding-top:10px; border-top:1px dashed #e5e7eb;">
-                        <span style="font-size:0.75rem; color:#0d7a5f; background:#ecfdf5; padding:4px 10px; border-radius:999px; font-weight:700;"><i class="fas fa-list-ol"></i> ${stepCount} passo${stepCount===1?'':'s'}</span>
+                        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                            <span style="font-size:0.75rem; color:#0d7a5f; background:#ecfdf5; padding:4px 10px; border-radius:999px; font-weight:700;"><i class="fas fa-list-ol"></i> ${stepCount} passo${stepCount===1?'':'s'}</span>
+                            ${activeCount > 0 ? `<span style="font-size:0.75rem; color:#92400e; background:#fef3c7; padding:4px 10px; border-radius:999px; font-weight:700;"><i class="fas fa-play-circle"></i> ${activeCount} em execução</span>` : ''}
+                        </div>
                         <div style="display:flex; gap:6px;">
-                            <button onclick="editFlow('${flow.id}')" class="btn-secondary" style="padding:6px 10px; border-radius:8px;" title="Editar"><i class="fas fa-edit"></i></button>
-                            <button onclick="deleteFlow('${flow.id}')" class="btn-secondary" style="padding:6px 10px; border-radius:8px; color:#ef4444;" title="Excluir"><i class="fas fa-trash"></i></button>
+                            <button onclick='editFlow(${JSON.stringify(flow.id)})' class="btn-secondary" style="padding:6px 10px; border-radius:8px;" title="Editar"><i class="fas fa-edit"></i></button>
+                            <button onclick='stopFlowInstancesAction(${JSON.stringify(flow.id)}, ${JSON.stringify(flow.name || "Fluxo")})' class="btn-secondary" style="padding:6px 10px; border-radius:8px; color:#b45309;" title="Parar execuções" ${activeCount > 0 ? '' : 'disabled'}><i class="fas fa-stop-circle"></i></button>
+                            <button onclick='deleteFlow(${JSON.stringify(flow.id)}, ${JSON.stringify(flow.name || "Fluxo")})' class="btn-secondary" style="padding:6px 10px; border-radius:8px; color:#ef4444;" title="Remover fluxo"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
                 `;
@@ -5702,13 +5708,70 @@
             });
         };
 
-        window.deleteFlow = function(flowId) {
-            if(confirm('Tem certeza que deseja excluir este fluxo?')) {
-                window.socket.emit('delete-flow', { sessionId: window.sessionId, flowId }, (res) => {
-                    if(!res.ok) alert('Erro ao excluir: ' + (res.error || 'Desconhecido'));
-                    else window.socket.emit('get-flows', window.sessionId);
-                });
+        window.requestFlowUsageRefresh = function() {
+            if (window.socket && window.sessionId) {
+                window.socket.emit('get-flows-usage', { sessionId: window.sessionId });
             }
+        };
+
+        window.refreshFlowsData = function() {
+            if (window.socket && window.sessionId) {
+                window.socket.emit('get-flows', window.sessionId);
+                window.requestFlowUsageRefresh();
+            }
+        };
+
+        window.stopFlowInstancesAction = function(flowId, flowName) {
+            const label = flowName || 'este fluxo';
+            if (!confirm(`Deseja parar todas as execuções ativas de "${label}"?`)) return;
+            window.socket.emit('stop-flow-instances', { sessionId: window.sessionId, flowId }, (res) => {
+                if (!res || !res.ok) {
+                    alert('Erro ao parar fluxo: ' + ((res && res.error) || 'Desconhecido'));
+                    return;
+                }
+                window.refreshFlowsData();
+                if (window.showToast) window.showToast(`Fluxo "${label}" parado.`, 'success');
+            });
+        };
+
+        window.stopFlowChatInstance = function(chatId, flowId, flowName) {
+            const label = flowName || 'este fluxo';
+            if (!confirm(`Deseja parar "${label}" neste chat?`)) return;
+            window.socket.emit('stop-flow-chat', { sessionId: window.sessionId, chatId, flowId }, (res) => {
+                if (!res || !res.ok) {
+                    alert('Erro ao parar fluxo neste chat: ' + ((res && res.error) || 'Desconhecido'));
+                    return;
+                }
+                window.requestFlowUsageRefresh();
+                if (window.showToast) window.showToast(`Fluxo parado neste chat.`, 'success');
+            });
+        };
+
+        window.deleteFlow = function(flowId, flowName, options = {}) {
+            const label = flowName || 'este fluxo';
+            const skipConfirm = !!options.skipConfirm;
+            const triedStop = !!options.triedStop;
+            if (!skipConfirm && !confirm(`Tem certeza que deseja remover o fluxo "${label}"?`)) return;
+            window.socket.emit('delete-flow', { sessionId: window.sessionId, flowId }, (res) => {
+                if (res && res.ok) {
+                    window.refreshFlowsData();
+                    if (window.showToast) window.showToast(`Fluxo "${label}" removido.`, 'success');
+                    return;
+                }
+                if (res && res.code === 'FLOW_IN_USE' && !triedStop) {
+                    const shouldStop = confirm(`O fluxo "${label}" está em execução. Deseja parar as execuções ativas e remover o fluxo agora?`);
+                    if (!shouldStop) return;
+                    window.socket.emit('stop-flow-instances', { sessionId: window.sessionId, flowId }, (stopRes) => {
+                        if (!stopRes || !stopRes.ok) {
+                            alert('Erro ao parar fluxo antes de remover: ' + ((stopRes && stopRes.error) || 'Desconhecido'));
+                            return;
+                        }
+                        window.deleteFlow(flowId, label, { skipConfirm: true, triedStop: true });
+                    });
+                    return;
+                }
+                alert('Erro ao excluir: ' + ((res && res.error) || 'Desconhecido'));
+            });
         };
         
         window.handleNewStepDragStart = function(e, type) {
@@ -6518,6 +6581,7 @@
              
              const active = data && data.active ? data.active : (data || {});
              const history = Array.isArray(data && data.history) ? data.history : [];
+             window.flowUsageCache = { active, history };
              let total = 0;
              let html = '';
              
@@ -6526,7 +6590,13 @@
                  total += info.count;
                  html += `
                  <div style="padding:10px; border:1px solid #e5e7eb; background:white; margin-bottom:8px; border-radius:10px;">
-                    <div style="font-weight:bold; color:#333;">${info.flowName || ('Fluxo ID: ' + flowId)}</div>
+                    <div style="display:flex; gap:8px; justify-content:space-between; align-items:flex-start;">
+                        <div style="font-weight:bold; color:#333; padding-right:8px;">${info.flowName || ('Fluxo ID: ' + flowId)}</div>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                            <button onclick='stopFlowInstancesAction(${JSON.stringify(flowId)}, ${JSON.stringify(info.flowName || "Fluxo")})' class="btn-secondary" style="padding:5px 9px; border-radius:8px; color:#b45309; font-size:0.74rem;" title="Parar fluxo"><i class="fas fa-stop-circle"></i> Parar</button>
+                            <button onclick='deleteFlow(${JSON.stringify(flowId)}, ${JSON.stringify(info.flowName || "Fluxo")})' class="btn-secondary" style="padding:5px 9px; border-radius:8px; color:#ef4444; font-size:0.74rem;" title="Remover fluxo"><i class="fas fa-trash"></i> Remover</button>
+                        </div>
+                    </div>
                     <div style="font-size:0.85rem; color:#666; display:flex; gap:10px; margin-top:4px;">
                         <span><i class="fas fa-play-circle" style="color:green;"></i> Ativos: ${info.count}</span>
                         <span><i class="fas fa-clock" style="color:orange;"></i> Aguardando: ${info.waitingCount}</span>
@@ -6535,6 +6605,9 @@
                         <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #e5e7eb; font-size:0.8rem; color:#475569;">
                             <div><strong>Chat:</strong> ${escapeSummary(item.chatId || '')}</div>
                             <div><strong>Etapa:</strong> ${Number(item.step || 0) + 1} ${item.action ? `| <strong>Ação:</strong> ${escapeSummary(item.action)}` : ''}</div>
+                            <div style="margin-top:8px;">
+                                <button onclick='stopFlowChatInstance(${JSON.stringify(item.chatId || "")}, ${JSON.stringify(flowId)}, ${JSON.stringify(info.flowName || "Fluxo")})' class="btn-secondary" style="padding:5px 9px; border-radius:8px; color:#b45309; font-size:0.74rem;" title="Parar neste chat"><i class="fas fa-ban"></i> Parar neste chat</button>
+                            </div>
                         </div>
                     `).join('')}
                  </div>`;
@@ -6571,6 +6644,7 @@
                  badge.innerText = total;
                  badge.style.display = total > 0 ? 'block' : 'none';
              }
+             renderFlows(window.allFlows || []);
         });
         window.socket.on('flow-execution-error', (payload) => {
             window.toggleRunningFlowsDrawer(true);
