@@ -940,12 +940,26 @@ function createEvolutionMessageObject(sessionId, chatId, raw) {
 
 function createEvolutionChatWrapper(sessionId, chatId) {
     const normalizedChatId = normalizeEvolutionChatId(chatId);
+    const cached = getCachedChatByAnyId(sessionId, normalizedChatId);
+    const cachedLastMessage = cached ? getChatPreviewSafe(cached.lastMessage) : '';
+    const cachedTimestamp = Number(cached && cached.timestamp ? cached.timestamp : 0) || Math.floor(Date.now() / 1000);
     return {
         id: { _serialized: normalizedChatId },
-        name: '',
-        unreadCount: 0,
-        timestamp: Math.floor(Date.now() / 1000),
-        lastMessage: { body: '' },
+        name: cached && cached.name ? sanitizeEvolutionText(cached.name) : '',
+        phoneNumber: cached && cached.phoneNumber ? sanitizeEvolutionText(cached.phoneNumber) : '',
+        unreadCount: Number(cached && cached.unreadCount ? cached.unreadCount : 0) || 0,
+        timestamp: cachedTimestamp,
+        lastMessage: {
+            id: { _serialized: `cache-last-${normalizedChatId}-${cachedTimestamp}` },
+            body: cachedLastMessage,
+            from: normalizedChatId,
+            to: normalizedChatId,
+            timestamp: cachedTimestamp,
+            fromMe: false,
+            type: 'chat',
+            hasMedia: false,
+            ack: 0
+        },
         async fetchMessages({ limit = 100 } = {}) {
             const possibleIds = collectPossibleChatIds(sessionId, normalizedChatId);
             let local = [];
@@ -982,8 +996,23 @@ function createEvolutionChatWrapper(sessionId, chatId) {
                     page: 1
                 });
                 const rows = extractEvolutionRows(res);
-                return rows.slice(-limit).map(item => createEvolutionMessageObject(sessionId, normalizedChatId, item));
+                const mapped = rows.slice(-limit).map(item => createEvolutionMessageObject(sessionId, normalizedChatId, item));
+                if ((!mapped || mapped.length === 0) && cachedLastMessage) {
+                    return [createEvolutionMessageObject(sessionId, normalizedChatId, {
+                        key: { id: `cache-last-${normalizedChatId}-${cachedTimestamp}`, remoteJid: normalizedChatId, fromMe: false },
+                        messageTimestamp: cachedTimestamp,
+                        message: { conversation: cachedLastMessage }
+                    })];
+                }
+                return mapped;
             } catch (e) {
+                if (cachedLastMessage) {
+                    return [createEvolutionMessageObject(sessionId, normalizedChatId, {
+                        key: { id: `cache-last-${normalizedChatId}-${cachedTimestamp}`, remoteJid: normalizedChatId, fromMe: false },
+                        messageTimestamp: cachedTimestamp,
+                        message: { conversation: cachedLastMessage }
+                    })];
+                }
                 return [];
             }
         },
@@ -1427,6 +1456,36 @@ function extractCandidateNumbersFromMessages(messages) {
         }
     }
     return Array.from(out);
+}
+
+function sanitizeEvolutionText(value) {
+    return String(value == null ? '' : value)
+        .replace(/^[`"' ]+|[`"' ]+$/g, '')
+        .trim();
+}
+
+function getChatPreviewSafe(value) {
+    if (!value) return '';
+    if (typeof value === 'string' || typeof value === 'number') return sanitizeEvolutionText(value);
+    if (typeof value === 'object') {
+        return sanitizeEvolutionText(
+            value.body ||
+            value.caption ||
+            value.text ||
+            value.conversation ||
+            value.message?.conversation ||
+            value.message?.extendedTextMessage?.text ||
+            ''
+        );
+    }
+    return '';
+}
+
+function getCachedChatByAnyId(sessionId, chatId) {
+    const ids = collectPossibleChatIds(sessionId, chatId);
+    const cache = loadChatCache(sessionId);
+    const list = Array.isArray(cache) ? cache : [];
+    return list.find(item => item && ids.includes(String(item.id || '').trim())) || null;
 }
 
 async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', cached = null) {
