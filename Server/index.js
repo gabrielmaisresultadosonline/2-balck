@@ -1997,7 +1997,8 @@ async function handleSentMessage(sessionId, sentMsg, client, localMediaData = nu
             type: sentMsg.type,
             hasMedia: sentMsg.hasMedia,
             ack: sentMsg.ack,
-            media: mediaData || null
+            media: mediaData || null,
+            interactiveMeta: sentMsg.__interactiveMeta || null
         };
 
         saveMessageToHistory(sessionId, sentMsg.id.remote, messagePayload);
@@ -2746,6 +2747,23 @@ function normalizeFlowInteractiveId(value, fallback = 'option') {
     return text || fallback;
 }
 
+function normalizeFlowButtonUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return raw;
+    return `https://${raw}`;
+}
+
+function normalizeFlowButtonPhone(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const hasPlus = raw.startsWith('+');
+    const digits = raw.replace(/\D+/g, '');
+    if (!digits) return '';
+    return hasPlus ? `+${digits}` : digits;
+}
+
 function normalizeFlowButtonConfig(button, index = 0, prefix = 'button') {
     const raw = button && typeof button === 'object' ? button : {};
     const type = ['reply', 'url', 'call', 'copy', 'pix'].includes(String(raw.type || '').toLowerCase())
@@ -2761,8 +2779,8 @@ function normalizeFlowButtonConfig(button, index = 0, prefix = 'button') {
         displayText,
         id,
         buttonId: id,
-        url: String(raw.url || '').trim(),
-        phoneNumber: String(raw.phoneNumber || raw.phone || '').trim(),
+        url: normalizeFlowButtonUrl(raw.url || ''),
+        phoneNumber: normalizeFlowButtonPhone(raw.phoneNumber || raw.phone || ''),
         copyCode: String(raw.copyCode || raw.copy_code || '').trim(),
         pixKey: String(raw.pixKey || raw.pix_key || '').trim(),
         targetId: raw.targetId ? String(raw.targetId) : null
@@ -4291,6 +4309,19 @@ async function handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex,
                 kind,
                 sentMessageId: sentMsg && sentMsg.id && sentMsg.id._serialized ? sentMsg.id._serialized : null
             });
+            if (sentMsg && typeof sentMsg === 'object') {
+                sentMsg.__interactiveMeta = {
+                    kind,
+                    title: String(payload.title || '').trim(),
+                    description: String(payload.description || payload.text || '').trim(),
+                    footerText: String(payload.footerText || payload.footer || '').trim(),
+                    buttonText: String(payload.buttonText || '').trim(),
+                    buttons: Array.isArray(payload.buttons) ? payload.buttons : [],
+                    sections: Array.isArray(payload.sections) ? payload.sections : []
+                };
+                sentMsg.type = kind;
+                if (typeof sentMsg.body === 'string') sentMsg.body = '';
+            }
         } catch (error) {
             if (!shouldUseFlowInteractiveFallback(step, kind, error)) throw error;
             sentMsg = await sendFallback(error);

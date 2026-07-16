@@ -2342,6 +2342,38 @@
             return !['🎤 Áudio', '📎 Mídia', '📎 Arquivo'].includes(body);
         }
 
+        function renderInteractiveMessagePreview(message) {
+            const meta = message && message.interactiveMeta && typeof message.interactiveMeta === 'object'
+                ? message.interactiveMeta
+                : null;
+            if (!meta) return '';
+            const kind = String(meta.kind || message.type || '').toLowerCase();
+            if (!['buttons', 'list', 'carousel'].includes(kind)) return '';
+
+            let detailHtml = '';
+            if (kind === 'buttons' && Array.isArray(meta.buttons) && meta.buttons.length) {
+                detailHtml = meta.buttons
+                    .map((button) => `<span style="display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; border:1px solid rgba(14,116,144,0.18); background:#f0f9ff; color:#0f172a; font-size:0.78rem; margin:4px 6px 0 0;">${escapeHtml(button.displayText || button.title || 'Botao')}</span>`)
+                    .join('');
+            } else if (kind === 'list' && Array.isArray(meta.sections) && meta.sections.length) {
+                const rows = meta.sections.flatMap((section) => Array.isArray(section.rows) ? section.rows : []).slice(0, 4);
+                detailHtml = rows
+                    .map((row, index) => `<div style="font-size:0.8rem; color:#334155; margin-top:4px;">${index + 1}. ${escapeHtml(row.title || 'Opcao')}</div>`)
+                    .join('');
+            } else if (kind === 'carousel') {
+                detailHtml = `<div style="font-size:0.8rem; color:#334155; margin-top:4px;">Carrossel interativo enviado</div>`;
+            }
+
+            return `
+                <div style="padding:10px 12px; border:1px solid rgba(15,23,42,0.08); border-radius:12px; background:rgba(248,250,252,0.92); margin-bottom:5px;">
+                    <div style="font-size:0.72rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:#0f766e;">${kind === 'buttons' ? 'Botoes interativos' : kind === 'list' ? 'Lista interativa' : 'Carrossel interativo'}</div>
+                    ${meta.title ? `<div style="font-weight:700; color:#0f172a; margin-top:4px;">${escapeHtml(meta.title)}</div>` : ''}
+                    ${meta.description ? `<div style="font-size:0.84rem; color:#334155; margin-top:2px;">${escapeHtml(meta.description)}</div>` : ''}
+                    ${detailHtml ? `<div style="margin-top:6px;">${detailHtml}</div>` : ''}
+                </div>
+            `;
+        }
+
         function createMessageMediaRequest(message) {
             if (!window.currentWaChatId || !message) return;
             window.socket.emit('get-message-media', {
@@ -5827,6 +5859,9 @@
                     .replace(/\n/g, '<br>')
                     .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #039be5; text-decoration: underline;">$1</a>');
                 contentHtml += `<div class="message-text">${formattedBody}</div>`;
+            } else {
+                const interactivePreview = renderInteractiveMessagePreview(msg);
+                if (interactivePreview) contentHtml += interactivePreview;
             }
 
             // Timestamp & Checkmarks
