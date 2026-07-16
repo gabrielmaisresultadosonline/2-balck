@@ -9,9 +9,20 @@
         @keyframes blinkBlue { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         .ai-active-icon { color: #3b82f6; animation: blinkBlue 2s infinite; cursor: pointer; font-size: 1.2rem; margin-left: 10px; }
         .ai-inactive-icon { color: #cbd5e1; cursor: pointer; font-size: 1.2rem; margin-left: 10px; }
-        .media-container { max-width: 300px; border-radius: 8px; overflow: hidden; margin-bottom: 5px; position: relative; }
-        .media-loading { background: #f0f0f0; height: 150px; display: flex; align-items: center; justify-content: center; color: #888; flex-direction: column; gap: 10px; }
+        .media-container { max-width: 320px; border-radius: 14px; overflow: hidden; margin-bottom: 6px; position: relative; }
+        .media-loading { background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%); height: 150px; display: flex; align-items: center; justify-content: center; color: #64748b; flex-direction: column; gap: 10px; border: 1px solid rgba(148,163,184,0.18); }
         .media-image { width: 100%; height: auto; display: block; }
+        .media-video { max-width: 100%; display: block; border-radius: 14px; background: #000; }
+        .audio-player-container { display:flex; flex-direction:column; gap:6px; width:100%; min-width:280px; padding:10px 12px; border-radius:16px; background: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.98) 100%); border: 1px solid rgba(148,163,184,0.2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+        .audio-player-container audio { width:100%; height:40px; border-radius:20px; outline:none; }
+        .audio-speed-row { display:flex; gap:5px; align-self:flex-end; margin-right:5px; }
+        .doc-card { display:flex; align-items:center; gap:10px; padding:12px; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border: 1px solid rgba(148,163,184,0.24); border-radius: 16px; min-width: 240px; box-shadow: 0 8px 22px -16px rgba(15,23,42,0.35); }
+        .doc-card-icon { width:42px; height:42px; flex:0 0 42px; border-radius:12px; background: linear-gradient(135deg, #0f766e 0%, #10b981 100%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1rem; box-shadow: 0 10px 18px -14px rgba(15,118,110,0.75); }
+        .doc-card-body { flex:1; min-width:0; }
+        .doc-card-name { font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .doc-card-type { font-size:0.78rem; color:#64748b; margin-top:2px; }
+        .doc-card-download { color:#0f766e; font-weight:700; text-decoration:none; white-space:nowrap; padding:7px 10px; border-radius:999px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.18); }
+        .doc-card-download:hover { background: rgba(16,185,129,0.16); }
         .wa-date-separator { text-align: center; margin: 15px 0; position: relative; }
         .wa-date-separator span { background: #e1f2fb; padding: 5px 12px; border-radius: 10px; font-size: 0.75rem; color: #555; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
 
@@ -1956,6 +1967,7 @@
         window.allChatsData = {};
         window.columns = [];
         window.allFlows = [];
+        window.pendingOutgoingMessages = {};
 
         // Navigation Logic
         window.switchTab = function(tabName) {
@@ -2028,6 +2040,215 @@
             if (digits.length === 10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
             if (digits.length > 13) return `+${digits}`;
             return digits;
+        }
+
+        function getMessageKey(message) {
+            if (!message) return '';
+            if (message.id && typeof message.id === 'object' && message.id._serialized) return String(message.id._serialized);
+            return String(message.id || message.tempId || '');
+        }
+
+        function getMessageText(message) {
+            return String(message && message.body || '').trim();
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function shouldRenderMessageText(message) {
+            const body = getMessageText(message);
+            if (!body) return false;
+            if (!message || !message.hasMedia) return true;
+            return !['🎤 Áudio', '📎 Mídia', '📎 Arquivo'].includes(body);
+        }
+
+        function createMessageMediaRequest(message) {
+            if (!window.currentWaChatId || !message) return;
+            window.socket.emit('get-message-media', {
+                sessionId: window.sessionId,
+                chatId: window.currentWaChatId,
+                messageId: getMessageKey(message)
+            });
+        }
+
+        function renderEmbeddedMedia(message, mediaPayload) {
+            const media = mediaPayload && typeof mediaPayload === 'object' ? mediaPayload : null;
+            const mime = String(media && media.mimetype || '').toLowerCase();
+            const data = String(media && media.data || '');
+            const filename = escapeHtml((media && media.filename) || 'arquivo');
+            const messageId = getMessageKey(message).replace(/[^a-zA-Z0-9]/g, '');
+            if (!mime || !data) {
+                return `
+                    <div class="media-loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Carregando mídia...</span>
+                    </div>
+                `;
+            }
+            const src = `data:${mime};base64,${data}`;
+            if (mime.startsWith('image/')) {
+                return `<img src="${src}" class="media-image" style="cursor:pointer;" onclick="window.openMediaPreview(this.src, 'image')">`;
+            }
+            if (mime.startsWith('video/')) {
+                return `<video src="${src}" controls class="media-video"></video>`;
+            }
+            if (mime.startsWith('audio/')) {
+                return `
+                    <div class="audio-player-container">
+                        <audio id="audio-${messageId}" src="${src}" controls></audio>
+                        <div class="audio-speed-row">
+                            <button class="btn-speed active" onclick="changeSpeed(this, 1)">1x</button>
+                            <button class="btn-speed" onclick="changeSpeed(this, 1.5)">1.5x</button>
+                            <button class="btn-speed" onclick="changeSpeed(this, 2)">2x</button>
+                        </div>
+                    </div>
+                `;
+            }
+            return `
+                <div class="doc-card">
+                    <div class="doc-card-icon"><i class="fas fa-file-alt"></i></div>
+                    <div class="doc-card-body">
+                        <div class="doc-card-name">${filename}</div>
+                        <div class="doc-card-type">${escapeHtml(mime || 'documento')}</div>
+                    </div>
+                    <a href="${src}" download="${filename}" class="doc-card-download">Baixar</a>
+                </div>
+            `;
+        }
+
+        function getMessageAckState(message) {
+            if (!message) return 0;
+            if (message.pending) return -1;
+            const ack = Number(message.ack);
+            return Number.isFinite(ack) ? ack : 1;
+        }
+
+        function renderMessageStatusIcon(message) {
+            if (!message || !message.fromMe) return '';
+            const ack = getMessageAckState(message);
+            if (ack < 0) {
+                return '<i class="fas fa-clock" style="color:#94a3b8; font-size:0.68rem; margin-left:3px;"></i>';
+            }
+            let color = '#94a3b8';
+            if (ack >= 3) color = '#53bdeb';
+            return `<i class="fas fa-check-double" style="color:${color}; font-size:0.68rem; margin-left:3px;"></i>`;
+        }
+
+        function updateMessageMetaElement(msgEl, message) {
+            if (!msgEl || !message) return;
+            const meta = msgEl.querySelector('.message-meta');
+            if (!meta) return;
+            const timeNode = meta.querySelector('.message-time-label');
+            if (timeNode && message.timestamp !== undefined && message.timestamp !== null && message.timestamp !== '') {
+                const date = new Date(normalizeTimestampValue(message.timestamp) * 1000);
+                const timeStr = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+                timeNode.textContent = timeStr;
+            }
+            const oldIcon = meta.querySelector('.message-status-icon');
+            if (oldIcon) oldIcon.remove();
+            const statusHtml = renderMessageStatusIcon(message);
+            if (statusHtml) {
+                meta.insertAdjacentHTML('beforeend', statusHtml.replace('<i ', '<i class="message-status-icon" '));
+            }
+        }
+
+        function updateMessageContentElement(msgEl, message) {
+            if (!msgEl || !message) return;
+            const textNode = msgEl.querySelector('.message-text');
+            if (textNode && typeof message.body === 'string') {
+                textNode.innerHTML = message.body
+                    .replace(/\n/g, '<br>')
+                    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #039be5; text-decoration: underline;">$1</a>');
+            } else if (!textNode && shouldRenderMessageText(message)) {
+                const mediaContainer = msgEl.querySelector('.media-container');
+                const target = mediaContainer ? mediaContainer.nextSibling : msgEl.firstChild;
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                textDiv.innerHTML = message.body
+                    .replace(/\n/g, '<br>')
+                    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #039be5; text-decoration: underline;">$1</a>');
+                if (target) {
+                    msgEl.insertBefore(textDiv, target);
+                } else {
+                    msgEl.appendChild(textDiv);
+                }
+            }
+            const mediaContainer = msgEl.querySelector('.media-container');
+            if (mediaContainer && message.hasMedia && message.media && message.media.data) {
+                mediaContainer.innerHTML = renderEmbeddedMedia(message, message.media);
+            }
+        }
+
+        function ensureDateSeparator(waBody, timestamp) {
+            if (!waBody) return;
+            const msgDate = new Date(normalizeTimestampValue(timestamp) * 1000).toLocaleDateString();
+            const separators = waBody.querySelectorAll('.wa-date-separator span');
+            const lastDate = separators.length > 0 ? separators[separators.length - 1].innerText : null;
+            if (lastDate !== msgDate) {
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'wa-date-separator';
+                dateDiv.innerHTML = `<span>${msgDate}</span>`;
+                waBody.appendChild(dateDiv);
+            }
+        }
+
+        function findExistingMessageElement(message) {
+            const waBody = document.getElementById('waChatBody');
+            if (!waBody || !message) return null;
+            const id = getMessageKey(message);
+            if (id) {
+                const exact = waBody.querySelector(`.message[data-id="${id.replace(/"/g, '\\"')}"]`);
+                if (exact) return exact;
+            }
+            if (message.tempId) {
+                const temp = waBody.querySelector(`.message[data-temp-id="${String(message.tempId).replace(/"/g, '\\"')}"]`);
+                if (temp) return temp;
+            }
+            if (message.fromMe) {
+                const targetChatId = normalizeComparableChatId(message.chatId || window.currentWaChatId);
+                const targetBody = getMessageText(message);
+                const targetTs = normalizeTimestampValue(message.timestamp) || Math.floor(Date.now() / 1000);
+                if (targetChatId && targetBody) {
+                    for (const [tempId, pending] of Object.entries(window.pendingOutgoingMessages || {})) {
+                        const pendingChatId = normalizeComparableChatId(pending && pending.chatId);
+                        const pendingBody = getMessageText(pending);
+                        const pendingTs = Math.floor(Number((pending && pending.createdAt) || 0) / 1000);
+                        if (pendingChatId !== targetChatId) continue;
+                        if (pendingBody !== targetBody) continue;
+                        if (pendingTs && Math.abs(pendingTs - targetTs) > 45) continue;
+                        const pendingEl = waBody.querySelector(`.message[data-temp-id="${String(tempId).replace(/"/g, '\\"')}"]`);
+                        if (pendingEl) {
+                            if (!message.tempId) message.tempId = tempId;
+                            return pendingEl;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function appendOrReplaceWaMessage(message) {
+            const waBody = document.getElementById('waChatBody');
+            if (!waBody || !message) return;
+            const existing = findExistingMessageElement(message);
+            if (existing) {
+                existing.dataset.id = getMessageKey(message);
+                if (message.tempId) existing.dataset.tempId = String(message.tempId);
+                updateMessageContentElement(existing, message);
+                updateMessageMetaElement(existing, message);
+                return existing;
+            }
+            ensureDateSeparator(waBody, message.timestamp);
+            const msgEl = renderWaMessage(message);
+            waBody.appendChild(msgEl);
+            waBody.scrollTop = waBody.scrollHeight;
+            return msgEl;
         }
 
         function getChatPhone(chat) {
@@ -3697,33 +3918,29 @@
             const div = document.createElement('div');
             // Explicit classes for separation
             div.className = msg.fromMe ? 'message message-out' : 'message message-in';
-            div.dataset.id = msg.id._serialized || msg.id;
+            div.dataset.id = getMessageKey(msg);
+            div.dataset.type = String(msg.type || '');
+            if (msg.tempId) div.dataset.tempId = String(msg.tempId);
             
             let contentHtml = '';
 
             // Handle Media
             if (msg.hasMedia) {
-                const mediaId = 'media-' + (msg.id._serialized || msg.id).replace(/[^a-zA-Z0-9]/g, '');
+                const mediaId = 'media-' + getMessageKey(msg).replace(/[^a-zA-Z0-9]/g, '');
+                const mediaHtml = renderEmbeddedMedia(msg, msg.media);
                 contentHtml += `
                     <div class="media-container" id="${mediaId}" style="margin-bottom: 5px;">
-                        <div class="media-loading">
-                            <i class="fas fa-spinner fa-spin"></i>
-                            <span>Carregando mídia...</span>
-                        </div>
+                        ${mediaHtml}
                     </div>
                 `;
-                // Emit request for media
-                if (window.currentWaChatId) {
-                    window.socket.emit('get-message-media', {
-                        sessionId: window.sessionId,
-                        chatId: window.currentWaChatId,
-                        messageId: msg.id._serialized || msg.id
-                    });
+                // Emit request for media if not already in the message payload
+                if (!msg.media || !msg.media.data) {
+                    createMessageMediaRequest(msg);
                 }
             }
 
             // Handle Text
-            if (msg.body) {
+            if (shouldRenderMessageText(msg)) {
                 const formattedBody = msg.body
                     .replace(/\n/g, '<br>')
                     .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: #039be5; text-decoration: underline;">$1</a>');
@@ -3734,18 +3951,14 @@
             const date = new Date(normalizeTimestampValue(msg.timestamp) * 1000);
             const timeStr = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
             
-            let statusHtml = '';
-            if (msg.fromMe) {
-                let color = '#aaa';
-                let icon = 'fa-check';
-                if (msg.ack >= 2) icon = 'fa-check-double';
-                if (msg.ack >= 3) color = '#53bdeb'; 
-                statusHtml = `<i class="fas ${icon}" style="color: ${color}; font-size: 0.65rem; margin-left: 3px;"></i>`;
+            let statusHtml = renderMessageStatusIcon(msg);
+            if (statusHtml) {
+                statusHtml = statusHtml.replace('<i ', '<i class="message-status-icon" ');
             }
 
             contentHtml += `
                 <div class="message-meta">
-                    <span>${timeStr}</span>
+                    <span class="message-time-label">${timeStr}</span>
                     ${statusHtml}
                 </div>
             `;
@@ -3790,6 +4003,31 @@
             }
         };
 
+        function handleIncomingMessageMedia(data) {
+            if (!data || !data.messageId) return;
+            const mediaId = 'media-' + String(data.messageId).replace(/[^a-zA-Z0-9]/g, '');
+            const container = document.getElementById(mediaId);
+            if (!container) return;
+            const message = document.querySelector(`.message[data-id="${String(data.messageId).replace(/"/g, '\\"')}"]`);
+            const normalizedPayload = data.media && typeof data.media === 'object'
+                ? {
+                    mimetype: data.media.mimetype || data.mimetype || '',
+                    data: data.media.data || '',
+                    filename: data.media.filename || data.filename || 'arquivo'
+                }
+                : {
+                    mimetype: data.mimetype || '',
+                    data: data.media || '',
+                    filename: data.filename || 'arquivo'
+                };
+            container.innerHTML = renderEmbeddedMedia({
+                id: data.messageId,
+                type: (message && message.dataset.type) || '',
+                hasMedia: true,
+                media: normalizedPayload
+            }, normalizedPayload);
+        }
+
         window.socket.on('new-message', (data) => {
             console.log('New message received:', data);
             if (!data || !data.message || !data.chat) return;
@@ -3813,27 +4051,10 @@
             // 2. Update Active Chat View if open (PRIORITY)
             try {
                 if (isCurrentWaChat) {
-                    const waBody = document.getElementById('waChatBody');
-                    if (waBody) {
-                        // Date Separator Check
-                        const msgDate = new Date(messageTimestamp * 1000).toLocaleDateString();
-                        const separators = waBody.querySelectorAll('.wa-date-separator span');
-                        const lastDate = separators.length > 0 ? separators[separators.length - 1].innerText : null;
-
-                        if (lastDate !== msgDate) {
-                            const dateDiv = document.createElement('div');
-                            dateDiv.className = 'wa-date-separator';
-                            dateDiv.innerHTML = `<span>${msgDate}</span>`;
-                            waBody.appendChild(dateDiv);
-                        }
-
-                        // Render and Append Message
-                        const msgEl = renderWaMessage(data.message);
-                        waBody.appendChild(msgEl);
-                        
-                        // Scroll to bottom
-                        waBody.scrollTop = waBody.scrollHeight;
-                    }
+                    appendOrReplaceWaMessage({
+                        ...data.message,
+                        chatId
+                    });
                 }
                 
                 // Update Kanban Chat View if open
@@ -3864,6 +4085,16 @@
         window.socket.on('message-sent', (data) => {
             if (!data || !data.message) return;
             const messageTimestamp = normalizeTimestampValue(data.message.timestamp) || Math.floor(Date.now() / 1000);
+            const payloadMessage = {
+                ...data.message,
+                chatId: data.chatId || data.originalChatId || '',
+                tempId: data.tempId || null,
+                pending: false,
+                ack: typeof data.message.ack === 'number' ? data.message.ack : 1
+            };
+            if (data.tempId && window.pendingOutgoingMessages[data.tempId]) {
+                delete window.pendingOutgoingMessages[data.tempId];
+            }
 
             const targetId = data.chatId || data.originalChatId || '';
             const currentId = normalizeComparableChatId(window.currentWaChatId);
@@ -3874,28 +4105,13 @@
                 window.allChatsData[targetId] = {
                     ...existing,
                     id: targetId,
-                    lastMessage: data.message.body || existing.lastMessage || '',
+                    lastMessage: payloadMessage.body || existing.lastMessage || '',
                     timestamp: messageTimestamp
                 };
             }
 
             if (currentId && sentId && currentId === sentId) {
-                const waBody = document.getElementById('waChatBody');
-                if (waBody) {
-                    const msgDate = new Date(messageTimestamp * 1000).toLocaleDateString();
-                    const separators = waBody.querySelectorAll('.wa-date-separator span');
-                    const lastDate = separators.length > 0 ? separators[separators.length - 1].innerText : null;
-
-                    if (lastDate !== msgDate) {
-                        const dateDiv = document.createElement('div');
-                        dateDiv.className = 'wa-date-separator';
-                        dateDiv.innerHTML = `<span>${msgDate}</span>`;
-                        waBody.appendChild(dateDiv);
-                    }
-
-                    waBody.appendChild(renderWaMessage(data.message));
-                    waBody.scrollTop = waBody.scrollHeight;
-                }
+                appendOrReplaceWaMessage(payloadMessage);
             }
 
             try {
@@ -3912,54 +4128,28 @@
             // Update status in active view if present
             const msgEl = document.querySelector(`.message[data-id="${data.msgId}"]`);
             if (msgEl) {
-                const meta = msgEl.querySelector('.message-meta');
-                if (meta) {
-                    // Re-render status icon
-                    let color = '#aaa';
-                    let icon = 'fa-check';
-                    if (data.ack >= 2) icon = 'fa-check-double';
-                    if (data.ack >= 3) color = '#53bdeb'; 
-                    
-                    // Remove old icon if exists
-                    const oldIcon = meta.querySelector('i');
-                    if (oldIcon) oldIcon.remove();
-                    
-                    const statusHtml = `<i class="fas ${icon}" style="color: ${color}; font-size: 0.65rem; margin-left: 3px;"></i>`;
-                    meta.insertAdjacentHTML('beforeend', statusHtml);
-                }
+                updateMessageMetaElement(msgEl, { id: data.msgId, fromMe: true, ack: data.ack });
             }
         });
 
         window.socket.on('message-media', (data) => {
-            if (!data || !data.media || !data.messageId) return;
-            const mediaId = 'media-' + data.messageId.replace(/[^a-zA-Z0-9]/g, '');
+            handleIncomingMessageMedia(data);
+        });
+
+        window.socket.on('message-media-loaded', (data) => {
+            handleIncomingMessageMedia(data);
+        });
+
+        window.socket.on('media-fetch-error', (data) => {
+            if (!data || !data.messageId) return;
+            const mediaId = 'media-' + String(data.messageId).replace(/[^a-zA-Z0-9]/g, '');
             const container = document.getElementById(mediaId);
             if (container) {
-                const mime = data.mimetype || '';
-                let mediaHtml = '';
-                if (mime.startsWith('image/')) {
-                    mediaHtml = `<img src="data:${mime};base64,${data.media}" class="media-image" style="cursor:pointer;" onclick="window.openMediaPreview(this.src, 'image')">`;
-                } else if (mime.startsWith('video/')) {
-                    mediaHtml = `<video src="data:${mime};base64,${data.media}" controls style="max-width:100%;"></video>`;
-                } else if (mime.startsWith('audio/')) {
-                    // Audio with speed controls - Customized for slim & wide look
-                    container.style.maxWidth = '100%'; // Override default 300px to allow full width
-                    container.style.width = '360px';   // Preferred width for better seeking interaction
-                    
-                    mediaHtml = `
-                        <div class="audio-player-container" style="display: flex; flex-direction: column; gap: 2px; width: 100%;">
-                            <audio src="data:${mime};base64,${data.media}" controls style="width:100%; height: 40px; border-radius: 20px; outline: none;"></audio>
-                            <div style="display: flex; gap: 5px; align-self: flex-end; margin-right: 5px;">
-                                <button class="btn-speed active" onclick="changeSpeed(this, 1)">1x</button>
-                                <button class="btn-speed" onclick="changeSpeed(this, 1.5)">1.5x</button>
-                                <button class="btn-speed" onclick="changeSpeed(this, 2)">2x</button>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    mediaHtml = `<div style="padding:10px; background:#f0f0f0; border-radius:5px;"><a href="data:${mime};base64,${data.media}" download="arquivo">Download Arquivo (${mime})</a></div>`;
-                }
-                container.innerHTML = mediaHtml;
+                container.innerHTML = `
+                    <div style="padding:10px; background:#fff7ed; border-radius:10px; color:#9a3412; font-size:0.85rem;">
+                        Nao foi possivel carregar a midia agora.
+                    </div>
+                `;
             }
         });
 
@@ -4586,12 +4776,40 @@
                             // Send Text
                             const text = input.value.trim();
                             if (!window.currentWaChatId) return alert('Selecione uma conversa.');
+                            const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+                            const optimisticMessage = {
+                                id: tempId,
+                                tempId,
+                                chatId: window.currentWaChatId,
+                                body: text,
+                                timestamp: Math.floor(Date.now() / 1000),
+                                fromMe: true,
+                                type: 'chat',
+                                ack: -1,
+                                pending: true,
+                                hasMedia: false
+                            };
+                            window.pendingOutgoingMessages[tempId] = {
+                                chatId: window.currentWaChatId,
+                                body: text,
+                                createdAt: Date.now()
+                            };
+                            appendOrReplaceWaMessage(optimisticMessage);
+                            const activeChat = window.allChatsData[window.currentWaChatId] || { id: window.currentWaChatId };
+                            window.allChatsData[window.currentWaChatId] = {
+                                ...activeChat,
+                                id: window.currentWaChatId,
+                                lastMessage: text,
+                                timestamp: optimisticMessage.timestamp
+                            };
+                            try { rerenderChatCollections(); } catch (_) {}
                             
                             window.socket.emit('send-message', {
                                 sessionId: window.sessionId,
                                 chatId: window.currentWaChatId,
                                 message: text,
-                                isNewContact: false
+                                isNewContact: false,
+                                tempId
                             });
                             input.value = '';
                             input.dispatchEvent(new Event('input'));
@@ -4757,6 +4975,7 @@
                 try {
                     const res = await fetch(buildApiUrl(`/api/upload?sessionId=${window.sessionId}`), {
                         method: 'POST',
+                        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
                         body: formData
                     });
                     const data = await res.json();
@@ -4811,6 +5030,7 @@
                     try {
                         const res = await fetch(buildApiUrl(`/api/upload?sessionId=${window.sessionId}`), {
                             method: 'POST',
+                            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
                             body: formData
                         });
                         const data = await res.json();

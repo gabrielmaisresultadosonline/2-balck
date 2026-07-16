@@ -19,7 +19,7 @@ function toRemoteJid(value) {
 function toMessageTarget(value) {
     const raw = String(value || '').trim();
     if (!raw) return raw;
-    if (raw.endsWith('@g.us') || raw.endsWith('@newsletter')) return raw;
+    if (raw.endsWith('@g.us') || raw.endsWith('@lid') || raw.endsWith('@newsletter')) return raw;
     const digits = toDigits(raw);
     return digits || raw;
 }
@@ -53,12 +53,28 @@ class EvolutionApi {
     }
 
     async request(method, url, options = {}) {
-        const response = await this.http.request({
-            method,
-            url,
-            ...options
-        });
-        return this.unwrap(response);
+        try {
+            const response = await this.http.request({
+                method,
+                url,
+                ...options
+            });
+            return this.unwrap(response);
+        } catch (error) {
+            const responseData = error && error.response ? error.response.data : null;
+            if (responseData) {
+                error.evolutionResponse = responseData;
+                const extraMessage =
+                    responseData?.response?.message ||
+                    responseData?.response?.error ||
+                    responseData?.error ||
+                    '';
+                if (extraMessage && !String(error.message || '').includes(extraMessage)) {
+                    error.message = `${error.message} - ${extraMessage}`;
+                }
+            }
+            throw error;
+        }
     }
 
     async verify() {

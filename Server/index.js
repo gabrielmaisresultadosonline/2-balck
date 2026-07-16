@@ -1158,10 +1158,14 @@ function createSyntheticEvolutionSentMessage(sessionId, targetId, body, response
         type: meta.type || 'chat',
         hasMedia: !!meta.hasMedia,
         ack: 0,
+        media: meta.media || null,
         async getChat() {
             const current = activeClients.get(sessionId);
             if (!current || !current.client) throw new Error('session_not_ready');
             return current.client.getChatById(chatId);
+        },
+        async downloadMedia() {
+            return meta.media || null;
         }
     };
 }
@@ -1247,7 +1251,15 @@ function createEvolutionClientWrapper(sessionId) {
                     payload.data,
                     { delay: options.delay }
                 );
-                return createSyntheticEvolutionSentMessage(sessionId, targetId, body || '🎤 Áudio', result, { type: 'audio', hasMedia: true });
+                return createSyntheticEvolutionSentMessage(sessionId, targetId, body || '🎤 Áudio', result, {
+                    type: 'audio',
+                    hasMedia: true,
+                    media: {
+                        mimetype: payload.mimetype || 'audio/ogg',
+                        data: payload.data || null,
+                        filename: payload.filename || 'audio'
+                    }
+                });
             }
 
             let mediatype = 'document';
@@ -1267,7 +1279,15 @@ function createEvolutionClientWrapper(sessionId) {
                 },
                 { delay: options.delay }
             );
-            return createSyntheticEvolutionSentMessage(sessionId, targetId, body || '📎 Mídia', result, { type: mediatype, hasMedia: true });
+            return createSyntheticEvolutionSentMessage(sessionId, targetId, body || '📎 Mídia', result, {
+                type: mediatype,
+                hasMedia: true,
+                media: {
+                    mimetype: payload.mimetype || 'application/octet-stream',
+                    data: payload.data || null,
+                    filename: payload.filename || 'media'
+                }
+            });
         },
         async destroy() {
             if (!evolutionApi) return;
@@ -1467,8 +1487,21 @@ async function processEvolutionWebhookEvent(body) {
     }
 }
 
-async function handleSentMessage(sessionId, sentMsg, client) {
+async function handleSentMessage(sessionId, sentMsg, client, localMediaData = null) {
     try {
+        let mediaData = localMediaData;
+        if (!mediaData && sentMsg.hasMedia && typeof sentMsg.downloadMedia === 'function') {
+            try {
+                const downloaded = await sentMsg.downloadMedia();
+                if (downloaded && downloaded.data) {
+                    mediaData = {
+                        mimetype: downloaded.mimetype || 'application/octet-stream',
+                        data: downloaded.data,
+                        filename: downloaded.filename || 'media'
+                    };
+                }
+            } catch (e) {}
+        }
         const messagePayload = {
             id: sentMsg.id._serialized || sentMsg.id,
             body: sentMsg.body,
@@ -1480,7 +1513,7 @@ async function handleSentMessage(sessionId, sentMsg, client) {
             type: sentMsg.type,
             hasMedia: sentMsg.hasMedia,
             ack: sentMsg.ack,
-            media: null 
+            media: mediaData || null
         };
 
         saveMessageToHistory(sessionId, sentMsg.id.remote, messagePayload);
@@ -6525,7 +6558,7 @@ io.on('connection', (socket) => {
     });
 
     // Send message
-    socket.on('send-message', async ({ sessionId, chatId, message, isNewContact }) => {
+    socket.on('send-message', async ({ sessionId, chatId, message, isNewContact, tempId }) => {
         const sessionData = activeClients.get(sessionId);
         if (hasReadyClient(sessionData)) {
             try {
@@ -6553,11 +6586,10 @@ io.on('connection', (socket) => {
                 }
 
                 const sentMsg = await sessionData.client.sendMessage(targetId, message);
-                await handleSentMessage(sessionId, sentMsg, sessionData.client);
-                
                 socket.emit('message-sent', {
                     chatId: targetId,
                     originalChatId: chatId,
+                    tempId: tempId || null,
                     message: {
                         id: sentMsg.id._serialized,
                         body: sentMsg.body,
@@ -6565,9 +6597,11 @@ io.on('connection', (socket) => {
                         to: sentMsg.to,
                         timestamp: sentMsg.timestamp,
                         fromMe: sentMsg.fromMe,
-                        type: sentMsg.type
+                        type: sentMsg.type,
+                        ack: typeof sentMsg.ack === 'number' ? sentMsg.ack : 1
                     }
                 });
+                await handleSentMessage(sessionId, sentMsg, sessionData.client);
 
                 // If it was a new contact, we might need to trigger a chat refresh or add it to Kanban
                 if (isNewContact) {
@@ -6692,12 +6726,23 @@ io.on('connection', (socket) => {
                 }
 
                 let sentMsg;
+                let sentMediaPayload = null;
                 try {
                     const media = MessageMedia.fromFilePath(chosenPath);
+                    sentMediaPayload = {
+                        mimetype: media.mimetype || 'application/octet-stream',
+                        data: media.data || null,
+                        filename: media.filename || path.basename(chosenPath)
+                    };
                     sentMsg = await sessionData.client.sendMessage(targetId, media, options);
                 } catch (e) {
                     if (sendAudioAsVoice) {
                         const fallbackMedia = MessageMedia.fromFilePath(fullPath);
+                        sentMediaPayload = {
+                            mimetype: fallbackMedia.mimetype || 'application/octet-stream',
+                            data: fallbackMedia.data || null,
+                            filename: fallbackMedia.filename || path.basename(fullPath)
+                        };
                         const fallbackOptions = {};
                         if (cap) fallbackOptions.caption = cap;
                         fallbackOptions.sendMediaAsDocument = true;
@@ -6711,10 +6756,6 @@ io.on('connection', (socket) => {
                     }
                 }
 
-                if (sentMsg) {
-                    await handleSentMessage(sessionId, sentMsg, sessionData.client);
-                }
-
                 const fallbackBody = cap || (sendAudioAsVoice ? '🎤 Áudio' : (options.sendMediaAsDocument === false ? '📎 Mídia' : '📎 Arquivo'));
                 socket.emit('message-sent', {
                     chatId: targetId,
@@ -6726,9 +6767,14 @@ io.on('connection', (socket) => {
                         timestamp: sentMsg.timestamp,
                         fromMe: sentMsg.fromMe,
                         type: sentMsg.type,
-                        hasMedia: !!sentMsg.hasMedia
+                        hasMedia: !!sentMsg.hasMedia,
+                        ack: typeof sentMsg.ack === 'number' ? sentMsg.ack : 1,
+                        media: sentMediaPayload
                     }
                 });
+                if (sentMsg) {
+                    await handleSentMessage(sessionId, sentMsg, sessionData.client, sentMediaPayload);
+                }
             } catch (error) {
                 console.error('Error sending media:', error);
                 socket.emit('media-send-error', { sessionId, chatId, error: 'Erro ao enviar mídia: ' + (error && error.message ? error.message : 'Falha') });
