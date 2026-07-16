@@ -4613,7 +4613,7 @@
                     </div>
                     <label style="margin-top:10px; display:block;">Sections (JSON)</label>
                     <textarea id="stepListSectionsJson" rows="10" class="form-control" style="width:100%; margin-top:5px; color:black; font-family:monospace;">${escapeSummary(JSON.stringify(step.sections || [], null, 2))}</textarea>
-                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Use `title`, `rows`, `rowId`, `description`. Cada `rowId` cria uma saída própria no nó.</p>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Use os campos title, rows, rowId e description. Cada rowId cria uma saída própria no nó.</p>
                 `;
             } else if(step.type === 'carousel') {
                 ensureInteractiveStepDefaults(step);
@@ -4632,7 +4632,7 @@
                     <p id="flowCarouselImageStatus" style="font-size:0.82rem; color:#64748b; margin:8px 0 8px 0;">Você pode subir a imagem e ela entra direto no JSON do card.</p>
                     <label style="margin-top:10px; display:block;">Cards (JSON)</label>
                     <textarea id="stepCarouselCardsJson" rows="12" class="form-control" style="width:100%; margin-top:5px; color:black; font-family:monospace;">${escapeSummary(JSON.stringify(step.cards || [], null, 2))}</textarea>
-                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Cada card aceita `title`, `description`, `image` e `buttons`. Nos botões use `type: reply|url|call`. Os `id` dos botões de resposta precisam ser únicos no carrossel inteiro.</p>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Cada card aceita title, description, image e buttons. Nos botões use type igual a reply, url ou call. Os ids dos botões de resposta precisam ser únicos no carrossel inteiro.</p>
                 `;
             } else if(step.type === 'kanban_move') {
                 let options = '';

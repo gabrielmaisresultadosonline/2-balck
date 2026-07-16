@@ -1,3 +1,5 @@
+    const socket = window.socket;
+    const sessionId = window.sessionId;
 
     // --- WinBack Logic ---
     let wbCampaigns = [];
