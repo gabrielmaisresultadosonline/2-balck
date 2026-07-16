@@ -4157,11 +4157,31 @@ function ensureFlowSupportsInteractiveSend(client, stepType) {
 function buildFlowButtonsPayload(step) {
     const buttons = (Array.isArray(step.buttons) ? step.buttons : []).map((button, index) => {
         const normalized = normalizeFlowButtonConfig(button, index, 'button');
+        if (normalized.type === 'url') {
+            return {
+                type: 'url',
+                displayText: normalized.displayText,
+                url: normalized.url || undefined
+            };
+        }
+        if (normalized.type === 'call') {
+            return {
+                type: 'call',
+                displayText: normalized.displayText,
+                phoneNumber: normalized.phoneNumber || undefined
+            };
+        }
         return {
             id: normalized.id,
+            buttonId: normalized.id,
             displayText: normalized.displayText
         };
-    }).filter((button) => button.id && button.displayText).slice(0, 3);
+    }).filter((button) => {
+        if (!button.displayText) return false;
+        if (button.type === 'url') return !!button.url;
+        if (button.type === 'call') return !!button.phoneNumber;
+        return !!(button.id || button.buttonId);
+    }).slice(0, 3);
     return {
         title: String(step.title || '').trim(),
         description: String(step.text || step.bodyText || step.content || '').trim(),
@@ -4177,6 +4197,7 @@ function buildFlowListPayload(step) {
         return {
             title: normalized.title,
             rows: normalized.rows.map(row => ({
+                rowId: row.rowId || row.id,
                 id: row.id || row.rowId,
                 title: row.title,
                 description: row.description || undefined
@@ -4187,6 +4208,7 @@ function buildFlowListPayload(step) {
         title: String(step.title || '').trim(),
         description: String(step.description || step.text || step.content || '').trim(),
         buttonText: String(step.buttonText || 'Abrir menu').trim() || 'Abrir menu',
+        footerText: String(step.footerText || step.footer || '').trim(),
         footer: String(step.footerText || step.footer || '').trim(),
         sections
     };

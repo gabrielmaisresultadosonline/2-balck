@@ -251,11 +251,34 @@ class EvolutionApi {
         const data = payload && typeof payload === 'object' ? payload : {};
         const buttons = Array.isArray(data.buttons)
             ? data.buttons.map((button) => {
+                const type = String(button && button.type || 'reply').toLowerCase();
+                const displayText = button && (button.displayText || button.text || button.title)
+                    ? String(button.displayText || button.text || button.title).trim()
+                    : '';
+                if (type === 'url') {
+                    return compactObject({
+                        type,
+                        displayText,
+                        url: button && button.url ? String(button.url).trim() : ''
+                    });
+                }
+                if (type === 'call') {
+                    return compactObject({
+                        type,
+                        displayText,
+                        phoneNumber: button && button.phoneNumber ? String(button.phoneNumber).trim() : ''
+                    });
+                }
                 return compactObject({
                     id: button && (button.id || button.buttonId) ? String(button.id || button.buttonId).trim() : '',
-                    displayText: button && (button.displayText || button.text || button.title) ? String(button.displayText || button.text || button.title).trim() : ''
+                    displayText
                 });
-            }).filter((button) => button.id && button.displayText)
+            }).filter((button) => {
+                if (!button.displayText) return false;
+                if (button.type === 'url') return !!button.url;
+                if (button.type === 'call') return !!button.phoneNumber;
+                return !!button.id;
+            })
             : [];
         return this.request('post', `/message/sendButtons/${encodeURIComponent(instanceName)}`, {
             data: {
@@ -279,10 +302,10 @@ class EvolutionApi {
                 title: section && section.title ? String(section.title).trim() : '',
                 rows: Array.isArray(section && section.rows)
                     ? section.rows.map((row) => compactObject({
-                        id: row && (row.id || row.rowId) ? String(row.id || row.rowId).trim() : '',
+                        rowId: row && (row.rowId || row.id) ? String(row.rowId || row.id).trim() : '',
                         title: row && row.title ? String(row.title).trim() : '',
                         description: row && row.description ? String(row.description).trim() : ''
-                    })).filter((row) => row.title && row.id)
+                    })).filter((row) => row.title && row.rowId)
                     : []
             })).filter((section) => Array.isArray(section.rows) && section.rows.length > 0)
             : [];
@@ -293,7 +316,7 @@ class EvolutionApi {
                     title: data.title || '',
                     description: data.description || data.text || '',
                     buttonText: data.buttonText || 'Abrir menu',
-                    footer: data.footer || data.footerText || ''
+                    footerText: data.footerText || data.footer || ''
                 }),
                 sections,
                 ...options
