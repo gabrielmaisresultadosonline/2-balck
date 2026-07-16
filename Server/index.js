@@ -1547,6 +1547,77 @@ function getCachedChatByAnyId(sessionId, chatId) {
     return list.find(item => item && ids.includes(String(item.id || '').trim())) || null;
 }
 
+function findStoredPhoneForLid(chatId) {
+    const normalizedLid = normalizeEvolutionChatId(chatId);
+    if (!/@lid$/i.test(normalizedLid)) return '';
+
+    const isValidDigits = (value) => {
+        const digits = normalizeEvolutionPhone(value);
+        return digits && digits.length >= 10 && digits.length <= 15 ? digits : '';
+    };
+
+    try {
+        const cacheFiles = fs.readdirSync(DATA_DIR)
+            .filter(name => /^chats_cache_.*\.json$/i.test(name))
+            .slice(-50);
+        for (const fileName of cacheFiles) {
+            try {
+                const fullPath = path.join(DATA_DIR, fileName);
+                const rows = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+                const list = Array.isArray(rows) ? rows : [];
+                const match = list.find(item => item && String(item.id || '').trim() === normalizedLid);
+                const digits = isValidDigits(match?.phoneNumber || match?.name || '');
+                if (digits) return digits;
+            } catch (e) {}
+        }
+    } catch (e) {}
+
+    try {
+        if (fs.existsSync(HISTORY_DIR)) {
+            const sessionDirs = fs.readdirSync(HISTORY_DIR)
+                .map(name => path.join(HISTORY_DIR, name))
+                .filter(fullPath => {
+                    try { return fs.statSync(fullPath).isDirectory(); } catch (e) { return false; }
+                })
+                .slice(-50);
+            for (const sessionDir of sessionDirs) {
+                const files = fs.readdirSync(sessionDir)
+                    .filter(name => /@c\.us\.json$/i.test(name))
+                    .slice(-200);
+                for (const fileName of files) {
+                    try {
+                        const fullPath = path.join(sessionDir, fileName);
+                        const raw = fs.readFileSync(fullPath, 'utf8');
+                        if (!raw.includes(normalizedLid)) continue;
+                        const digits = isValidDigits(fileName.replace(/\.json$/i, ''));
+                        if (digits) return digits;
+                    } catch (e) {}
+                }
+            }
+        }
+    } catch (e) {}
+
+    try {
+        if (fs.existsSync(ARCHIVE_DIR)) {
+            const files = fs.readdirSync(ARCHIVE_DIR)
+                .filter(name => name.endsWith('.json'))
+                .slice(-200);
+            for (const fileName of files) {
+                try {
+                    const fullPath = path.join(ARCHIVE_DIR, fileName);
+                    const raw = fs.readFileSync(fullPath, 'utf8');
+                    if (!raw.includes(normalizedLid)) continue;
+                    const parsed = JSON.parse(raw);
+                    const digits = isValidDigits(parsed?.chatId || '');
+                    if (digits) return digits;
+                } catch (e) {}
+            }
+        }
+    } catch (e) {}
+
+    return '';
+}
+
 async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', cached = null) {
     const output = {
         phoneNumber: normalizeEvolutionPhone(cached?.phoneNumber || chatId),
@@ -1558,6 +1629,7 @@ async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', ca
         ? archive.numbers.find(num => num && num.length >= 10 && num.length <= 15)
         : '';
     if (!output.phoneNumber && archivePhone) output.phoneNumber = archivePhone;
+    if (!output.phoneNumber) output.phoneNumber = findStoredPhoneForLid(chatId);
 
     if (!USE_EVOLUTION || !evolutionApi) return output;
     if (output.phoneNumber && output.name && !/^[0-9@._+\-\s]+$/.test(output.name)) return output;
