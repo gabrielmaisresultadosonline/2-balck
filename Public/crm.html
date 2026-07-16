@@ -5131,12 +5131,36 @@
                 const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
                 return 'M ' + x1 + ' ' + y1 + ' C ' + (x1+dx) + ' ' + y1 + ', ' + (x2-dx) + ' ' + y2 + ', ' + x2 + ' ' + y2;
             }
+            function toCanvasNumber(value, fallback = 0) {
+                const numeric = Number(value);
+                return Number.isFinite(numeric) ? numeric : fallback;
+            }
+            function getCanvasSize() {
+                let maxX = toCanvasNumber(list.clientWidth);
+                let maxY = toCanvasNumber(list.clientHeight);
+                currentFlow.steps.forEach((step) => {
+                    const wrap = list.querySelector('.flow-node-wrap[data-id="' + step.id + '"]');
+                    const width = wrap ? wrap.offsetWidth : NODE_W;
+                    const height = wrap ? wrap.offsetHeight : NODE_H;
+                    maxX = Math.max(maxX, toCanvasNumber(step.x) + width + 120);
+                    maxY = Math.max(maxY, toCanvasNumber(step.y) + height + 120);
+                });
+                return {
+                    width: Math.max(maxX, list.scrollWidth, list.clientWidth, 1200),
+                    height: Math.max(maxY, list.scrollHeight, list.clientHeight, 700)
+                };
+            }
             function redrawEdges() {
                 svg.querySelectorAll('path.flow-edge, path.flow-edge-hit').forEach(p => p.remove());
                 list.querySelectorAll('.flow-edge-cut').forEach(b => b.remove());
-                const rect = list.getBoundingClientRect();
-                svg.setAttribute('width',  Math.max(list.scrollWidth,  rect.width));
-                svg.setAttribute('height', Math.max(list.scrollHeight, rect.height));
+                const canvasSize = getCanvasSize();
+                svg.setAttribute('width', canvasSize.width);
+                svg.setAttribute('height', canvasSize.height);
+                svg.setAttribute('viewBox', `0 0 ${canvasSize.width} ${canvasSize.height}`);
+                svg.style.width = canvasSize.width + 'px';
+                svg.style.height = canvasSize.height + 'px';
+                list.style.minWidth = canvasSize.width + 'px';
+                list.style.minHeight = canvasSize.height + 'px';
                 currentFlow.steps.forEach(step => {
                     getStepConnections(step).forEach(conn => {
                         const target = currentFlow.steps.find(s => s.id === conn.targetId);
@@ -5288,6 +5312,12 @@
                         tempPath.setAttribute('class', 'flow-edge-temp');
                         svg.appendChild(tempPath);
                         const move = (ev) => {
+                            const canvasSize = getCanvasSize();
+                            svg.setAttribute('width', canvasSize.width);
+                            svg.setAttribute('height', canvasSize.height);
+                            svg.setAttribute('viewBox', `0 0 ${canvasSize.width} ${canvasSize.height}`);
+                            svg.style.width = canvasSize.width + 'px';
+                            svg.style.height = canvasSize.height + 'px';
                             const x = ev.clientX - canvasRect.left + list.scrollLeft;
                             const y = ev.clientY - canvasRect.top  + list.scrollTop;
                             tempPath.setAttribute('d', bezierPath(startPt.x, startPt.y, x, y));
