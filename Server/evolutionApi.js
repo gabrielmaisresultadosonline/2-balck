@@ -251,24 +251,11 @@ class EvolutionApi {
         const data = payload && typeof payload === 'object' ? payload : {};
         const buttons = Array.isArray(data.buttons)
             ? data.buttons.map((button) => {
-                const type = String(button && button.type || 'reply').toLowerCase();
-                const base = compactObject({
-                    type,
-                    displayText: button && button.displayText ? String(button.displayText).trim() : ''
+                return compactObject({
+                    id: button && (button.id || button.buttonId) ? String(button.id || button.buttonId).trim() : '',
+                    displayText: button && (button.displayText || button.text || button.title) ? String(button.displayText || button.text || button.title).trim() : ''
                 });
-                if (type === 'reply') return compactObject({ ...base, id: button && button.id ? String(button.id).trim() : '' });
-                if (type === 'url') return compactObject({ ...base, url: button && button.url ? String(button.url).trim() : '' });
-                if (type === 'call') return compactObject({ ...base, phoneNumber: button && button.phoneNumber ? String(button.phoneNumber).trim() : '' });
-                if (type === 'copy') return compactObject({ ...base, copyCode: button && button.copyCode ? String(button.copyCode).trim() : '' });
-                if (type === 'pix') return compactObject({
-                    ...base,
-                    currency: button && button.currency ? String(button.currency).trim() : '',
-                    name: button && button.name ? String(button.name).trim() : '',
-                    keyType: button && button.keyType ? String(button.keyType).trim() : '',
-                    key: button && button.key ? String(button.key).trim() : ''
-                });
-                return base;
-            }).filter((button) => button.displayText)
+            }).filter((button) => button.id && button.displayText)
             : [];
         return this.request('post', `/message/sendButtons/${encodeURIComponent(instanceName)}`, {
             data: {
@@ -277,8 +264,7 @@ class EvolutionApi {
                     title: data.title || '',
                     description: data.description || data.text || '',
                     footer: data.footer || data.footerText || '',
-                    image: data.image || data.imageUrl || undefined,
-                    imageUrl: data.imageUrl || data.image || undefined
+                    image: data.image || data.imageUrl || undefined
                 }),
                 buttons,
                 ...options
@@ -293,10 +279,10 @@ class EvolutionApi {
                 title: section && section.title ? String(section.title).trim() : '',
                 rows: Array.isArray(section && section.rows)
                     ? section.rows.map((row) => compactObject({
+                        id: row && (row.id || row.rowId) ? String(row.id || row.rowId).trim() : '',
                         title: row && row.title ? String(row.title).trim() : '',
-                        description: row && row.description ? String(row.description).trim() : '',
-                        rowId: row && row.rowId ? String(row.rowId).trim() : ''
-                    })).filter((row) => row.title && row.rowId)
+                        description: row && row.description ? String(row.description).trim() : ''
+                    })).filter((row) => row.title && row.id)
                     : []
             })).filter((section) => Array.isArray(section.rows) && section.rows.length > 0)
             : [];
@@ -307,7 +293,7 @@ class EvolutionApi {
                     title: data.title || '',
                     description: data.description || data.text || '',
                     buttonText: data.buttonText || 'Abrir menu',
-                    footerText: data.footerText || data.footer || ''
+                    footer: data.footer || data.footerText || ''
                 }),
                 sections,
                 ...options

@@ -998,6 +998,22 @@ function extractEvolutionInteractiveReply(rawMessage) {
     const wrapper = rawMessage && typeof rawMessage === 'object' ? rawMessage : {};
     const message = wrapper.message && typeof wrapper.message === 'object' ? wrapper.message : wrapper;
 
+    const directButtonId =
+        wrapper.buttonId ||
+        wrapper.selectedButtonId ||
+        wrapper.data?.buttonId ||
+        wrapper.data?.selectedButtonId ||
+        message.buttonId ||
+        message.selectedButtonId ||
+        '';
+    if (directButtonId) {
+        return {
+            kind: 'button',
+            id: String(directButtonId).trim(),
+            text: ''
+        };
+    }
+
     const buttonReply =
         message.buttonReply ||
         wrapper.buttonReply ||
@@ -1020,6 +1036,29 @@ function extractEvolutionInteractiveReply(rawMessage) {
                 id: String(id || '').trim(),
                 text: String(text || '').trim()
             };
+        }
+    }
+
+    const nativeFlow =
+        message.interactiveResponseMessage?.nativeFlowResponseMessage ||
+        wrapper.interactiveResponseMessage?.nativeFlowResponseMessage ||
+        wrapper.nativeFlowResponseMessage ||
+        null;
+    if (nativeFlow && typeof nativeFlow === 'object') {
+        const paramsJson = nativeFlow.paramsJson || nativeFlow.params || '';
+        if (paramsJson) {
+            try {
+                const parsed = typeof paramsJson === 'string' ? JSON.parse(paramsJson) : paramsJson;
+                const id = parsed && (parsed.id || parsed.buttonId || parsed.rowId || parsed.selectedButtonId || parsed.selectedRowId) ? String(parsed.id || parsed.buttonId || parsed.rowId || parsed.selectedButtonId || parsed.selectedRowId).trim() : '';
+                const text = parsed && (parsed.displayText || parsed.title || parsed.text) ? String(parsed.displayText || parsed.title || parsed.text).trim() : '';
+                if (id || text) {
+                    return {
+                        kind: 'native_flow',
+                        id,
+                        text
+                    };
+                }
+            } catch (e) {}
         }
     }
 
@@ -2608,7 +2647,7 @@ const FLOW_TIME_UNITS = Object.freeze({
     hours: 3600000
 });
 const FLOW_TEXT_MIN_TYPING_MS = 3000;
-const FLOW_INTERACTIVE_DELIVERY_MODE = 'compatibility_text';
+const FLOW_INTERACTIVE_DELIVERY_MODE = 'compatibility_text_on_error';
 
 function getFlowTimeUnit(unit, fallback = 'milliseconds') {
     return Object.prototype.hasOwnProperty.call(FLOW_TIME_UNITS, unit) ? unit : fallback;
@@ -4118,44 +4157,16 @@ function ensureFlowSupportsInteractiveSend(client, stepType) {
 function buildFlowButtonsPayload(step) {
     const buttons = (Array.isArray(step.buttons) ? step.buttons : []).map((button, index) => {
         const normalized = normalizeFlowButtonConfig(button, index, 'button');
-        if (normalized.type === 'reply') {
-            return {
-                type: normalized.type,
-                id: normalized.id,
-                displayText: normalized.displayText
-            };
-        }
-        if (normalized.type === 'url') {
-            return {
-                type: normalized.type,
-                displayText: normalized.displayText,
-                url: normalized.url || undefined
-            };
-        }
-        if (normalized.type === 'call') {
-            return {
-                type: normalized.type,
-                displayText: normalized.displayText,
-                phoneNumber: normalized.phoneNumber || undefined
-            };
-        }
-        if (normalized.type === 'copy') {
-            return {
-                type: normalized.type,
-                displayText: normalized.displayText,
-                copyCode: normalized.copyCode || undefined
-            };
-        }
         return {
-            type: normalized.type,
+            id: normalized.id,
             displayText: normalized.displayText
         };
-    });
+    }).filter((button) => button.id && button.displayText).slice(0, 3);
     return {
         title: String(step.title || '').trim(),
         description: String(step.text || step.bodyText || step.content || '').trim(),
-        footer: String(step.footerText || '').trim(),
-        imageUrl: toPublicAssetUrl(step.imageUrl) || undefined,
+        footer: String(step.footerText || step.footer || '').trim(),
+        image: toPublicAssetUrl(step.imageUrl) || undefined,
         buttons
     };
 }
@@ -4166,9 +4177,9 @@ function buildFlowListPayload(step) {
         return {
             title: normalized.title,
             rows: normalized.rows.map(row => ({
+                id: row.id || row.rowId,
                 title: row.title,
-                description: row.description || undefined,
-                rowId: row.rowId
+                description: row.description || undefined
             }))
         };
     });
@@ -4176,7 +4187,7 @@ function buildFlowListPayload(step) {
         title: String(step.title || '').trim(),
         description: String(step.description || step.text || step.content || '').trim(),
         buttonText: String(step.buttonText || 'Abrir menu').trim() || 'Abrir menu',
-        footerText: String(step.footerText || '').trim(),
+        footer: String(step.footerText || step.footer || '').trim(),
         sections
     };
 }
