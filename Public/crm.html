@@ -2706,6 +2706,20 @@
             window.socket.emit('get-tags', window.sessionId);
             window.socket.emit('get-flows', window.sessionId);
             window.socket.emit('get-ai-config', window.sessionId);
+            if (window.currentWaChatId) {
+                requestWaChatHistory(window.currentWaChatId, {
+                    fullHistory: window.currentWaHistoryMode === 'full'
+                });
+            }
+        });
+
+        window.socket.on('session-status', (data) => {
+            if (!data || String(data.sessionId || '') !== String(window.sessionId || '')) return;
+            if (data.status === 'connected' && window.currentWaChatId) {
+                requestWaChatHistory(window.currentWaChatId, {
+                    fullHistory: window.currentWaHistoryMode === 'full'
+                });
+            }
         });
 
         window.socket.on('error', (err) => {
@@ -3224,7 +3238,9 @@
             if (waBody && waBody.offsetParent !== null && (!currentChatId || currentChatId === responseChatId)) {
                 waBody.innerHTML = '';
                 if (chronologicalMessages.length === 0) {
-                    waBody.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Nenhuma mensagem encontrada.</div>';
+                    waBody.innerHTML = data.notReady
+                        ? '<div style="text-align:center; padding:20px; color:#888;">Sincronizando conversa... tente novamente em alguns segundos.</div>'
+                        : '<div style="text-align:center; padding:20px; color:#888;">Nenhuma mensagem encontrada.</div>';
                 } else {
                     let lastDate = null;
                     chronologicalMessages.forEach(msg => {

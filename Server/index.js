@@ -1612,6 +1612,31 @@ function getChatPreviewSafe(value) {
     return '';
 }
 
+function ensureSessionClientOnDemand(sessionId, options = {}) {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return null;
+
+    let sessionData = activeClients.get(sid) || null;
+    if (sessionData && sessionData.client) return sessionData;
+
+    const sessions = loadSessionsData();
+    const saved = sessions && sessions[sid] ? sessions[sid] : null;
+    if (!saved) return sessionData;
+
+    const forceResume = !!options.forceResume || sid === ADMIN_SELF_SESSION_ID;
+    if (!forceResume && isSessionManuallyStopped(sid)) {
+        return sessionData;
+    }
+
+    if (!sessionData || !sessionData.client) {
+        if (forceResume) clearSessionManualStop(sid);
+        initializeClient(sid, saved);
+        sessionData = activeClients.get(sid) || sessionData;
+    }
+
+    return sessionData;
+}
+
 function emitToSessionClients(sessionId, eventName, payload) {
     if (!sessionId || !eventName) return;
     io.to(`session:${sessionId}`).emit(eventName, payload);
@@ -5339,7 +5364,9 @@ io.on('connection', (socket) => {
     socket.on('bind-session', (sessionId) => {
         const allowed = (socket.data && socket.data.isAdmin) ? String(sessionId) : (getUserById(socket.data.userId || '')?.sessionId || null);
         if (!allowed || String(sessionId) !== String(allowed)) return;
-        const sessionData = activeClients.get(allowed);
+        const sessionData = ensureSessionClientOnDemand(allowed, {
+            forceResume: String(allowed) === ADMIN_SELF_SESSION_ID
+        }) || activeClients.get(allowed);
         if (sessionData) {
             sessionData.socketId = socket.id;
             console.log(`Socket ${socket.id} vinculado à sessão ${allowed}`);
@@ -5672,7 +5699,9 @@ io.on('connection', (socket) => {
         const contactIndex = buildContactIndexForSession(sessionId);
         const contactByDigits = contactIndex.byDigits;
         const deletedChatMeta = loadDeletedChatsMetaForSession(sessionId);
-        const sessionData = activeClients.get(sessionId);
+        const sessionData = ensureSessionClientOnDemand(sessionId, {
+            forceResume: String(sessionId) === ADMIN_SELF_SESSION_ID
+        }) || activeClients.get(sessionId);
         const inflight = getChatsInFlight.get(sessionId);
         if (inflight) {
             try {
@@ -6195,19 +6224,16 @@ io.on('connection', (socket) => {
 
     // Get chat history
     socket.on('get-chat-history', async ({ sessionId, chatId, limit = 100, fullHistory = false, daysBack = 2 }) => {
-        const sessionData = activeClients.get(sessionId);
+        let sessionData = ensureSessionClientOnDemand(sessionId, {
+            forceResume: String(sessionId) === ADMIN_SELF_SESSION_ID
+        }) || activeClients.get(sessionId);
         const originalChatId = chatId;
         try {
             console.log(`Fetching history for ${chatId} with limit ${limit}`);
-            if (!sessionData || !sessionData.client) {
-                socket.emit('chat-history', { chatId: originalChatId, messages: [], notReady: true });
-                return;
-            }
-
             const timeout = (ms, label) => new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms));
 
             let effectiveChatId = chatId;
-            if (String(chatId || '').endsWith('@lid')) {
+            if (sessionData && sessionData.client && String(chatId || '').endsWith('@lid')) {
                 try {
                     const cached = loadChatCache(sessionId);
                     const list = Array.isArray(cached) ? cached : [];
@@ -6227,7 +6253,7 @@ io.on('connection', (socket) => {
                 } catch (e) {}
             }
 
-            if (String(effectiveChatId) === String(chatId)) {
+            if (sessionData && sessionData.client && String(effectiveChatId) === String(chatId)) {
                 effectiveChatId = sessionData.client && sessionData.client.__provider === 'evolution'
                     ? await resolveEvolutionSendTarget(sessionId, chatId)
                     : await resolveChatIdForClient(sessionData.client, chatId);
@@ -6392,6 +6418,25 @@ io.on('connection', (socket) => {
                 console.error('Error checking lastMessage fallback:', e);
             }
 
+            if (mergedMap.size === 0) {
+                const cachedChat = getCachedChatByAnyId(sessionId, effectiveChatId || originalChatId);
+                const cachedPreview = getChatPreviewSafe(cachedChat && cachedChat.lastMessage);
+                const cachedTs = normalizeEvolutionTimestamp(cachedChat && cachedChat.timestamp);
+                if (cachedChat && cachedPreview) {
+                    mergedMap.set(`cache-preview-${String(cachedChat.id || originalChatId)}-${cachedTs}`, {
+                        id: `cache-preview-${String(cachedChat.id || originalChatId)}-${cachedTs}`,
+                        body: cachedPreview,
+                        from: String(cachedChat.id || originalChatId),
+                        to: String(cachedChat.id || originalChatId),
+                        timestamp: cachedTs,
+                        fromMe: false,
+                        type: 'chat',
+                        hasMedia: false,
+                        ack: 0
+                    });
+                }
+            }
+
             // Convert to array and sort
             let allSortedMessages = Array.from(mergedMap.values()).map(msg => ({
                 ...msg,
@@ -6471,6 +6516,7 @@ io.on('connection', (socket) => {
                 hasOlderMessages,
                 daysBack: normalizedDaysBack,
                 totalMessages: allSortedMessages.length,
+                notReady: !(sessionData && sessionData.client),
                 messages: finalMessages.map(msg => ({
                     id: msg.id,
                     body: msg.body,
