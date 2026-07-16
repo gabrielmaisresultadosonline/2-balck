@@ -1551,6 +1551,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // ============ ADMIN — Meu WhatsApp (conexão do próprio admin, IP real) ============
     (function initAdminMyWhats() {
+        const ADMIN_SELF_SESSION_ID = 'session_admin_self';
         const openBtn   = document.getElementById('adminMyWhatsBtn');
         const panel     = document.getElementById('adminMyWhatsPanel');
         const closeBtn  = document.getElementById('adminMyWhatsClose');
@@ -1566,7 +1567,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!openBtn || !panel) return;
 
         let countdownTimer = null;
-        let adminSessionId = null;
+        let adminSessionId = ADMIN_SELF_SESSION_ID;
 
         function setMsg(text, kind) {
             if (!msgEl) return;
@@ -1605,6 +1606,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (discBtn) discBtn.style.display = 'none';
             if (genBtn)  genBtn.innerHTML = '<i class="fas fa-qrcode"></i> Gerar QR Code';
             stopCountdown();
+        }
+
+        function setDisconnectedState() {
+            resetQr();
+            setMsg('WhatsApp do admin desconectado. Gere um novo QR Code para conectar novamente.', 'info');
         }
 
         function startCountdown(sec) {
@@ -1658,7 +1664,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await r.json().catch(() => ({}));
                 if (r.ok && data && data.success) {
-                    adminSessionId = data.sessionId;
+                    adminSessionId = data.sessionId || ADMIN_SELF_SESSION_ID;
                     if (socket) socket.emit('bind-session', adminSessionId);
                     setMsg('Sessão criada. Aguardando QR Code...', 'info');
                 } else {
@@ -1677,27 +1683,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (discBtn) discBtn.addEventListener('click', () => {
-            if (adminSessionId && socket) {
-                try { socket.emit('disconnect-session', adminSessionId); } catch(_) {}
-            }
-            resetQr();
-            setMsg('Solicitado desconectar. Aguarde a confirmação do servidor.', 'info');
+            (async () => {
+                try {
+                    const r = await authFetch('/api/disconnect-session', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Zapmro-Admin-Self': '1' },
+                        body: JSON.stringify({ adminSelf: true, sessionId: adminSessionId || ADMIN_SELF_SESSION_ID })
+                    });
+                    const data = await r.json().catch(() => ({}));
+                    if (r.ok && data && data.success) {
+                        setDisconnectedState();
+                    } else {
+                        setMsg((data && (data.message || data.error)) ? (data.message || data.error) : 'Não foi possível desconectar o WhatsApp do admin.', 'err');
+                    }
+                } catch (_) {
+                    setMsg('Erro de rede ao desconectar o WhatsApp do admin.', 'err');
+                }
+            })();
         });
 
         // Listen to socket QR/auth events for the admin's own session
         function bindSocketOnce() {
             if (!socket || socket.__adminMyWhatsBound) return;
             socket.__adminMyWhatsBound = true;
-            socket.on('qr-code', (data) => {
-                if (!data || (adminSessionId && data.sessionId !== adminSessionId)) return;
-                if (!adminSessionId) adminSessionId = data.sessionId;
-                if (data.qrCode) showQr(data.qrCode);
+            socket.on('qr-generated', (data) => {
+                if (!data) return;
+                if (String(data.sessionId || '') !== String(adminSessionId || ADMIN_SELF_SESSION_ID)) return;
+                if (data.qr) {
+                    showQr(data.qr);
+                    setMsg('QR Code gerado. Escaneie com o WhatsApp do admin.', 'info');
+                }
             });
-            socket.on('authenticated', (data) => {
-                if (data && adminSessionId && data.sessionId === adminSessionId) {
+            socket.on('client-ready', (data) => {
+                if (data && String(data.sessionId || '') === String(adminSessionId || ADMIN_SELF_SESSION_ID)) {
                     showConnected();
                     setMsg('WhatsApp conectado com sucesso via IP real.', 'ok');
                     if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
+                }
+            });
+            socket.on('session-status', (data) => {
+                if (!data) return;
+                if (String(data.sessionId || '') !== String(adminSessionId || ADMIN_SELF_SESSION_ID)) return;
+                if (data.status === 'connected' || data.status === 'authenticated') {
+                    showConnected();
+                    if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
+                    return;
+                }
+                if (data.status === 'disconnected' || data.status === 'auth_failed') {
+                    setDisconnectedState();
+                    return;
+                }
+                if (data.status === 'reconnecting' || data.status === 'initializing') {
+                    resetQr();
+                    setMsg('Preparando nova conexão do WhatsApp do admin...', 'info');
                 }
             });
         }

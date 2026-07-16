@@ -24,6 +24,7 @@ const MASTER_PASSWORD = process.env.MASTER_PASSWORD || process.env.SESSION_MASTE
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'mro@gmail.com').trim().toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || MASTER_PASSWORD;
 const TEST_PROMO_CODE = (process.env.TEST_PROMO_CODE || 'xxg2').trim();
+const ADMIN_SELF_SESSION_ID = String(process.env.ADMIN_SELF_SESSION_ID || 'session_admin_self').trim();
 const WHATSAPP_PROVIDER = String(
     process.env.WHATSAPP_PROVIDER ||
     ((process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) ? 'evolution' : 'wwebjs')
@@ -1971,6 +1972,12 @@ function requireAdmin(req, res, next) {
     }
     req.authToken = rec.token;
     next();
+}
+
+function isAdminSelfRequest(req) {
+    const hdr = req.headers && req.headers['x-zapmro-admin-self'] ? String(req.headers['x-zapmro-admin-self']).trim() : '';
+    const bodyFlag = req.body && (req.body.adminSelf === true || String(req.body.adminSelf || '').trim() === '1');
+    return hdr === '1' || bodyFlag;
 }
 
 function ensureSeedUser() {
@@ -4939,15 +4946,47 @@ app.post('/api/google/sync-from-zapmro', requireUser, async (req, res) => {
 });
 
 // Rota para criar nova sessão
-app.post('/api/create-session', requireUser, (req, res) => {
-    const user = req.user;
-    if (user.sessionId) {
+app.post('/api/create-session', (req, res) => {
+    const token = parseBearerToken(req);
+    const rec = validateAuthToken(token);
+    if (!rec) {
+        res.status(401).json({ success: false, error: 'unauthorized' });
+        return;
+    }
+
+    const wantsAdminSelf = !!(rec.isAdmin && isAdminSelfRequest(req));
+    let sessionId = '';
+    let user = null;
+
+    if (wantsAdminSelf) {
+        sessionId = ADMIN_SELF_SESSION_ID;
+    } else {
+        if (rec.isAdmin) {
+            res.status(401).json({ success: false, error: 'unauthorized' });
+            return;
+        }
+        user = getUserById(rec.userId);
+        if (!user) {
+            res.status(401).json({ success: false, error: 'unauthorized' });
+            return;
+        }
+        if (user.sessionId) {
+            sessionId = String(user.sessionId);
+        } else {
+            sessionId = generateSessionId();
+        }
+    }
+
+    if (sessionId) {
+        clearSessionManualStop(sessionId);
+    }
+
+    if (!wantsAdminSelf && user && user.sessionId) {
         const sid = String(user.sessionId);
         if (!activeClients.get(sid)) initializeClient(sid, loadSessionsData()[sid] || null);
         res.json({ success: true, sessionId: sid, message: 'Sessão já existe para este usuário' });
         return;
     }
-    const sessionId = generateSessionId();
 
     if (USE_EVOLUTION) {
         if (!evolutionApi || !evolutionApi.isConfigured()) {
@@ -4966,14 +5005,34 @@ app.post('/api/create-session', requireUser, (req, res) => {
         }
     }
 
-    const updated = upsertUser({ ...user, sessionId, updatedAt: Date.now() });
-    initializeClient(sessionId);
-    res.json({ success: true, sessionId: updated.sessionId, message: 'Sessão criada com sucesso' });
+    if (!wantsAdminSelf) {
+        const updated = upsertUser({ ...user, sessionId, updatedAt: Date.now() });
+        initializeClient(sessionId);
+        res.json({ success: true, sessionId: updated.sessionId, message: 'Sessão criada com sucesso' });
+        return;
+    }
+
+    if (!activeClients.get(sessionId)) {
+        initializeClient(sessionId, loadSessionsData()[sessionId] || null);
+    }
+    res.json({ success: true, sessionId, message: 'Sessão do admin iniciada com sucesso' });
 });
 
 // Rota para desconectar sessão
-app.post('/api/disconnect-session', requireUser, async (req, res) => {
-    const sessionId = req.user && req.user.sessionId ? String(req.user.sessionId) : '';
+app.post('/api/disconnect-session', async (req, res) => {
+    const token = parseBearerToken(req);
+    const rec = validateAuthToken(token);
+    if (!rec) {
+        res.status(401).json({ success: false, message: 'unauthorized' });
+        return;
+    }
+    if (rec.isAdmin && !isAdminSelfRequest(req)) {
+        res.status(401).json({ success: false, message: 'unauthorized' });
+        return;
+    }
+    const sessionId = rec.isAdmin && isAdminSelfRequest(req)
+        ? ADMIN_SELF_SESSION_ID
+        : (req.body && req.body.sessionId ? String(req.body.sessionId) : (getUserById(rec.userId || '')?.sessionId || ''));
     if (!sessionId) {
         res.status(404).json({ success: false, message: 'Sessão não encontrada' });
         return;
