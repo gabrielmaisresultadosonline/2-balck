@@ -235,6 +235,56 @@ class EvolutionApi {
         });
     }
 
+    async sendButtons(instanceName, numberOrJid, payload = {}, options = {}) {
+        const data = payload && typeof payload === 'object' ? payload : {};
+        return this.request('post', `/message/sendButtons/${encodeURIComponent(instanceName)}`, {
+            data: {
+                number: toMessageTarget(numberOrJid),
+                title: data.title || data.text || '',
+                text: data.text || data.description || data.title || '',
+                description: data.description || data.text || '',
+                footer: data.footer || data.footerText || '',
+                footerText: data.footerText || data.footer || '',
+                image: data.image || data.imageUrl || undefined,
+                imageUrl: data.imageUrl || data.image || undefined,
+                buttons: Array.isArray(data.buttons) ? data.buttons : [],
+                ...options
+            }
+        });
+    }
+
+    async sendList(instanceName, numberOrJid, payload = {}, options = {}) {
+        const data = payload && typeof payload === 'object' ? payload : {};
+        return this.request('post', `/message/sendList/${encodeURIComponent(instanceName)}`, {
+            data: {
+                number: toMessageTarget(numberOrJid),
+                title: data.title || '',
+                description: data.description || data.text || '',
+                text: data.text || data.description || '',
+                buttonText: data.buttonText || 'Abrir menu',
+                footer: data.footer || data.footerText || '',
+                footerText: data.footerText || data.footer || '',
+                sections: Array.isArray(data.sections) ? data.sections : [],
+                ...options
+            }
+        });
+    }
+
+    async sendCarousel(instanceName, numberOrJid, payload = {}, options = {}) {
+        const data = payload && typeof payload === 'object' ? payload : {};
+        return this.request('post', `/message/sendCarousel/${encodeURIComponent(instanceName)}`, {
+            data: {
+                number: toMessageTarget(numberOrJid),
+                text: data.text || data.description || '',
+                description: data.description || data.text || '',
+                footer: data.footer || data.footerText || '',
+                footerText: data.footerText || data.footer || '',
+                cards: Array.isArray(data.cards) ? data.cards : [],
+                ...options
+            }
+        });
+    }
+
     normalizeInstanceState(payload) {
         const data = payload && typeof payload === 'object' ? payload : {};
         const instance = data.instance && typeof data.instance === 'object' ? data.instance : data;

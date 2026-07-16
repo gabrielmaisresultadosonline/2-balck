@@ -561,6 +561,60 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+function queryFlag(value) {
+    if (typeof value === 'boolean') return value;
+    const text = String(value || '').trim().toLowerCase();
+    return text === '1' || text === 'true' || text === 'yes' || text === 'on';
+}
+
+function toPublicRelativePath(absPath) {
+    const rel = path.relative(PUBLIC_DIR, absPath || '');
+    return String(rel || '').replace(/\\/g, '/');
+}
+
+async function convertAudioToVoiceNoteOgg(inputPath, options = {}) {
+    const {
+        outputNamePrefix = 'ptt',
+        force = false,
+        removeOriginal = false
+    } = options;
+
+    const ext = path.extname(inputPath || '').toLowerCase();
+    if (!force && ext === '.ogg') {
+        return inputPath;
+    }
+
+    const ffmpeg = require('fluent-ffmpeg');
+    try {
+        const ffmpegPath = require('ffmpeg-static');
+        if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+    } catch (e) {
+        console.warn('ffmpeg-static not found, relying on system ffmpeg');
+    }
+
+    const baseName = `${outputNamePrefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const outPath = path.join(path.dirname(inputPath), `${baseName}.ogg`);
+
+    await new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .noVideo()
+            .audioCodec('libopus')
+            .audioChannels(1)
+            .audioFrequency(48000)
+            .format('ogg')
+            .outputOptions(['-b:a 24k', '-vbr on', '-application voip'])
+            .on('end', resolve)
+            .on('error', reject)
+            .save(outPath);
+    });
+
+    if (removeOriginal && path.resolve(outPath) !== path.resolve(inputPath)) {
+        try { fs.unlinkSync(inputPath); } catch (e) {}
+    }
+
+    return outPath;
+}
+
 // Helper functions for Data Persistence
 function loadData(file) {
     try {
@@ -878,6 +932,56 @@ function extractEvolutionMessageContent(rawMessage) {
     return { type: 'chat', body: '', hasMedia: false, media: null };
 }
 
+function extractEvolutionInteractiveReply(rawMessage) {
+    const wrapper = rawMessage && typeof rawMessage === 'object' ? rawMessage : {};
+    const message = wrapper.message && typeof wrapper.message === 'object' ? wrapper.message : wrapper;
+
+    const buttonReply =
+        message.buttonReply ||
+        wrapper.buttonReply ||
+        message.buttonsResponseMessage ||
+        message.templateButtonReplyMessage ||
+        message.interactiveResponseMessage?.buttonReplyMessage ||
+        null;
+    if (buttonReply && typeof buttonReply === 'object') {
+        const id = buttonReply.selectedButtonId || buttonReply.buttonId || buttonReply.selectedId || buttonReply.id || '';
+        const text =
+            buttonReply.selectedDisplayText ||
+            buttonReply.displayText ||
+            buttonReply.selectedText ||
+            buttonReply.title ||
+            buttonReply.text ||
+            '';
+        if (id || text) {
+            return {
+                kind: 'button',
+                id: String(id || '').trim(),
+                text: String(text || '').trim()
+            };
+        }
+    }
+
+    const listReply =
+        message.listReply ||
+        wrapper.listReply ||
+        message.listResponseMessage ||
+        message.interactiveResponseMessage?.listReplyMessage ||
+        null;
+    if (listReply && typeof listReply === 'object') {
+        const id = listReply.rowId || listReply.selectedRowId || listReply.id || '';
+        const text = listReply.title || listReply.selectedTitle || listReply.description || '';
+        if (id || text) {
+            return {
+                kind: 'list',
+                id: String(id || '').trim(),
+                text: String(text || '').trim()
+            };
+        }
+    }
+
+    return null;
+}
+
 function normalizeEvolutionInboundMessage(sessionId, rawMessage) {
     const msg = rawMessage && typeof rawMessage === 'object' ? rawMessage : {};
     const key = msg.key && typeof msg.key === 'object' ? msg.key : {};
@@ -888,13 +992,14 @@ function normalizeEvolutionInboundMessage(sessionId, rawMessage) {
         msg.from
     );
     const content = extractEvolutionMessageContent(msg);
+    const interactiveReply = extractEvolutionInteractiveReply(msg);
     const fromMe = !!(key.fromMe || msg.fromMe);
     const id = key.id || msg.id || crypto.randomBytes(8).toString('hex');
     const from = fromMe ? (msg.sender || chatId) : (msg.sender || chatId);
     const to = fromMe ? chatId : (msg.owner || '');
     return {
         id,
-        body: content.body || '',
+        body: content.body || (interactiveReply ? interactiveReply.text : '') || '',
         from,
         to,
         chatId,
@@ -904,6 +1009,9 @@ function normalizeEvolutionInboundMessage(sessionId, rawMessage) {
         hasMedia: !!content.hasMedia,
         ack: normalizeEvolutionAck(msg.status || msg.messageStatus),
         media: content.media,
+        interactiveReplyId: interactiveReply && interactiveReply.id ? normalizeFlowInteractiveId(interactiveReply.id) : '',
+        interactiveReplyType: interactiveReply && interactiveReply.kind ? interactiveReply.kind : '',
+        interactiveReplyText: interactiveReply && interactiveReply.text ? interactiveReply.text : '',
         _evoRaw: msg
     };
 }
@@ -1443,6 +1551,30 @@ function createEvolutionClientWrapper(sessionId) {
                 }
             });
         },
+        async sendButtons(chatId, payload = {}) {
+            if (!evolutionApi) throw new Error('evolution_not_configured');
+            const targetId = normalizeEvolutionChatId(await resolveEvolutionSendTarget(sessionId, chatId));
+            const apiTarget = toEvolutionApiTarget(targetId);
+            const result = await evolutionApi.sendButtons(evolutionInstanceName(sessionId), apiTarget, payload);
+            const summary = String(payload.text || payload.description || payload.title || 'Mensagem interativa').trim();
+            return createSyntheticEvolutionSentMessage(sessionId, targetId, summary, result, { type: 'chat' });
+        },
+        async sendList(chatId, payload = {}) {
+            if (!evolutionApi) throw new Error('evolution_not_configured');
+            const targetId = normalizeEvolutionChatId(await resolveEvolutionSendTarget(sessionId, chatId));
+            const apiTarget = toEvolutionApiTarget(targetId);
+            const result = await evolutionApi.sendList(evolutionInstanceName(sessionId), apiTarget, payload);
+            const summary = String(payload.description || payload.text || payload.title || 'Lista interativa').trim();
+            return createSyntheticEvolutionSentMessage(sessionId, targetId, summary, result, { type: 'chat' });
+        },
+        async sendCarousel(chatId, payload = {}) {
+            if (!evolutionApi) throw new Error('evolution_not_configured');
+            const targetId = normalizeEvolutionChatId(await resolveEvolutionSendTarget(sessionId, chatId));
+            const apiTarget = toEvolutionApiTarget(targetId);
+            const result = await evolutionApi.sendCarousel(evolutionInstanceName(sessionId), apiTarget, payload);
+            const summary = String(payload.description || payload.text || 'Carrossel interativo').trim();
+            return createSyntheticEvolutionSentMessage(sessionId, targetId, summary, result, { type: 'chat' });
+        },
         async destroy() {
             if (!evolutionApi) return;
             try {
@@ -1637,6 +1769,7 @@ async function processEvolutionWebhookEvent(body) {
             cacheById.set(String(nextChat.id), nextChat);
 
             if (!messagePayload.fromMe) {
+                await processIncomingFlowMessage(sessionId, messagePayload, sessionData.client);
                 emitToSessionClients(sessionId, 'new-message', {
                     sessionId,
                     message: messagePayload,
@@ -2308,17 +2441,225 @@ function loadFlowsStore() {
     return {};
 }
 
+const FLOW_TIME_UNITS = Object.freeze({
+    milliseconds: 1,
+    seconds: 1000,
+    minutes: 60000,
+    hours: 3600000
+});
+
+function getFlowTimeUnit(unit, fallback = 'milliseconds') {
+    return Object.prototype.hasOwnProperty.call(FLOW_TIME_UNITS, unit) ? unit : fallback;
+}
+
+function sanitizeFlowDurationMs(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+}
+
+function normalizeFlowStep(step) {
+    if (!step || typeof step !== 'object') return step;
+    const normalized = { ...step };
+
+    if (normalized.type === 'delay') {
+        const preferredUnit = getFlowTimeUnit(normalized.timeUnit, 'milliseconds');
+        let delayMs = Number(normalized.time);
+        if (!Number.isFinite(delayMs)) {
+            const legacyValue = Number(normalized.content);
+            if (Number.isFinite(legacyValue)) {
+                delayMs = legacyValue * FLOW_TIME_UNITS[preferredUnit];
+            }
+        }
+        normalized.time = sanitizeFlowDurationMs(delayMs);
+        normalized.timeUnit = preferredUnit;
+    }
+
+    if (normalized.type === 'wait_response') {
+        normalized.timeout = sanitizeFlowDurationMs(normalized.timeout);
+        normalized.timeoutUnit = getFlowTimeUnit(normalized.timeoutUnit, 'minutes');
+    }
+
+    if (normalized.type === 'buttons') {
+        normalized.title = String(normalized.title || '').trim();
+        normalized.text = String(normalized.text || normalized.bodyText || normalized.content || '').trim();
+        normalized.bodyText = normalized.text;
+        normalized.footerText = String(normalized.footerText || normalized.footer || '').trim();
+        normalized.imageUrl = String(normalized.imageUrl || normalized.image || '').trim();
+        normalized.buttons = Array.isArray(normalized.buttons)
+            ? normalized.buttons.map((button, index) => normalizeFlowButtonConfig(button, index, 'button'))
+            : [];
+    }
+
+    if (normalized.type === 'list') {
+        normalized.title = String(normalized.title || '').trim();
+        normalized.description = String(normalized.description || normalized.text || normalized.content || '').trim();
+        normalized.buttonText = String(normalized.buttonText || 'Abrir menu').trim() || 'Abrir menu';
+        normalized.footerText = String(normalized.footerText || normalized.footer || '').trim();
+        normalized.sections = Array.isArray(normalized.sections)
+            ? normalized.sections.map((section, index) => normalizeFlowListSection(section, index))
+            : [];
+    }
+
+    if (normalized.type === 'carousel') {
+        normalized.description = String(normalized.description || normalized.text || normalized.content || '').trim();
+        normalized.footerText = String(normalized.footerText || normalized.footer || '').trim();
+        normalized.cards = Array.isArray(normalized.cards)
+            ? normalized.cards.map((card, index) => normalizeFlowCarouselCard(card, index))
+            : [];
+    }
+
+    return normalized;
+}
+
+function normalizeFlowDefinition(flow) {
+    if (!flow || typeof flow !== 'object') return flow;
+    return {
+        ...flow,
+        steps: Array.isArray(flow.steps) ? flow.steps.map(normalizeFlowStep) : []
+    };
+}
+
+function normalizeFlowInteractiveId(value, fallback = 'option') {
+    const text = String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return text || fallback;
+}
+
+function normalizeFlowButtonConfig(button, index = 0, prefix = 'button') {
+    const raw = button && typeof button === 'object' ? button : {};
+    const type = ['reply', 'url', 'call', 'copy', 'pix'].includes(String(raw.type || '').toLowerCase())
+        ? String(raw.type || '').toLowerCase()
+        : 'reply';
+    const displayText = String(raw.displayText || raw.text || raw.title || `Botao ${index + 1}`).trim() || `Botao ${index + 1}`;
+    const fallbackId = `${prefix}_${index + 1}`;
+    const id = type === 'reply'
+        ? normalizeFlowInteractiveId(raw.id || raw.buttonId || raw.buttonID || displayText, fallbackId)
+        : String(raw.id || raw.buttonId || raw.buttonID || '').trim();
+    return {
+        type,
+        displayText,
+        id,
+        buttonId: id,
+        url: String(raw.url || '').trim(),
+        phoneNumber: String(raw.phoneNumber || raw.phone || '').trim(),
+        copyCode: String(raw.copyCode || raw.copy_code || '').trim(),
+        pixKey: String(raw.pixKey || raw.pix_key || '').trim(),
+        targetId: raw.targetId ? String(raw.targetId) : null
+    };
+}
+
+function normalizeFlowListRow(row, sectionIndex = 0, rowIndex = 0) {
+    const raw = row && typeof row === 'object' ? row : {};
+    const title = String(raw.title || `Opcao ${rowIndex + 1}`).trim() || `Opcao ${rowIndex + 1}`;
+    const fallbackId = `row_${sectionIndex + 1}_${rowIndex + 1}`;
+    const rowId = normalizeFlowInteractiveId(raw.rowId || raw.id || title, fallbackId);
+    return {
+        title,
+        description: String(raw.description || '').trim(),
+        rowId,
+        id: rowId,
+        targetId: raw.targetId ? String(raw.targetId) : null
+    };
+}
+
+function normalizeFlowListSection(section, sectionIndex = 0) {
+    const raw = section && typeof section === 'object' ? section : {};
+    const rows = Array.isArray(raw.rows) ? raw.rows.map((row, rowIndex) => normalizeFlowListRow(row, sectionIndex, rowIndex)) : [];
+    return {
+        title: String(raw.title || `Secao ${sectionIndex + 1}`).trim() || `Secao ${sectionIndex + 1}`,
+        rows
+    };
+}
+
+function normalizeFlowCarouselCard(card, cardIndex = 0) {
+    const raw = card && typeof card === 'object' ? card : {};
+    const buttons = Array.isArray(raw.buttons)
+        ? raw.buttons.map((button, buttonIndex) => normalizeFlowButtonConfig(button, buttonIndex, `card_${cardIndex + 1}`))
+        : [];
+    return {
+        title: String(raw.title || `Card ${cardIndex + 1}`).trim() || `Card ${cardIndex + 1}`,
+        description: String(raw.description || '').trim(),
+        image: String(raw.image || raw.imageUrl || '').trim(),
+        imageUrl: String(raw.imageUrl || raw.image || '').trim(),
+        buttons
+    };
+}
+
+function getFlowInteractiveBranches(step) {
+    if (!step || typeof step !== 'object') return [];
+    if (step.type === 'buttons') {
+        return (Array.isArray(step.buttons) ? step.buttons : [])
+            .filter(button => String(button && button.type || '').toLowerCase() === 'reply' && String(button.id || button.buttonId || '').trim())
+            .map((button, index) => ({
+                kind: 'button',
+                id: String(button.id || button.buttonId).trim(),
+                label: String(button.displayText || `Botao ${index + 1}`).trim(),
+                targetId: button.targetId ? String(button.targetId) : null
+            }));
+    }
+    if (step.type === 'list') {
+        return (Array.isArray(step.sections) ? step.sections : []).flatMap(section =>
+            (Array.isArray(section.rows) ? section.rows : [])
+                .filter(row => String(row && row.rowId || row && row.id || '').trim())
+                .map((row, index) => ({
+                    kind: 'list',
+                    id: String(row.rowId || row.id).trim(),
+                    label: String(row.title || `Item ${index + 1}`).trim(),
+                    targetId: row.targetId ? String(row.targetId) : null
+                }))
+        );
+    }
+    if (step.type === 'carousel') {
+        return (Array.isArray(step.cards) ? step.cards : []).flatMap((card, cardIndex) =>
+            (Array.isArray(card.buttons) ? card.buttons : [])
+                .filter(button => String(button && button.type || '').toLowerCase() === 'reply' && String(button.id || button.buttonId || '').trim())
+                .map((button, buttonIndex) => ({
+                    kind: 'carousel',
+                    id: String(button.id || button.buttonId).trim(),
+                    label: `${String(card.title || `Card ${cardIndex + 1}`).trim()} - ${String(button.displayText || `Botao ${buttonIndex + 1}`).trim()}`,
+                    targetId: button.targetId ? String(button.targetId) : null
+                }))
+        );
+    }
+    return [];
+}
+
+function findFlowInteractiveBranch(step, replyId) {
+    const normalized = normalizeFlowInteractiveId(replyId || '');
+    if (!normalized) return null;
+    return getFlowInteractiveBranches(step).find(branch => normalizeFlowInteractiveId(branch.id) === normalized) || null;
+}
+
+function getFlowNextStepIndex(flow, step, currentIndex) {
+    if (step && step.next) {
+        const linkedIndex = getFlowStepIndexById(flow, step.next);
+        if (linkedIndex >= 0) return linkedIndex;
+    }
+    return currentIndex + 1;
+}
+
+function getIncomingMessageReplyId(msg) {
+    if (!msg || typeof msg !== 'object') return '';
+    const directId = msg.interactiveReplyId || msg.replyId || '';
+    if (directId) return normalizeFlowInteractiveId(directId);
+    const body = typeof msg.body === 'string' ? msg.body.trim() : '';
+    return body ? normalizeFlowInteractiveId(body) : '';
+}
+
 function loadFlows(sessionId) {
     const store = loadFlowsStore();
     const sid = sessionId ? String(sessionId) : getDefaultSessionId();
     const flows = store[sid];
-    return Array.isArray(flows) ? flows : [];
+    return Array.isArray(flows) ? flows.map(normalizeFlowDefinition) : [];
 }
 
 function saveFlows(sessionId, flows) {
     const store = loadFlowsStore();
     const sid = sessionId ? String(sessionId) : getDefaultSessionId();
-    store[sid] = Array.isArray(flows) ? flows : [];
+    store[sid] = Array.isArray(flows) ? flows.map(normalizeFlowDefinition) : [];
     saveData(FLOWS_FILE, store);
 }
 function loadTagsStore() {
@@ -3326,14 +3667,255 @@ app.post('/api/upload', (req, res, next) => {
     if (!req.query) req.query = {};
     req.query.sessionId = safeSessionId;
     next();
-}, upload.single('file'), (req, res) => {
+}, upload.single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
-    const safeSessionId = req.query.sessionId;
-    const rel = safeSessionId ? `uploads/${safeSessionId}/${req.file.filename}` : `uploads/${req.file.filename}`;
-    res.json({ success: true, path: rel });
+
+    try {
+        const wantsVoiceNote = queryFlag(req.query && req.query.voiceNote);
+        let finalPath = req.file.path;
+        let finalMime = req.file.mimetype || 'application/octet-stream';
+
+        if (wantsVoiceNote) {
+            const ext = path.extname(req.file.originalname || '').toLowerCase();
+            const looksAudio = String(req.file.mimetype || '').startsWith('audio/');
+            const supportedAudio = looksAudio || ext === '.mp3' || ext === '.ogg';
+            if (!supportedAudio) {
+                try { fs.unlinkSync(req.file.path); } catch (e) {}
+                return res.status(400).json({ success: false, error: 'Envie um áudio MP3 ou OGG.' });
+            }
+            finalPath = await convertAudioToVoiceNoteOgg(req.file.path, {
+                outputNamePrefix: 'flow-audio',
+                force: true,
+                removeOriginal: true
+            });
+            finalMime = 'audio/ogg';
+        }
+
+        const rel = toPublicRelativePath(finalPath);
+        if (!rel) {
+            throw new Error('Falha ao gerar caminho do upload');
+        }
+
+        res.json({
+            success: true,
+            path: rel,
+            filename: path.basename(finalPath),
+            originalName: req.file.originalname || path.basename(finalPath),
+            mimetype: finalMime
+        });
+    } catch (error) {
+        console.error('Upload error:', error);
+        try { if (req.file && req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
+        res.status(500).json({ success: false, error: 'Falha ao processar upload.' });
+    }
 });
+
+function ensureFlowSupportsInteractiveSend(client, stepType) {
+    if (!client || client.__provider !== 'evolution' || typeof client.sendButtons !== 'function') {
+        throw new Error(`O nó ${stepType} exige sessão Evolution API conectada.`);
+    }
+}
+
+function buildFlowButtonsPayload(step) {
+    const buttons = (Array.isArray(step.buttons) ? step.buttons : []).map((button, index) => {
+        const normalized = normalizeFlowButtonConfig(button, index, 'button');
+        return {
+            type: normalized.type,
+            id: normalized.id,
+            buttonId: normalized.id,
+            displayText: normalized.displayText,
+            buttonText: { displayText: normalized.displayText },
+            url: normalized.url || undefined,
+            phoneNumber: normalized.phoneNumber || undefined,
+            phone_number: normalized.phoneNumber || undefined,
+            copyCode: normalized.copyCode || undefined,
+            copy_code: normalized.copyCode || undefined,
+            pixKey: normalized.pixKey || undefined,
+            pix_key: normalized.pixKey || undefined
+        };
+    });
+    return {
+        title: String(step.title || '').trim(),
+        text: String(step.text || step.bodyText || step.content || '').trim(),
+        description: String(step.text || step.bodyText || step.content || '').trim(),
+        footerText: String(step.footerText || '').trim(),
+        footer: String(step.footerText || '').trim(),
+        imageUrl: String(step.imageUrl || '').trim() || undefined,
+        image: String(step.imageUrl || '').trim() || undefined,
+        buttons
+    };
+}
+
+function buildFlowListPayload(step) {
+    const sections = (Array.isArray(step.sections) ? step.sections : []).map((section, sectionIndex) => {
+        const normalized = normalizeFlowListSection(section, sectionIndex);
+        return {
+            title: normalized.title,
+            rows: normalized.rows.map(row => ({
+                title: row.title,
+                description: row.description || undefined,
+                rowId: row.rowId,
+                id: row.rowId
+            }))
+        };
+    });
+    return {
+        title: String(step.title || '').trim(),
+        description: String(step.description || step.text || step.content || '').trim(),
+        text: String(step.description || step.text || step.content || '').trim(),
+        buttonText: String(step.buttonText || 'Abrir menu').trim() || 'Abrir menu',
+        footerText: String(step.footerText || '').trim(),
+        footer: String(step.footerText || '').trim(),
+        sections
+    };
+}
+
+function buildFlowCarouselPayload(step) {
+    const cards = (Array.isArray(step.cards) ? step.cards : []).map((card, cardIndex) => {
+        const normalized = normalizeFlowCarouselCard(card, cardIndex);
+        return {
+            title: normalized.title,
+            description: normalized.description || '',
+            image: normalized.image || normalized.imageUrl || undefined,
+            imageUrl: normalized.imageUrl || normalized.image || undefined,
+            buttons: normalized.buttons.map(button => ({
+                type: button.type,
+                id: button.id,
+                buttonId: button.id,
+                text: button.displayText,
+                displayText: button.displayText,
+                buttonText: { displayText: button.displayText },
+                url: button.url || undefined,
+                phoneNumber: button.phoneNumber || undefined,
+                phone_number: button.phoneNumber || undefined
+            }))
+        };
+    });
+    return {
+        text: String(step.description || step.text || step.content || '').trim(),
+        description: String(step.description || step.text || step.content || '').trim(),
+        footerText: String(step.footerText || '').trim(),
+        footer: String(step.footerText || '').trim(),
+        cards
+    };
+}
+
+async function handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex, client, step, kind) {
+    ensureFlowSupportsInteractiveSend(client, kind);
+    if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
+        activeFlows[sessionId][chatId].action = 'sending_interactive';
+        activeFlows[sessionId][chatId].updatedAt = Date.now();
+    }
+    emitFlowUsage(sessionId);
+
+    let sentMsg;
+    if (kind === 'buttons') {
+        sentMsg = await client.sendButtons(chatId, buildFlowButtonsPayload(step));
+    } else if (kind === 'list') {
+        sentMsg = await client.sendList(chatId, buildFlowListPayload(step));
+    } else {
+        sentMsg = await client.sendCarousel(chatId, buildFlowCarouselPayload(step));
+    }
+    await handleSentMessage(sessionId, sentMsg, client);
+
+    const branches = getFlowInteractiveBranches(step);
+    if (branches.length > 0) {
+        if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
+            activeFlows[sessionId][chatId].waiting = true;
+            activeFlows[sessionId][chatId].action = 'waiting_interactive';
+            activeFlows[sessionId][chatId].updatedAt = Date.now();
+            emitFlowUsage(sessionId);
+        }
+        return;
+    }
+
+    return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
+}
+
+async function processIncomingFlowMessage(sessionId, msg, client) {
+    if (!msg || !msg.chatId || msg.fromMe) return false;
+    const chatKey = String(msg.chatId);
+    const flows = loadFlows(sessionId);
+    const incomingText = String(msg.body || '').trim().toLowerCase();
+    const replyId = getIncomingMessageReplyId(msg);
+
+    if (activeFlows[sessionId] && activeFlows[sessionId][chatKey]) {
+        const active = activeFlows[sessionId][chatKey];
+        if (active.waiting) {
+            if (active.timeoutId) clearTimeout(active.timeoutId);
+            active.waiting = false;
+            active.timeoutId = null;
+            active.action = null;
+
+            const currentFlowObj = flows.find(f => String(f.id) === String(active.flowId));
+            const step = currentFlowObj && currentFlowObj.steps && currentFlowObj.steps[active.step] ? currentFlowObj.steps[active.step] : null;
+            if (step && step.type === 'wait_response' && step.exactMatch && incomingText && incomingText === String(step.exactMatch).trim().toLowerCase()) {
+                if (step.exactMatchFlowId) {
+                    const targetFlow = flows.find(f => String(f.id) === String(step.exactMatchFlowId));
+                    if (targetFlow) {
+                        activeFlows[sessionId][chatKey] = { flowId: targetFlow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+                        emitFlowUsage(sessionId);
+                        await executeFlowStep(sessionId, chatKey, targetFlow, 0, client);
+                        return true;
+                    }
+                }
+            }
+
+            active.updatedAt = Date.now();
+
+            if (step && ['buttons', 'list', 'carousel'].includes(step.type)) {
+                const branch = findFlowInteractiveBranch(step, replyId);
+                const targetIndex = branch && branch.targetId ? getFlowStepIndexById(currentFlowObj, branch.targetId) : -1;
+                await executeFlowStep(sessionId, chatKey, currentFlowObj, targetIndex >= 0 ? targetIndex : getFlowNextStepIndex(currentFlowObj, step, active.step), client);
+                emitFlowUsage(sessionId);
+                return true;
+            }
+
+            if (currentFlowObj) {
+                const currentStep = currentFlowObj.steps && currentFlowObj.steps[active.step] ? currentFlowObj.steps[active.step] : null;
+                const responseNext = currentStep && (currentStep.responseNext || currentStep.next);
+                const nextIndex = responseNext ? getFlowStepIndexById(currentFlowObj, responseNext) : -1;
+                await executeFlowStep(sessionId, chatKey, currentFlowObj, nextIndex >= 0 ? nextIndex : active.step + 1, client);
+                emitFlowUsage(sessionId);
+                return true;
+            }
+        }
+    }
+
+    let historyCount = 0;
+    try {
+        const file = getHistoryFilePath(sessionId, chatKey);
+        if (fs.existsSync(file)) {
+            const history = JSON.parse(fs.readFileSync(file, 'utf8'));
+            historyCount = Array.isArray(history) ? history.length : 0;
+        }
+    } catch (e) {}
+
+    for (const flow of flows) {
+        let triggered = false;
+        const triggerKeyword = String(flow.triggerKeyword || flow.trigger || '').trim().toLowerCase();
+        if ((flow.triggerType === 'keyword' || !flow.triggerType) && triggerKeyword && triggerKeyword === incomingText) {
+            triggered = true;
+        } else if (flow.triggerType === 'first_message' && historyCount <= 1) {
+            triggered = true;
+        }
+        if (triggered) {
+            if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
+            const prev = activeFlows[sessionId][chatKey];
+            if (prev && prev.timeoutId) {
+                try { clearTimeout(prev.timeoutId); } catch (e) {}
+            }
+            activeFlows[sessionId][chatKey] = { flowId: flow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+            emitFlowUsage(sessionId);
+            await executeFlowStep(sessionId, chatKey, flow, 0, client);
+            return true;
+        }
+    }
+
+    return false;
+}
 
 // Flow Execution Logic
 async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
@@ -3401,14 +3983,14 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
             const options = hasUrl ? { linkPreview: false } : undefined;
             const sentMsg = await client.sendMessage(chatId, step.content, options);
             await handleSentMessage(sessionId, sentMsg, client);
-            return await executeFlowStep(sessionId, chatId, flow, stepIndex + 1, client);
+            return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
         } else if (step.type === 'delay') {
             if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
                 activeFlows[sessionId][chatId].action = 'delay';
                 activeFlows[sessionId][chatId].updatedAt = Date.now();
             }
             emitFlowUsage(sessionId);
-            const delayMs = Math.max(0, Number(step.time) || 0);
+            const delayMs = sanitizeFlowDurationMs(typeof step.time !== 'undefined' ? step.time : step.content);
             const timeoutId = setTimeout(() => {
                 // Check again before proceeding after delay
                 const currentActive = activeFlows[sessionId]?.[chatId];
@@ -3418,7 +4000,7 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                 // If currentActive.step is 0, we should stop.
                 // So:
                 if (currentActive && String(currentActive.flowId) === String(flow.id) && currentActive.step === stepIndex) {
-                    executeFlowStep(sessionId, chatId, flow, stepIndex + 1, client);
+                    executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
                 }
             }, delayMs);
             if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
@@ -3437,11 +4019,12 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                 const sentMsg = await client.sendMessage(chatId, media);
                 await handleSentMessage(sessionId, sentMsg, client);
             }
-            return await executeFlowStep(sessionId, chatId, flow, stepIndex + 1, client);
+            return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
         } else if (step.type === 'audio') {
             const relPath = typeof step.path === 'string' ? step.path.replace(/^[/\\]+/, '') : '';
             const fullPath = path.join(PUBLIC_DIR, relPath);
             if (fs.existsSync(fullPath)) {
+                let tempVoicePath = null;
                 // Simulate recording
                 if (step.recordingDuration && Number(step.recordingDuration) > 0) {
                     try {
@@ -3475,11 +4058,28 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                     activeFlows[sessionId][chatId].updatedAt = Date.now();
                 }
                 emitFlowUsage(sessionId);
-                const media = MessageMedia.fromFilePath(fullPath);
-                const sentMsg = await client.sendMessage(chatId, media, { sendAudioAsVoice: true });
-                await handleSentMessage(sessionId, sentMsg, client);
+                let chosenPath = fullPath;
+                try {
+                    chosenPath = await convertAudioToVoiceNoteOgg(fullPath, {
+                        outputNamePrefix: 'flow-step-audio',
+                        force: path.extname(fullPath).toLowerCase() !== '.ogg',
+                        removeOriginal: false
+                    });
+                    if (chosenPath !== fullPath) tempVoicePath = chosenPath;
+                } catch (e) {
+                    chosenPath = fullPath;
+                }
+                try {
+                    const media = MessageMedia.fromFilePath(chosenPath);
+                    const sentMsg = await client.sendMessage(chatId, media, { sendAudioAsVoice: true });
+                    await handleSentMessage(sessionId, sentMsg, client);
+                } finally {
+                    if (tempVoicePath) {
+                        try { fs.unlinkSync(tempVoicePath); } catch (e) {}
+                    }
+                }
             }
-            return await executeFlowStep(sessionId, chatId, flow, stepIndex + 1, client);
+            return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
         } else if (step.type === 'video') {
             const relPath = typeof step.path === 'string' ? step.path.replace(/^[/\\]+/, '') : '';
             const fullPath = path.join(PUBLIC_DIR, relPath);
@@ -3493,7 +4093,13 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                 const sentMsg = await client.sendMessage(chatId, media, { sendMediaAsDocument: false });
                 await handleSentMessage(sessionId, sentMsg, client);
             }
-            return await executeFlowStep(sessionId, chatId, flow, stepIndex + 1, client);
+            return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
+        } else if (step.type === 'buttons') {
+            return await handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex, client, step, 'buttons');
+        } else if (step.type === 'list') {
+            return await handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex, client, step, 'list');
+        } else if (step.type === 'carousel') {
+            return await handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex, client, step, 'carousel');
         } else if (step.type === 'wait_response') {
             // Wait for user response
             if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
