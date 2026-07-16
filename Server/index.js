@@ -779,6 +779,47 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
     };
 }
 
+function collectDeepStringValues(value, bucket = [], depth = 0) {
+    if (depth > 4 || value == null) return bucket;
+    if (typeof value === 'string' || typeof value === 'number') {
+        bucket.push(String(value));
+        return bucket;
+    }
+    if (Array.isArray(value)) {
+        for (const item of value) collectDeepStringValues(item, bucket, depth + 1);
+        return bucket;
+    }
+    if (typeof value === 'object') {
+        for (const key of Object.keys(value)) {
+            collectDeepStringValues(value[key], bucket, depth + 1);
+        }
+    }
+    return bucket;
+}
+
+function extractEvolutionProfileInfo(profile) {
+    const values = collectDeepStringValues(profile, []);
+    let phoneDigits = '';
+    for (const value of values) {
+        const digits = normalizeEvolutionPhone(value);
+        if (digits && digits.length >= 10 && digits.length <= 15) {
+            phoneDigits = digits;
+            break;
+        }
+    }
+
+    const possibleNames = [
+        profile?.pushName,
+        profile?.profileName,
+        profile?.fullName,
+        profile?.name,
+        profile?.contactName,
+        profile?.subject
+    ].map(v => String(v || '').trim()).filter(Boolean);
+    const name = possibleNames.find(v => !/^[0-9@._+\-\s]+$/.test(v) && v !== '[object Object]') || '';
+    return { phoneDigits, name };
+}
+
 function collectPossibleChatIds(sessionId, chatId) {
     const out = new Set();
     const base = String(chatId || '').trim();
@@ -1031,9 +1072,20 @@ function createEvolutionClientWrapper(sessionId) {
                 const normalized = normalizeEvolutionChatRecord(sessionId, item);
                 const chat = createEvolutionChatWrapper(sessionId, normalized.id);
                 chat.name = normalized.name;
+                chat.phoneNumber = normalized.phoneNumber || '';
                 chat.unreadCount = normalized.unreadCount;
                 chat.timestamp = normalized.timestamp;
-                chat.lastMessage = { body: normalized.lastMessage || '' };
+                chat.lastMessage = {
+                    id: { _serialized: `evo-last-${normalized.id}-${normalized.timestamp || 0}` },
+                    body: normalized.lastMessage || '',
+                    from: normalized.id,
+                    to: normalized.id,
+                    timestamp: normalized.timestamp || Math.floor(Date.now() / 1000),
+                    fromMe: false,
+                    type: 'chat',
+                    hasMedia: false,
+                    ack: 0
+                };
                 return chat;
             });
         },
@@ -1375,6 +1427,31 @@ function extractCandidateNumbersFromMessages(messages) {
         }
     }
     return Array.from(out);
+}
+
+async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', cached = null) {
+    const output = {
+        phoneNumber: normalizeEvolutionPhone(cached?.phoneNumber || chatId),
+        name: String(baseName || cached?.name || '').trim()
+    };
+
+    const archive = loadArchiveFallback(sessionId, [chatId]);
+    const archivePhone = Array.isArray(archive?.numbers)
+        ? archive.numbers.find(num => num && num.length >= 10 && num.length <= 15)
+        : '';
+    if (!output.phoneNumber && archivePhone) output.phoneNumber = archivePhone;
+
+    if (!USE_EVOLUTION || !evolutionApi) return output;
+    if (output.phoneNumber && output.name && !/^[0-9@._+\-\s]+$/.test(output.name)) return output;
+
+    try {
+        const profile = await evolutionApi.fetchProfile(evolutionInstanceName(sessionId), toEvolutionApiTarget(chatId));
+        const info = extractEvolutionProfileInfo(profile || {});
+        if (!output.phoneNumber && info.phoneDigits) output.phoneNumber = info.phoneDigits;
+        if ((!output.name || /^[0-9@._+\-\s]+$/.test(output.name)) && info.name) output.name = info.name;
+    } catch (e) {}
+
+    return output;
 }
 
 function loadArchiveFallback(sessionId, chatIds) {
@@ -3285,7 +3362,11 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 
             let createResponse = null;
             if (!known) {
-                createResponse = await evolutionApi.createInstance(evolutionInstanceName(sessionId), webhookConfig, { qrcode: true });
+                createResponse = await evolutionApi.createInstance(evolutionInstanceName(sessionId), webhookConfig, {
+                    qrcode: true,
+                    syncFullHistory: true,
+                    groupsIgnore: false
+                });
             }
 
             let stateResponse = await evolutionApi.connectionState(evolutionInstanceName(sessionId)).catch(() => null);
@@ -5044,9 +5125,22 @@ io.on('connection', (socket) => {
 
                         const cached = cacheById.get(displayChatId) || null;
 
-                        let derivedPhoneNumber = null;
+                        let derivedPhoneNumber = normalizeDigits(String(chat.phoneNumber || '')) || null;
                         if (displayChatId.endsWith('@c.us')) derivedPhoneNumber = displayChatId.split('@')[0] || null;
                         else if (displayChatId.endsWith('@lid')) derivedPhoneNumber = extractPhoneDigits(chat.name || '') || null;
+
+                        if (!derivedPhoneNumber && displayChatId.endsWith('@lid')) {
+                            const resolvedIdentity = await resolveEvolutionChatIdentity(
+                                sessionId,
+                                displayChatId,
+                                chat.name || (cached && cached.name ? String(cached.name) : ''),
+                                cached
+                            );
+                            if (resolvedIdentity.phoneNumber) derivedPhoneNumber = resolvedIdentity.phoneNumber;
+                            if (resolvedIdentity.name && (!chat.name || /^[0-9@._+\-\s]+$/.test(String(chat.name)))) {
+                                chat.name = resolvedIdentity.name;
+                            }
+                        }
 
                         const phoneNumber = derivedPhoneNumber || (cached && cached.phoneNumber ? String(cached.phoneNumber) : null);
                         const phoneDigits = normalizeDigits(phoneNumber || '');
@@ -5579,6 +5673,26 @@ io.on('connection', (socket) => {
                                 existing.body = lm.body;
                                 existing.timestamp = existing.timestamp || safeTimestamp;
                                 mergedMap.set(lmId, existing);
+                            }
+                        }
+                    }
+                    else if ((typeof lm === 'string' && lm.trim()) || (chat && chat.lastMessage && chat.lastMessage.body)) {
+                        const fallbackBody = typeof lm === 'string' ? lm.trim() : String(chat.lastMessage.body || '').trim();
+                        if (fallbackBody) {
+                            const fallbackId = `fallback-${String(originalChatId)}-${Number(chat.timestamp || Math.floor(Date.now() / 1000))}`;
+                            if (!mergedMap.has(fallbackId)) {
+                                console.log(`[get-chat-history] Appending string lastMessage fallback for ${originalChatId}`);
+                                mergedMap.set(fallbackId, {
+                                    id: fallbackId,
+                                    body: fallbackBody,
+                                    from: originalChatId,
+                                    to: originalChatId,
+                                    timestamp: Number(chat.timestamp || Math.floor(Date.now() / 1000)),
+                                    fromMe: false,
+                                    type: 'chat',
+                                    hasMedia: false,
+                                    ack: 0
+                                });
                             }
                         }
                     }
