@@ -3795,12 +3795,6 @@ function scheduleReconnect(sessionId, reason) {
         const savedSession = sessions[sessionId] || null;
         console.log(`Reconectando sessão: ${sessionId} (motivo: ${reason || 'desconhecido'}, tentativa: ${nextAttempt})`);
         try {
-            // Rotate proxy on reconnect
-            try {
-                 proxyManager.reassignProxy(sessionId);
-            } catch (pe) {
-                 console.error('Erro ao rotacionar proxy:', pe);
-            }
             initializeClient(sessionId, savedSession);
         } catch (e) {
             console.error(`Erro ao reinicializar sessão ${sessionId}:`, e);
@@ -4083,9 +4077,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             let proxyConfig = null;
             if (shouldUseConfiguredProxy) {
                 try {
-                    proxyConfig = retryCount > 0
-                        ? proxyManager.reassignProxy(sessionId, proxyLabel)
-                        : proxyManager.getAssignment(sessionId, proxyLabel);
+                    proxyConfig = proxyManager.getAssignment(sessionId, proxyLabel);
                 } catch (e) {
                     console.error(`Falha ao atribuir proxy para ${sessionId}:`, e.message);
                 }
@@ -4165,11 +4157,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
     let proxyConfig = null;
     try {
         if (shouldUseConfiguredProxy) {
-            if (retryCount > 0) {
-                proxyConfig = proxyManager.reassignProxy(sessionId, proxyLabel);
-            } else {
-                proxyConfig = proxyManager.getAssignment(sessionId, proxyLabel);
-            }
+            proxyConfig = proxyManager.getAssignment(sessionId, proxyLabel);
         }
     } catch (e) {
         console.error(`Falha ao atribuir proxy para ${sessionId}:`, e.message);
@@ -4685,7 +4673,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
     } catch (e) {
         console.error(`Erro ao inicializar cliente ${sessionId}:`, e);
         if (retryCount < 2) {
-             console.log(`Tentando reconectar ${sessionId} com novo proxy (Tentativa ${retryCount + 1})...`);
+             console.log(`Tentando reconectar ${sessionId} com o mesmo proxy atribuido (Tentativa ${retryCount + 1})...`);
              // Clear partial state if needed? activeClients is overwritten on next call.
              setTimeout(() => initializeClient(sessionId, savedSession, retryCount + 1), 2000);
         } else {
