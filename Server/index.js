@@ -879,7 +879,7 @@ function collectPossibleChatIds(sessionId, chatId) {
     const match = list.find(item => item && (
         String(item.id || '') === base ||
         String(item.id || '') === normalized ||
-        normalizeEvolutionPhone(item.phoneNumber || item.id || '') === digits
+        (digits && normalizeEvolutionPhone(item.phoneNumber || item.id || '') === digits)
     ));
     if (match) {
         const cachedId = String(match.id || '').trim();
@@ -1542,6 +1542,8 @@ function getCachedChatByAnyId(sessionId, chatId) {
     const ids = collectPossibleChatIds(sessionId, chatId);
     const cache = loadChatCache(sessionId);
     const list = Array.isArray(cache) ? cache : [];
+    const direct = list.find(item => item && String(item.id || '').trim() === String(chatId || '').trim());
+    if (direct) return direct;
     return list.find(item => item && ids.includes(String(item.id || '').trim())) || null;
 }
 
