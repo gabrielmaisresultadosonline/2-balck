@@ -1794,42 +1794,68 @@ document.addEventListener('DOMContentLoaded', function() {
         const btn = document.getElementById('adminProxysBtn');
         if (!btn) return;
 
-        const loadState = () => {
+        const readLocalState = () => {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (raw) return JSON.parse(raw);
             } catch(e){}
             return { proxys: [], history: [] };
         };
-        const saveState = (s) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch(e){} };
+        const writeLocalState = (s) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch(e){} };
         const fmt = (ts) => {
             if (!ts) return '—';
             try { return new Date(ts).toLocaleString('pt-BR'); } catch(e){ return String(ts); }
         };
 
-        // Public API used by the rest of the app if it ever wants to assign a new user.
-        window.assignProxyForUser = function(userId, userLabel) {
-            const state = loadState();
-            // Sort by createdAt asc: fill first proxy until full, then next
-            const ordered = [...state.proxys].sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
-            const target = ordered.find(p => (p.assigned||[]).length < (p.limit||0));
-            if (!target) return null;
-            target.assigned = target.assigned || [];
-            target.assigned.push({ userId, userLabel: userLabel || userId, at: Date.now() });
-            state.history.unshift({ type: 'assign', proxyId: target.id, proxyName: target.name, userId, userLabel, at: Date.now() });
-            saveState(state);
-            return target;
-        };
-        window.releaseProxyForUser = function(userId, reason) {
-            const state = loadState();
-            state.proxys.forEach(p => {
-                const before = (p.assigned||[]).length;
-                p.assigned = (p.assigned||[]).filter(a => a.userId !== userId);
-                if (p.assigned.length !== before) {
-                    state.history.unshift({ type: 'release', proxyId: p.id, proxyName: p.name, userId, reason: reason || 'liberado', at: Date.now() });
+        async function loadState() {
+            let serverState = { proxys: [], history: [] };
+            try {
+                const response = await authFetch('/api/admin/proxies');
+                const data = await response.json().catch(() => ({}));
+                if (response.ok && data && data.state) {
+                    serverState = data.state;
                 }
+            } catch (_) {}
+
+            const localState = readLocalState();
+            const hasServer = serverState && Array.isArray(serverState.proxys) && serverState.proxys.length > 0;
+            const hasLocal = localState && Array.isArray(localState.proxys) && localState.proxys.length > 0;
+            if (!hasServer && hasLocal) {
+                try {
+                    return await saveState(localState);
+                } catch (_) {
+                    return localState;
+                }
+            }
+            writeLocalState(serverState);
+            return serverState;
+        }
+
+        async function saveState(state) {
+            const payload = state && typeof state === 'object' ? state : { proxys: [], history: [] };
+            writeLocalState(payload);
+            const response = await authFetch('/api/admin/proxies', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ state: payload })
             });
-            saveState(state);
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data || !data.success) {
+                throw new Error((data && data.error) || 'Erro ao salvar proxies');
+            }
+            const nextState = data.state || payload;
+            writeLocalState(nextState);
+            return nextState;
+        }
+
+        // Public API used by the rest of the app if it ever wants to assign a new user.
+        window.assignProxyForUser = async function() {
+            return null;
+        };
+        window.releaseProxyForUser = async function() {
+            return null;
         };
 
         function totalStats(state) {
@@ -1838,11 +1864,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return { totalCap, used, free: totalCap - used, count: state.proxys.length };
         }
 
-        function renderModal() {
+        async function renderModal() {
             let overlay = document.getElementById('adminProxysOverlay');
             if (overlay) overlay.remove();
 
-            const state = loadState();
+            const state = await loadState();
             const stats = totalStats(state);
 
             overlay = document.createElement('div');
@@ -2046,12 +2072,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const close = () => overlay.remove();
             overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-            overlay.addEventListener('click', (e) => {
+            overlay.addEventListener('click', async (e) => {
                 const t = e.target.closest('[data-action]');
                 if (!t) return;
                 const action = t.getAttribute('data-action');
                 if (action === 'close-apx') return close();
-                const s = loadState();
+                const s = await loadState();
                 if (action === 'add-proxy') {
                     const name = (overlay.querySelector('#apxName').value || '').trim();
                     const host = (overlay.querySelector('#apxHost').value || '').trim();
@@ -2073,14 +2099,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         deliveryDate, expiryDate, status, profile,
                         assigned: [], createdAt: Date.now()
                     });
-                    saveState(s); renderModal();
+                    await saveState(s); await renderModal();
                 } else if (action === 'del-proxy') {
                     const id = t.getAttribute('data-id');
                     const p = s.proxys.find(x => x.id === id);
                     if (p && (p.assigned||[]).length && !confirm('Este proxy tem cadastros atribuídos. Excluir mesmo assim?')) return;
                     s.proxys = s.proxys.filter(x => x.id !== id);
                     s.history.unshift({ type: 'release', proxyId: id, proxyName: p ? p.name : id, userId: '(todos)', userLabel: 'Proxy removido', reason: 'proxy excluído', at: Date.now() });
-                    saveState(s); renderModal();
+                    await saveState(s); await renderModal();
                 } else if (action === 'assign-here') {
                     const id = t.getAttribute('data-id');
                     const card = t.closest('div[style*="border-radius:14px"]');
@@ -2094,7 +2120,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const uid = 'u_' + Date.now().toString(36);
                     p.assigned.push({ userId: uid, userLabel: label, at: Date.now() });
                     s.history.unshift({ type: 'assign', proxyId: p.id, proxyName: p.name, userId: uid, userLabel: label, at: Date.now() });
-                    saveState(s); renderModal();
+                    await saveState(s); await renderModal();
                 } else if (action === 'release') {
                     const pid = t.getAttribute('data-proxy');
                     const uid = t.getAttribute('data-user');
@@ -2103,10 +2129,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     const a = (p.assigned||[]).find(x => x.userId === uid);
                     p.assigned = (p.assigned||[]).filter(x => x.userId !== uid);
                     s.history.unshift({ type: 'release', proxyId: p.id, proxyName: p.name, userId: uid, userLabel: a ? a.userLabel : uid, reason: 'liberado manualmente', at: Date.now() });
-                    saveState(s); renderModal();
+                    await saveState(s); await renderModal();
                 } else if (action === 'clear-history') {
                     if (!confirm('Limpar todo o histórico?')) return;
-                    s.history = []; saveState(s); renderModal();
+                    s.history = []; await saveState(s); await renderModal();
                 }
             });
 
@@ -2117,28 +2143,14 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.appendChild(overlay);
         }
 
-        btn.addEventListener('click', renderModal);
-
-        // Distribuição automática: reage a conexões/desconexões reais do socket
-        function bindProxyAutoBinding() {
-            if (typeof socket === 'undefined' || !socket || socket.__proxyAutoBound) return;
-            socket.__proxyAutoBound = true;
-            socket.on('authenticated', (data) => {
-                if (!data || !data.sessionId) return;
-                const label = data.phoneNumber || data.name || data.sessionId;
-                try { window.assignProxyForUser(data.sessionId, label); } catch(_){}
+        btn.addEventListener('click', () => {
+            renderModal().catch((err) => {
+                alert((err && err.message) || 'Erro ao abrir proxies');
             });
-            const releaseHandler = (data) => {
-                if (!data) return;
-                const sid = data.sessionId || data;
-                try { window.releaseProxyForUser(sid, 'desconectado'); } catch(_){}
-            };
-            socket.on('disconnected', releaseHandler);
-            socket.on('session-disconnected', releaseHandler);
-            socket.on('logout', releaseHandler);
+        });
+
+        if (authRole === 'admin' && authToken) {
+            loadState().catch(() => {});
         }
-        const proxyBindInterval = setInterval(() => {
-            if (typeof socket !== 'undefined' && socket) { bindProxyAutoBinding(); clearInterval(proxyBindInterval); }
-        }, 500);
     })();
 });

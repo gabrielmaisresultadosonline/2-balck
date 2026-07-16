@@ -3047,6 +3047,28 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
     }
 });
 
+app.get('/api/admin/proxies', requireAdmin, (req, res) => {
+    try {
+        const state = proxyManager.getAdminState();
+        const stats = proxyManager.getStats();
+        res.json({ success: true, state, stats });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'erro ao carregar proxies' });
+    }
+});
+
+app.put('/api/admin/proxies', requireAdmin, (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const nextState = proxyManager.saveAdminState(body.state || body);
+        const stats = proxyManager.getStats();
+        io.emit('system-stats-update', stats);
+        res.json({ success: true, state: nextState, stats });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'erro ao salvar proxies' });
+    }
+});
+
 app.get('/api/uploads', requireUser, (req, res) => {
     const rawSessionId = req.user && req.user.sessionId ? String(req.user.sessionId) : '';
     const safeSessionId = rawSessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -3844,6 +3866,11 @@ function generateSessionId() {
 async function initializeClient(sessionId, savedSession = null, retryCount = 0) {
     console.log(`Inicializando sessão: ${sessionId} (Tentativa ${retryCount})`);
     clearSessionManualStop(sessionId);
+    const shouldUseConfiguredProxy = String(sessionId) !== ADMIN_SELF_SESSION_ID;
+    const proxyUser = shouldUseConfiguredProxy ? getUserBySessionId(sessionId) : null;
+    const proxyLabel = proxyUser
+        ? [proxyUser.name, proxyUser.email, sessionId].filter(Boolean).join(' | ')
+        : sessionId;
 
     if (USE_EVOLUTION) {
         if (!evolutionApi || !evolutionApi.isConfigured()) {
@@ -3868,6 +3895,16 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 
         try {
             const webhookConfig = buildEvolutionWebhookConfig();
+            let proxyConfig = null;
+            if (shouldUseConfiguredProxy) {
+                try {
+                    proxyConfig = retryCount > 0
+                        ? proxyManager.reassignProxy(sessionId, proxyLabel)
+                        : proxyManager.getAssignment(sessionId, proxyLabel);
+                } catch (e) {
+                    console.error(`Falha ao atribuir proxy para ${sessionId}:`, e.message);
+                }
+            }
             const known = await evolutionApi.getInstance(evolutionInstanceName(sessionId)).catch(() => null);
             if (webhookConfig && known) {
                 await evolutionApi.setWebhook(evolutionInstanceName(sessionId), webhookConfig).catch(() => null);
@@ -3878,8 +3915,24 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                 createResponse = await evolutionApi.createInstance(evolutionInstanceName(sessionId), webhookConfig, {
                     qrcode: true,
                     syncFullHistory: true,
-                    groupsIgnore: false
+                    groupsIgnore: false,
+                    ...(proxyConfig ? {
+                        proxy: {
+                            host: proxyConfig.host,
+                            port: proxyConfig.port,
+                            username: proxyConfig.username,
+                            password: proxyConfig.password
+                        }
+                    } : {})
                 });
+            }
+
+            if (known) {
+                if (proxyConfig) {
+                    await evolutionApi.setInstanceProxy(evolutionInstanceName(sessionId), proxyConfig).catch(() => null);
+                } else if (shouldUseConfiguredProxy) {
+                    await evolutionApi.removeInstanceProxy(evolutionInstanceName(sessionId)).catch(() => null);
+                }
             }
 
             let stateResponse = await evolutionApi.connectionState(evolutionInstanceName(sessionId)).catch(() => null);
@@ -3924,12 +3977,14 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
     }
     
     // Proxy Assignment
-    let proxyConfig;
+    let proxyConfig = null;
     try {
-        if (retryCount > 0) {
-            proxyConfig = proxyManager.reassignProxy(sessionId);
-        } else {
-            proxyConfig = proxyManager.getAssignment(sessionId);
+        if (shouldUseConfiguredProxy) {
+            if (retryCount > 0) {
+                proxyConfig = proxyManager.reassignProxy(sessionId, proxyLabel);
+            } else {
+                proxyConfig = proxyManager.getAssignment(sessionId, proxyLabel);
+            }
         }
     } catch (e) {
         console.error(`Falha ao atribuir proxy para ${sessionId}:`, e.message);
@@ -3937,22 +3992,21 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
         return; 
     }
 
-    console.log(`Proxy atribuído para ${sessionId}: ${proxyConfig.proxySessionId} (${proxyConfig.isNew ? 'Novo' : 'Existente'})`);
+    if (proxyConfig) {
+        console.log(`Proxy atribuído para ${sessionId}: ${proxyConfig.proxySessionId} (${proxyConfig.isNew ? 'Novo' : 'Existente'})`);
+    } else {
+        console.log(`Sessão ${sessionId} iniciando sem proxy configurado.`);
+    }
     io.emit('system-stats-update', proxyManager.getStats());
 
     // Configuração do cliente
-    const client = new Client({
+    const clientOptions = {
         authStrategy: new LocalAuth({
             clientId: sessionId
         }),
-        proxyAuthentication: {
-            username: proxyConfig.username,
-            password: proxyConfig.password
-        },
         puppeteer: {
             headless: true,
             args: [
-                `--proxy-server=${proxyConfig.proxyUrl}`,
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
@@ -3966,7 +4020,15 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             type: 'remote',
             remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
         }
-    });
+    };
+    if (proxyConfig) {
+        clientOptions.proxyAuthentication = {
+            username: proxyConfig.username,
+            password: proxyConfig.password
+        };
+        clientOptions.puppeteer.args.unshift(`--proxy-server=${proxyConfig.proxyUrl}`);
+    }
+    const client = new Client(clientOptions);
 
     const existing = activeClients.get(sessionId);
     const existingSocketId = existing ? existing.socketId : null;

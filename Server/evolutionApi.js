@@ -103,6 +103,21 @@ class EvolutionApi {
         });
     }
 
+    async setInstanceProxy(instanceName, proxyConfig = {}) {
+        return this.request('post', `/instance/proxy/${encodeURIComponent(instanceName)}`, {
+            data: {
+                host: String(proxyConfig.host || '').trim(),
+                port: String(proxyConfig.port || '').trim(),
+                username: String(proxyConfig.username || '').trim(),
+                password: String(proxyConfig.password || '').trim()
+            }
+        });
+    }
+
+    async removeInstanceProxy(instanceName) {
+        return this.request('delete', `/instance/proxy/${encodeURIComponent(instanceName)}`);
+    }
+
     async connectInstance(instanceName) {
         return this.request('get', `/instance/connect/${encodeURIComponent(instanceName)}`);
     }
