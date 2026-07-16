@@ -1625,6 +1625,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const panel     = document.getElementById('adminMyWhatsPanel');
         const closeBtn  = document.getElementById('adminMyWhatsClose');
         const ipEl      = document.getElementById('adminMyWhatsIp');
+        const numberEl  = document.getElementById('adminMyWhatsNumber');
+        const connIpEl  = document.getElementById('adminMyWhatsConnIp');
+        const modeEl    = document.getElementById('adminMyWhatsMode');
+        const statusEl  = document.getElementById('adminMyWhatsStatus');
         const genBtn    = document.getElementById('adminGenerateQrBtn');
         const openCrm   = document.getElementById('adminOpenCrmBtn');
         const discBtn   = document.getElementById('adminDisconnectMyBtn');
@@ -1646,6 +1650,16 @@ document.addEventListener('DOMContentLoaded', function() {
             msgEl.innerHTML = text;
         }
 
+        function setAdminSelfMeta(meta = {}) {
+            const rawPhone = String(meta.phoneNumber || '').trim();
+            const topIp = (ipEl && ipEl.textContent && ipEl.textContent !== 'detectando...') ? ipEl.textContent : 'detectando...';
+            const connectionIp = String(meta.connectionIp || meta.realIp || topIp || '').trim() || 'detectando...';
+            if (numberEl) numberEl.textContent = rawPhone ? (formatSessionPhone(rawPhone) || rawPhone) : 'não conectado';
+            if (connIpEl) connIpEl.textContent = connectionIp;
+            if (modeEl) modeEl.textContent = 'IP real sem proxy';
+            if (statusEl) statusEl.textContent = String(meta.statusLabel || 'sem sessão');
+        }
+
         function showQr(dataUrl) {
             if (qrImg) qrImg.src = dataUrl || '';
             if (qrEmpty) qrEmpty.style.display = 'none';
@@ -1653,15 +1667,20 @@ document.addEventListener('DOMContentLoaded', function() {
             startCountdown(45);
         }
 
-        function showConnected() {
+        function showConnected(meta = {}) {
+            const rawPhone = String(meta.phoneNumber || '').trim();
             if (qrEmpty) {
                 qrEmpty.style.display = '';
-                qrEmpty.innerHTML = '<i class="fas fa-circle-check" style="color:#10a37f;"></i><p><b>WhatsApp do admin conectado.</b><br>Sua conexão usa o IP real da máquina.</p>';
+                qrEmpty.innerHTML = `<i class="fas fa-circle-check" style="color:#10a37f;"></i><p><b>WhatsApp do admin conectado.</b><br>Sua conexão usa o IP real da máquina.${rawPhone ? `<br>Número: <b>${escapeHtml(formatSessionPhone(rawPhone) || rawPhone)}</b>` : ''}</p>`;
             }
             if (qrLoaded) qrLoaded.style.display = 'none';
             if (openCrm) openCrm.style.display = '';
             if (discBtn) discBtn.style.display = '';
             if (genBtn)  genBtn.innerHTML = '<i class="fas fa-rotate"></i> Reconectar';
+            setAdminSelfMeta({
+                ...meta,
+                statusLabel: 'conectado'
+            });
             stopCountdown();
         }
 
@@ -1674,11 +1693,21 @@ document.addEventListener('DOMContentLoaded', function() {
             if (openCrm) openCrm.style.display = 'none';
             if (discBtn) discBtn.style.display = 'none';
             if (genBtn)  genBtn.innerHTML = '<i class="fas fa-qrcode"></i> Gerar QR Code';
+            setAdminSelfMeta({
+                phoneNumber: '',
+                connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                statusLabel: 'sem sessão'
+            });
             stopCountdown();
         }
 
         function setDisconnectedState() {
             resetQr();
+            setAdminSelfMeta({
+                phoneNumber: '',
+                connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                statusLabel: 'desconectado'
+            });
             setMsg('WhatsApp do admin desconectado. Gere um novo QR Code para conectar novamente.', 'info');
         }
 
@@ -1693,8 +1722,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     resetQr();
                     return;
                 }
+                setAdminSelfMeta({
+                    phoneNumber: session.phoneNumber || '',
+                    connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                    statusLabel:
+                        session.status === 'connected' ? 'conectado' :
+                        (session.status === 'authenticated' || session.status === 'initializing') ? 'preparando' :
+                        session.status === 'reconnecting' ? 'reconectando' :
+                        session.status === 'auth_failed' ? 'falha' : 'sem sessão'
+                });
                 if (session.status === 'connected') {
-                    showConnected();
+                    showConnected({
+                        phoneNumber: session.phoneNumber || '',
+                        connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : ''
+                    });
                     setMsg('WhatsApp conectado com sucesso via IP real.', 'ok');
                     if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
                     return;
@@ -1733,10 +1774,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Fill IP from the toolbar cache
                 const ipTop = document.getElementById('adminRealIp');
                 if (ipEl) ipEl.textContent = (ipTop && ipTop.textContent && ipTop.textContent !== 'detectando...') ? ipTop.textContent : 'detectando...';
+                setAdminSelfMeta({
+                    phoneNumber: '',
+                    connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                    statusLabel: 'sincronizando'
+                });
                 if (typeof fetchAdminRealIp === 'function') { try { fetchAdminRealIp(); } catch(_){} }
                 setTimeout(() => {
                     const ipNow = document.getElementById('adminRealIp');
                     if (ipEl && ipNow) ipEl.textContent = ipNow.textContent;
+                    setAdminSelfMeta({
+                        phoneNumber: numberEl && numberEl.textContent !== 'não conectado' ? numberEl.textContent : '',
+                        connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                        statusLabel: statusEl && statusEl.textContent ? statusEl.textContent : 'sincronizando'
+                    });
                 }, 1200);
                 refreshAdminSelfState();
                 panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1816,7 +1867,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             socket.on('client-ready', (data) => {
                 if (data && String(data.sessionId || '') === String(adminSessionId || ADMIN_SELF_SESSION_ID)) {
-                    showConnected();
+                    showConnected({
+                        phoneNumber: data.phoneNumber || '',
+                        connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : ''
+                    });
                     setMsg('WhatsApp conectado com sucesso via IP real.', 'ok');
                     if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
                 }
@@ -1825,12 +1879,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!data) return;
                 if (String(data.sessionId || '') !== String(adminSessionId || ADMIN_SELF_SESSION_ID)) return;
                 if (data.status === 'connected') {
-                    showConnected();
+                    showConnected({
+                        phoneNumber: numberEl && numberEl.textContent !== 'não conectado' ? numberEl.textContent : '',
+                        connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : ''
+                    });
                     if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
                     return;
                 }
                 if (data.status === 'authenticated' || data.status === 'initializing') {
                     resetQr();
+                    setAdminSelfMeta({
+                        phoneNumber: numberEl && numberEl.textContent !== 'não conectado' ? numberEl.textContent : '',
+                        connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                        statusLabel: 'preparando'
+                    });
                     setMsg('Sessão criada. Aguardando QR Code ou confirmação real da conexão.', 'info');
                     return;
                 }
@@ -1840,6 +1902,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 if (data.status === 'reconnecting' || data.status === 'initializing') {
                     resetQr();
+                    setAdminSelfMeta({
+                        phoneNumber: numberEl && numberEl.textContent !== 'não conectado' ? numberEl.textContent : '',
+                        connectionIp: ipEl && ipEl.textContent ? ipEl.textContent : '',
+                        statusLabel: 'reconectando'
+                    });
                     setMsg('Preparando nova conexão do WhatsApp do admin...', 'info');
                 }
             });

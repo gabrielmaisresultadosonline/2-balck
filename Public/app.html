@@ -156,6 +156,9 @@
         .admin-mywa__badge i { color:#10a37f; font-size:1.2rem; }
         .admin-mywa__badge span { display:block; font-size:0.62rem; letter-spacing:0.14em; text-transform:uppercase; color: var(--muted); font-weight:700; }
         .admin-mywa__badge strong { font-family: var(--font-display); font-weight:800; color: var(--ink); font-size:1rem; font-variant-numeric: tabular-nums; }
+        .admin-mywa__facts { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:10px; }
+        .admin-mywa__facts .admin-mywa__badge { min-width:0; }
+        .admin-mywa__facts .admin-mywa__badge strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
 
         .admin-mywa__notes { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
         .admin-mywa__notes li { display:flex; align-items:center; gap:10px; font-size:0.85rem; color:#334155; }
@@ -185,6 +188,7 @@
         @media (max-width: 760px) {
             .admin-mywa__grid { grid-template-columns: 1fr; }
             .admin-mywa__actions .btn { flex: 1 1 100%; }
+            .admin-mywa__facts { grid-template-columns: 1fr; }
         }
 
         .admin-summary { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 16px; }
@@ -722,6 +726,36 @@
                                     <div>
                                         <span>IP real da máquina</span>
                                         <strong id="adminMyWhatsIp">detectando...</strong>
+                                    </div>
+                                </div>
+                                <div class="admin-mywa__facts">
+                                    <div class="admin-mywa__badge">
+                                        <i class="fab fa-whatsapp"></i>
+                                        <div>
+                                            <span>Número conectado</span>
+                                            <strong id="adminMyWhatsNumber">não conectado</strong>
+                                        </div>
+                                    </div>
+                                    <div class="admin-mywa__badge">
+                                        <i class="fas fa-globe"></i>
+                                        <div>
+                                            <span>IP da conexão</span>
+                                            <strong id="adminMyWhatsConnIp">detectando...</strong>
+                                        </div>
+                                    </div>
+                                    <div class="admin-mywa__badge">
+                                        <i class="fas fa-shield-halved"></i>
+                                        <div>
+                                            <span>Modo da conexão</span>
+                                            <strong id="adminMyWhatsMode">IP real sem proxy</strong>
+                                        </div>
+                                    </div>
+                                    <div class="admin-mywa__badge">
+                                        <i class="fas fa-signal"></i>
+                                        <div>
+                                            <span>Status da sessão</span>
+                                            <strong id="adminMyWhatsStatus">sem sessão</strong>
+                                        </div>
                                     </div>
                                 </div>
                                 <ul class="admin-mywa__notes">
