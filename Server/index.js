@@ -104,21 +104,25 @@ async function buildSessionNetworkInfo(sessionId) {
             proxyHost: '',
             proxyPort: '',
             proxyName: '',
-            usingProxy: false
+            usingProxy: false,
+            proxyIpValidated: false
         };
     }
 
     const proxyConfig = proxyManager.getProxyConfigForSession(sid);
     const proxyRecord = proxyManager.getProxyRecordForSession(sid);
     const proxyConnectionIp = proxyConfig ? await fetchOutboundPublicIp(proxyConfig) : '';
+    const usingProxy = !!proxyConfig;
+    const proxyIpValidated = !!(usingProxy && proxyConnectionIp);
     return {
         serverRealIp,
-        currentConnectionIp: proxyConnectionIp || serverRealIp,
+        currentConnectionIp: usingProxy ? (proxyConnectionIp || '') : serverRealIp,
         proxyConnectionIp,
         proxyHost: proxyRecord && proxyRecord.host ? String(proxyRecord.host) : '',
         proxyPort: proxyRecord && proxyRecord.port ? String(proxyRecord.port) : '',
         proxyName: proxyRecord && proxyRecord.name ? String(proxyRecord.name) : '',
-        usingProxy: !!proxyConfig
+        usingProxy,
+        proxyIpValidated
     };
 }
 
@@ -3163,6 +3167,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
                 proxyHost: netInfo.proxyHost || null,
                 proxyPort: netInfo.proxyPort || null,
                 usingProxy: !!netInfo.usingProxy,
+                proxyIpValidated: !!netInfo.proxyIpValidated,
                 history
             };
         }));
@@ -5469,7 +5474,8 @@ app.get('/api/active-sessions', requireUser, async (req, res) => {
             proxyName: netInfo.proxyName || null,
             proxyHost: netInfo.proxyHost || null,
             proxyPort: netInfo.proxyPort || null,
-            usingProxy: !!netInfo.usingProxy
+            usingProxy: !!netInfo.usingProxy,
+            proxyIpValidated: !!netInfo.proxyIpValidated
         });
         res.json({ sessions });
         return;
@@ -5491,7 +5497,8 @@ app.get('/api/active-sessions', requireUser, async (req, res) => {
             proxyName: netInfo.proxyName || null,
             proxyHost: netInfo.proxyHost || null,
             proxyPort: netInfo.proxyPort || null,
-            usingProxy: !!netInfo.usingProxy
+            usingProxy: !!netInfo.usingProxy,
+            proxyIpValidated: !!netInfo.proxyIpValidated
         });
     }
 

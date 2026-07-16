@@ -887,7 +887,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const safeId = escapeHtml(u.id || u.email || '');
         const numberDisplay = u.whatsappNumber ? escapeHtml(u.whatsappNumber) : '—';
         const proxyDisplay = u.proxy ? escapeHtml(u.proxy) : '—';
-        const ipDisplay = u.ip || u.lastIp ? escapeHtml(u.ip || u.lastIp) : '—';
+        const ipDisplay = u.usingProxy
+            ? (u.proxyIpValidated ? escapeHtml(u.ip || u.lastIp || '—') : 'Proxy não validado')
+            : (u.ip || u.lastIp ? escapeHtml(u.ip || u.lastIp) : '—');
         const realIpDisplay = u.realIp ? escapeHtml(u.realIp) : '—';
         const proxyIpDisplay = u.proxyIp ? escapeHtml(u.proxyIp) : '—';
         const conversations = Number(u.totalConversations || u.conversations || 0) || 0;
@@ -1243,9 +1245,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 sessionCard.classList.add('unified-card');
                 const email = (localStorage.getItem('userEmail') || '').trim();
                 const displayName = email ? (email.split('@')[0].charAt(0).toUpperCase() + email.split('@')[0].slice(1)) : 'Usuário';
-                const currentIp = escapeHtml(session.currentConnectionIp || session.realIp || '—');
+                const currentIp = session.usingProxy
+                    ? (session.proxyIpValidated ? escapeHtml(session.currentConnectionIp || '—') : 'Proxy não validado')
+                    : escapeHtml(session.currentConnectionIp || session.realIp || '—');
                 const realIp = escapeHtml(session.realIp || '—');
-                const proxyIp = escapeHtml(session.proxyConnectionIp || '—');
+                const proxyIp = session.proxyIpValidated
+                    ? escapeHtml(session.proxyConnectionIp || '—')
+                    : (session.usingProxy ? 'Validando...' : '—');
                 const proxyLabel = escapeHtml(session.proxyName || (session.proxyHost ? `${session.proxyHost}${session.proxyPort ? ':' + session.proxyPort : ''}` : 'Sem proxy'));
                 sessionCard.innerHTML = `
                     <div class="uc-user">
