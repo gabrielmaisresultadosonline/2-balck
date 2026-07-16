@@ -1774,6 +1774,9 @@
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'file')" onclick="addFlowStep('file')" class="btn-secondary" title="Arquivo"><i class="fas fa-file"></i> <span class="hide-mobile">Arq</span></button>
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'delay')" onclick="addFlowStep('delay')" class="btn-secondary" title="Delay"><i class="fas fa-clock"></i> <span class="hide-mobile">Delay</span></button>
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'wait_response')" onclick="addFlowStep('wait_response')" class="btn-secondary" title="Aguardar"><i class="fas fa-hourglass-half"></i> <span class="hide-mobile">Aguardar</span></button>
+                                <button draggable="true" ondragstart="handleNewStepDragStart(event, 'buttons')" onclick="addFlowStep('buttons')" class="btn-secondary" title="Botões"><i class="fas fa-square-caret-down"></i> <span class="hide-mobile">Botões</span></button>
+                                <button draggable="true" ondragstart="handleNewStepDragStart(event, 'list')" onclick="addFlowStep('list')" class="btn-secondary" title="Lista"><i class="fas fa-list-ul"></i> <span class="hide-mobile">Lista</span></button>
+                                <button draggable="true" ondragstart="handleNewStepDragStart(event, 'carousel')" onclick="addFlowStep('carousel')" class="btn-secondary" title="Carrossel"><i class="fas fa-images"></i> <span class="hide-mobile">Carrossel</span></button>
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'kanban_move')" onclick="addFlowStep('kanban_move')" class="btn-secondary" title="Mover Kanban"><i class="fas fa-columns"></i> <span class="hide-mobile">Kanban</span></button>
                             </div>
                              <div style="display: flex; gap: 10px;">
@@ -2026,13 +2029,25 @@
             return String(value || '').replace(/\D+/g, '');
         }
 
+        function isValidPhoneDigits(value) {
+            const digits = extractDigits(value);
+            return digits.length >= 10 && digits.length <= 15 ? digits : '';
+        }
+
+        function isTechnicalChatLabel(value) {
+            const raw = String(value || '').trim();
+            if (!raw || raw === '[object Object]') return true;
+            if (/@lid$/i.test(raw)) return true;
+            return /^[0-9@._+\-\s]+$/.test(raw);
+        }
+
         function sanitizeMediaUrl(value) {
             const cleaned = String(value || '').replace(/^[`"' ]+|[`"' ]+$/g, '').trim();
             return /^https?:\/\//i.test(cleaned) ? cleaned : '';
         }
 
         function formatPhoneDisplay(value) {
-            const digits = extractDigits(value);
+            const digits = isValidPhoneDigits(value);
             if (!digits) return '';
             if (digits.length === 13) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,9)}-${digits.slice(9)}`;
             if (digits.length === 12) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,8)}-${digits.slice(8)}`;
@@ -2252,23 +2267,26 @@
         }
 
         function getChatPhone(chat) {
-            const direct = extractDigits(chat && (chat.phoneNumber || chat.phone || ''));
+            const direct = isValidPhoneDigits(chat && (chat.phoneNumber || chat.phone || ''));
             if (direct) return direct;
             const id = String(chat && chat.id || '');
             if (!id) return '';
-            return extractDigits(id.split('@')[0] || '');
+            if (/@(lid|g\.us|newsletter)$/i.test(id)) return '';
+            return isValidPhoneDigits(id.split('@')[0] || '');
         }
 
         function getChatDisplayName(chat) {
             const rawName = String(chat && chat.name || '').trim();
             const phone = getChatPhone(chat);
             const formattedPhone = formatPhoneDisplay(phone);
-            const looksLikeIdOnly = rawName && /^[0-9@._+\-\s]+$/.test(rawName);
-            if (rawName && !looksLikeIdOnly && rawName !== '[object Object]') return rawName;
+            if (rawName && !isTechnicalChatLabel(rawName)) return rawName;
             if (formattedPhone) return formattedPhone;
             if (phone) return phone;
             const id = String(chat && chat.id || '');
-            return id ? id.replace(/@(c\.us|s\.whatsapp\.net|g\.us|lid)$/, '') : 'Sem nome';
+            if (!id) return 'Sem nome';
+            if (/@lid$/i.test(id)) return 'Contato sem número';
+            const rawIdDigits = isValidPhoneDigits(id.split('@')[0] || '');
+            return rawIdDigits ? (formatPhoneDisplay(rawIdDigits) || rawIdDigits) : id.replace(/@(c\.us|s\.whatsapp\.net|g\.us|lid)$/, '');
         }
 
         function getChatPreviewText(chat) {
@@ -3014,7 +3032,7 @@
             const panel = document.getElementById('chatPanel');
             if (panel) {
                 panel.classList.add('open');
-                document.getElementById('chatTitle').innerText = chat.name || chat.id;
+                document.getElementById('chatTitle').innerText = getChatDisplayName(chat);
                 document.getElementById('chatHeaderPic').src = chat.profilePic || 'https://via.placeholder.com/40';
                 document.getElementById('chatHeaderPic').style.display = 'block';
                 
@@ -3056,7 +3074,7 @@
                 if (infoDiv) {
                     infoDiv.innerHTML = `
                         <div style="display:flex; align-items:center; gap: 10px;">
-                            <span style="font-weight: bold; display: block;">${chat.name || chat.id}</span>
+                            <span style="font-weight: bold; display: block;">${getChatDisplayName(chat)}</span>
                         </div>
                     `;
                 }
@@ -3330,6 +3348,666 @@
             if(container) container.style.display = type === 'keyword' ? 'block' : 'none';
         };
 
+        const FLOW_TIME_UNITS = {
+            milliseconds: { label: 'Milissegundos', shortLabel: 'ms', multiplier: 1 },
+            seconds: { label: 'Segundos', shortLabel: 'seg', multiplier: 1000 },
+            minutes: { label: 'Minutos', shortLabel: 'min', multiplier: 60000 },
+            hours: { label: 'Horas', shortLabel: 'h', multiplier: 3600000 }
+        };
+
+        function getFlowTimeUnit(unit, fallback = 'milliseconds') {
+            return FLOW_TIME_UNITS[unit] ? unit : fallback;
+        }
+
+        function getFlowTimeUnitOptions(selectedUnit) {
+            const safeUnit = getFlowTimeUnit(selectedUnit);
+            return Object.entries(FLOW_TIME_UNITS).map(([value, meta]) =>
+                `<option value="${value}" ${value === safeUnit ? 'selected' : ''}>${meta.label}</option>`
+            ).join('');
+        }
+
+        function parseOptionalNumber(value) {
+            if (value === null || typeof value === 'undefined') return null;
+            const text = String(value).trim().replace(',', '.');
+            if (!text) return null;
+            const parsed = Number(text);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        function durationToMs(value, unit, fallbackUnit = 'milliseconds') {
+            const parsed = parseOptionalNumber(value);
+            if (parsed === null) return 0;
+            const safeUnit = getFlowTimeUnit(unit, fallbackUnit);
+            return Math.max(0, Math.round(parsed * FLOW_TIME_UNITS[safeUnit].multiplier));
+        }
+
+        function formatDurationValue(value) {
+            if (!Number.isFinite(value)) return '0';
+            if (Math.abs(value - Math.round(value)) < 0.0000001) return String(Math.round(value));
+            return String(Math.round(value * 100) / 100);
+        }
+
+        function getDelayStepMs(step) {
+            const direct = Number(step && step.time);
+            if (Number.isFinite(direct)) return Math.max(0, Math.round(direct));
+            const legacy = parseOptionalNumber(step && step.content);
+            return legacy === null ? 0 : Math.max(0, Math.round(legacy));
+        }
+
+        function getDelayStepUnit(step) {
+            return getFlowTimeUnit(step && step.timeUnit, 'milliseconds');
+        }
+
+        function getWaitTimeoutUnit(step) {
+            return getFlowTimeUnit(step && step.timeoutUnit, 'minutes');
+        }
+
+        function durationMsToInputValue(ms, unit) {
+            const safeUnit = getFlowTimeUnit(unit);
+            const numericMs = Math.max(0, Number(ms) || 0);
+            return formatDurationValue(numericMs / FLOW_TIME_UNITS[safeUnit].multiplier);
+        }
+
+        function formatDurationLabel(ms, preferredUnit) {
+            const numericMs = Math.max(0, Number(ms) || 0);
+            let unit = preferredUnit && FLOW_TIME_UNITS[preferredUnit] ? preferredUnit : '';
+            if (!unit) {
+                if (numericMs === 0) unit = 'seconds';
+                else if (numericMs % FLOW_TIME_UNITS.hours.multiplier === 0) unit = 'hours';
+                else if (numericMs % FLOW_TIME_UNITS.minutes.multiplier === 0) unit = 'minutes';
+                else if (numericMs % FLOW_TIME_UNITS.seconds.multiplier === 0) unit = 'seconds';
+                else unit = 'milliseconds';
+            }
+            const value = numericMs / FLOW_TIME_UNITS[unit].multiplier;
+            return `${formatDurationValue(value)} ${FLOW_TIME_UNITS[unit].shortLabel}`;
+        }
+
+        function getStepMediaDisplay(step) {
+            if (!step) return '';
+            return String(step.originalName || step.filename || step.content || step.path || '').trim();
+        }
+
+        function updateFlowStepMediaUi(step) {
+            const input = document.getElementById('stepContent');
+            if (input) input.value = getStepMediaDisplay(step);
+            const status = document.getElementById('flowStepMediaStatus');
+            if (status) {
+                status.textContent = step && step.path ? 'Arquivo salvo neste nó.' : 'Nenhum arquivo enviado ainda.';
+                status.style.color = step && step.path ? '#047857' : '#64748b';
+            }
+        }
+
+        function normalizeUploadedPublicPath(filePath) {
+            const raw = String(filePath || '').trim();
+            if (!raw) return '';
+            if (/^https?:\/\//i.test(raw)) return raw;
+            return `/${raw.replace(/^\/+/, '')}`;
+        }
+
+        async function uploadFlowFile(file, extraQuery = '') {
+            const formData = new FormData();
+            formData.append('file', file);
+            const query = extraQuery ? `&${String(extraQuery).replace(/^&+/, '')}` : '';
+            const res = await fetch(buildApiUrl(`/api/upload?sessionId=${window.sessionId}${query}`), {
+                method: 'POST',
+                headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+                body: formData
+            });
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Falha no upload');
+            }
+            return {
+                ...data,
+                publicPath: normalizeUploadedPublicPath(data.path)
+            };
+        }
+
+        window.triggerFlowStepAudioUpload = function() {
+            const input = document.getElementById('flowStepAudioFile');
+            if (input) input.click();
+        };
+
+        window.handleFlowStepAudioUpload = async function(input) {
+            try {
+                const file = input && input.files && input.files[0];
+                const step = currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null;
+                if (!file || !step || step.type !== 'audio') return;
+
+                const lowerName = String(file.name || '').toLowerCase();
+                const allowed = lowerName.endsWith('.mp3') || lowerName.endsWith('.ogg') || ['audio/mpeg', 'audio/ogg'].includes(file.type);
+                if (!allowed) {
+                    alert('Envie um arquivo MP3 ou OGG.');
+                    input.value = '';
+                    return;
+                }
+                if (file.size > 16 * 1024 * 1024) {
+                    alert('Máximo 16MB.');
+                    input.value = '';
+                    return;
+                }
+
+                const status = document.getElementById('flowStepMediaStatus');
+                const uploadBtn = document.getElementById('flowStepAudioUploadBtn');
+                if (status) {
+                    status.textContent = 'Enviando e convertendo áudio...';
+                    status.style.color = '#2563eb';
+                }
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+                }
+
+                const data = await uploadFlowFile(file, 'voiceNote=1');
+
+                step.path = data.path;
+                step.content = data.filename || file.name;
+                step.filename = data.filename || file.name;
+                step.originalName = file.name;
+                step.mimetype = data.mimetype || 'audio/ogg';
+                step.sendAudioAsVoice = true;
+                renderFlowSteps();
+                updateFlowStepMediaUi(step);
+            } catch (error) {
+                alert(error && error.message ? error.message : 'Falha ao enviar o áudio do fluxo.');
+                const status = document.getElementById('flowStepMediaStatus');
+                if (status) {
+                    status.textContent = 'Falha ao processar o áudio.';
+                    status.style.color = '#b91c1c';
+                }
+            } finally {
+                const uploadBtn = document.getElementById('flowStepAudioUploadBtn');
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Enviar MP3/OGG';
+                }
+                if (input) input.value = '';
+            }
+        };
+
+        window.triggerFlowStepMediaUpload = function() {
+            const input = document.getElementById('flowStepGenericFile');
+            if (input) input.click();
+        };
+
+        window.handleFlowStepMediaUpload = async function(input) {
+            try {
+                const file = input && input.files && input.files[0];
+                const step = currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null;
+                if (!file || !step || !['image', 'video', 'file'].includes(step.type)) return;
+
+                const mime = String(file.type || '').toLowerCase();
+                const ext = String(file.name || '').toLowerCase();
+                if (step.type === 'image' && !(mime.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(ext))) {
+                    alert('Envie uma imagem JPG, PNG, WEBP ou GIF.');
+                    input.value = '';
+                    return;
+                }
+                if (step.type === 'video' && !(mime.startsWith('video/') || /\.(mp4|mov|avi|webm|mkv)$/i.test(ext))) {
+                    alert('Envie um vídeo compatível.');
+                    input.value = '';
+                    return;
+                }
+                if (file.size > 32 * 1024 * 1024) {
+                    alert('Máximo 32MB.');
+                    input.value = '';
+                    return;
+                }
+
+                const status = document.getElementById('flowStepMediaStatus');
+                const uploadBtn = document.getElementById('flowStepGenericUploadBtn');
+                if (status) {
+                    status.textContent = 'Enviando arquivo...';
+                    status.style.color = '#2563eb';
+                }
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+                }
+
+                const data = await uploadFlowFile(file);
+                step.path = data.path;
+                step.content = data.filename || file.name;
+                step.filename = data.filename || file.name;
+                step.originalName = file.name;
+                step.mimetype = data.mimetype || file.type || 'application/octet-stream';
+                renderFlowSteps();
+                updateFlowStepMediaUi(step);
+            } catch (error) {
+                alert(error && error.message ? error.message : 'Falha ao enviar a mídia do fluxo.');
+                const status = document.getElementById('flowStepMediaStatus');
+                if (status) {
+                    status.textContent = 'Falha ao enviar arquivo.';
+                    status.style.color = '#b91c1c';
+                }
+            } finally {
+                const uploadBtn = document.getElementById('flowStepGenericUploadBtn');
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Enviar arquivo';
+                }
+                if (input) input.value = '';
+            }
+        };
+
+        window.triggerFlowButtonsImageUpload = function() {
+            const input = document.getElementById('flowStepButtonsImageFile');
+            if (input) input.click();
+        };
+
+        window.handleFlowButtonsImageUpload = async function(input) {
+            try {
+                const file = input && input.files && input.files[0];
+                const step = currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null;
+                if (!file || !step || step.type !== 'buttons') return;
+                if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+                    alert('Envie uma imagem válida.');
+                    input.value = '';
+                    return;
+                }
+                const status = document.getElementById('flowButtonsImageStatus');
+                const uploadBtn = document.getElementById('flowButtonsImageUploadBtn');
+                if (status) {
+                    status.textContent = 'Enviando imagem...';
+                    status.style.color = '#2563eb';
+                }
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+                }
+                const data = await uploadFlowFile(file);
+                step.imageUrl = data.publicPath || data.path || '';
+                const imageInput = document.getElementById('stepButtonsImageUrl');
+                if (imageInput) imageInput.value = step.imageUrl;
+                if (status) {
+                    status.textContent = 'Imagem salva no nó.';
+                    status.style.color = '#047857';
+                }
+                renderFlowSteps();
+            } catch (error) {
+                alert(error && error.message ? error.message : 'Falha ao enviar a imagem.');
+                const status = document.getElementById('flowButtonsImageStatus');
+                if (status) {
+                    status.textContent = 'Falha ao enviar imagem.';
+                    status.style.color = '#b91c1c';
+                }
+            } finally {
+                const uploadBtn = document.getElementById('flowButtonsImageUploadBtn');
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Enviar imagem';
+                }
+                if (input) input.value = '';
+            }
+        };
+
+        window.triggerFlowCarouselCardImageUpload = function() {
+            const input = document.getElementById('flowStepCarouselImageFile');
+            if (input) input.click();
+        };
+
+        window.handleFlowCarouselCardImageUpload = async function(input) {
+            try {
+                const file = input && input.files && input.files[0];
+                const step = currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null;
+                if (!file || !step || step.type !== 'carousel') return;
+                if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+                    alert('Envie uma imagem válida.');
+                    input.value = '';
+                    return;
+                }
+                const cardIndexInput = document.getElementById('stepCarouselImageCardIndex');
+                const cardIndex = Math.max(1, Number(cardIndexInput && cardIndexInput.value || 1)) - 1;
+                if (!Array.isArray(step.cards) || !step.cards[cardIndex]) {
+                    alert('Escolha um card válido para receber a imagem.');
+                    input.value = '';
+                    return;
+                }
+                const status = document.getElementById('flowCarouselImageStatus');
+                const uploadBtn = document.getElementById('flowCarouselImageUploadBtn');
+                if (status) {
+                    status.textContent = 'Enviando imagem do card...';
+                    status.style.color = '#2563eb';
+                }
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+                }
+                const data = await uploadFlowFile(file);
+                step.cards[cardIndex].image = data.publicPath || data.path || '';
+                step.cards[cardIndex].imageUrl = step.cards[cardIndex].image;
+                const textarea = document.getElementById('stepCarouselCardsJson');
+                if (textarea) textarea.value = JSON.stringify(step.cards || [], null, 2);
+                if (status) {
+                    status.textContent = `Imagem salva no card ${cardIndex + 1}.`;
+                    status.style.color = '#047857';
+                }
+                renderFlowSteps();
+            } catch (error) {
+                alert(error && error.message ? error.message : 'Falha ao enviar a imagem do card.');
+                const status = document.getElementById('flowCarouselImageStatus');
+                if (status) {
+                    status.textContent = 'Falha ao enviar imagem.';
+                    status.style.color = '#b91c1c';
+                }
+            } finally {
+                const uploadBtn = document.getElementById('flowCarouselImageUploadBtn');
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Enviar imagem para card';
+                }
+                if (input) input.value = '';
+            }
+        };
+
+        const FLOW_INTERACTIVE_BUTTON_TYPES = [
+            { value: 'reply', label: 'Resposta' },
+            { value: 'url', label: 'Link' },
+            { value: 'call', label: 'Ligacao' }
+        ];
+
+        function getFlowInteractiveButtonTypeOptions(selectedType) {
+            const safeType = ['reply', 'url', 'call'].includes(String(selectedType || '').toLowerCase())
+                ? String(selectedType || '').toLowerCase()
+                : 'reply';
+            return FLOW_INTERACTIVE_BUTTON_TYPES.map(item =>
+                `<option value="${item.value}" ${item.value === safeType ? 'selected' : ''}>${item.label}</option>`
+            ).join('');
+        }
+
+        function slugifyFlowInteractiveId(value, fallback = 'opcao') {
+            const text = String(value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9_-]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            return text || fallback;
+        }
+
+        function normalizeFlowButtonItem(button, index, prefix = 'botao') {
+            const raw = button && typeof button === 'object' ? button : {};
+            const type = ['reply', 'url', 'call'].includes(String(raw.type || '').toLowerCase())
+                ? String(raw.type || '').toLowerCase()
+                : 'reply';
+            const displayText = String(raw.displayText || raw.text || raw.title || `Botao ${index + 1}`).trim() || `Botao ${index + 1}`;
+            const fallbackId = `${prefix}_${index + 1}`;
+            const id = type === 'reply'
+                ? slugifyFlowInteractiveId(raw.id || raw.buttonId || displayText, fallbackId)
+                : String(raw.id || raw.buttonId || '').trim();
+            return {
+                type,
+                displayText,
+                id,
+                buttonId: id,
+                url: String(raw.url || '').trim(),
+                phoneNumber: String(raw.phoneNumber || raw.phone || '').trim(),
+                targetId: raw.targetId ? String(raw.targetId) : null
+            };
+        }
+
+        function normalizeFlowListRowItem(row, sectionIndex, rowIndex) {
+            const raw = row && typeof row === 'object' ? row : {};
+            const title = String(raw.title || `Opcao ${rowIndex + 1}`).trim() || `Opcao ${rowIndex + 1}`;
+            const rowId = slugifyFlowInteractiveId(raw.rowId || raw.id || title, `row_${sectionIndex + 1}_${rowIndex + 1}`);
+            return {
+                title,
+                description: String(raw.description || '').trim(),
+                rowId,
+                id: rowId,
+                targetId: raw.targetId ? String(raw.targetId) : null
+            };
+        }
+
+        function normalizeFlowListSectionItem(section, sectionIndex) {
+            const raw = section && typeof section === 'object' ? section : {};
+            return {
+                title: String(raw.title || `Secao ${sectionIndex + 1}`).trim() || `Secao ${sectionIndex + 1}`,
+                rows: Array.isArray(raw.rows) ? raw.rows.map((row, rowIndex) => normalizeFlowListRowItem(row, sectionIndex, rowIndex)) : []
+            };
+        }
+
+        function normalizeFlowCarouselCardItem(card, cardIndex) {
+            const raw = card && typeof card === 'object' ? card : {};
+            return {
+                title: String(raw.title || `Card ${cardIndex + 1}`).trim() || `Card ${cardIndex + 1}`,
+                description: String(raw.description || '').trim(),
+                image: String(raw.image || raw.imageUrl || '').trim(),
+                imageUrl: String(raw.imageUrl || raw.image || '').trim(),
+                buttons: Array.isArray(raw.buttons) ? raw.buttons.map((button, buttonIndex) => normalizeFlowButtonItem(button, buttonIndex, `card_${cardIndex + 1}`)) : []
+            };
+        }
+
+        function ensureInteractiveStepDefaults(step) {
+            if (!step || typeof step !== 'object') return step;
+            if (step.type === 'buttons') {
+                step.title = String(step.title || '').trim();
+                step.text = String(step.text || step.bodyText || step.content || '').trim();
+                step.bodyText = step.text;
+                step.footerText = String(step.footerText || '').trim();
+                step.imageUrl = String(step.imageUrl || '').trim();
+                step.buttons = Array.isArray(step.buttons)
+                    ? step.buttons.map((button, index) => normalizeFlowButtonItem(button, index, 'botao'))
+                    : [
+                        normalizeFlowButtonItem({ type: 'reply', displayText: 'Opcao 1', id: 'opcao_1' }, 0, 'botao'),
+                        normalizeFlowButtonItem({ type: 'reply', displayText: 'Opcao 2', id: 'opcao_2' }, 1, 'botao')
+                    ];
+            }
+            if (step.type === 'list') {
+                step.title = String(step.title || 'Menu').trim();
+                step.description = String(step.description || step.text || step.content || '').trim();
+                step.buttonText = String(step.buttonText || 'Abrir menu').trim() || 'Abrir menu';
+                step.footerText = String(step.footerText || '').trim();
+                step.sections = Array.isArray(step.sections)
+                    ? step.sections.map((section, index) => normalizeFlowListSectionItem(section, index))
+                    : [{
+                        title: 'Atendimento',
+                        rows: [
+                            normalizeFlowListRowItem({ title: 'Vendas', rowId: 'vendas' }, 0, 0),
+                            normalizeFlowListRowItem({ title: 'Suporte', rowId: 'suporte' }, 0, 1)
+                        ]
+                    }];
+            }
+            if (step.type === 'carousel') {
+                step.description = String(step.description || step.text || step.content || '').trim();
+                step.footerText = String(step.footerText || '').trim();
+                step.cards = Array.isArray(step.cards)
+                    ? step.cards.map((card, index) => normalizeFlowCarouselCardItem(card, index))
+                    : [
+                        normalizeFlowCarouselCardItem({ title: 'Card 1', description: 'Descricao do card', buttons: [{ type: 'reply', displayText: 'Comprar', id: 'comprar_card_1' }] }, 0),
+                        normalizeFlowCarouselCardItem({ title: 'Card 2', description: 'Descricao do card', buttons: [{ type: 'reply', displayText: 'Detalhes', id: 'detalhes_card_2' }] }, 1)
+                    ];
+            }
+            return step;
+        }
+
+        function getInteractiveStepBranches(step) {
+            ensureInteractiveStepDefaults(step);
+            if (!step || typeof step !== 'object') return [];
+            if (step.type === 'buttons') {
+                return (Array.isArray(step.buttons) ? step.buttons : [])
+                    .filter((button) => button && button.type === 'reply' && String(button.id || button.buttonId || '').trim())
+                    .map((button, index) => ({
+                        key: `button:${index}`,
+                        id: String(button.id || button.buttonId).trim(),
+                        label: String(button.displayText || `Botao ${index + 1}`).trim(),
+                        targetId: button.targetId || null
+                    }));
+            }
+            if (step.type === 'list') {
+                return (Array.isArray(step.sections) ? step.sections : []).flatMap((section, sectionIndex) =>
+                    (Array.isArray(section.rows) ? section.rows : []).map((row, rowIndex) => ({
+                        key: `list:${sectionIndex}:${rowIndex}`,
+                        id: String(row.rowId || row.id || '').trim(),
+                        label: String(row.title || `Item ${rowIndex + 1}`).trim(),
+                        targetId: row.targetId || null
+                    }))
+                ).filter(branch => branch.id);
+            }
+            if (step.type === 'carousel') {
+                return (Array.isArray(step.cards) ? step.cards : []).flatMap((card, cardIndex) =>
+                    (Array.isArray(card.buttons) ? card.buttons : [])
+                        .filter((button) => button && button.type === 'reply' && String(button.id || button.buttonId || '').trim())
+                        .map((button, buttonIndex) => ({
+                            key: `carousel:${cardIndex}:${buttonIndex}`,
+                            id: String(button.id || button.buttonId).trim(),
+                            label: `${String(card.title || `Card ${cardIndex + 1}`).trim()} - ${String(button.displayText || `Botao ${buttonIndex + 1}`).trim()}`,
+                            targetId: button.targetId || null
+                        }))
+                );
+            }
+            return [];
+        }
+
+        function getInteractiveBranchTarget(step, branchKey) {
+            ensureInteractiveStepDefaults(step);
+            const parts = String(branchKey || '').split(':');
+            if (!parts.length) return null;
+            if (parts[0] === 'button') {
+                return step.buttons && step.buttons[Number(parts[1] || 0)] || null;
+            }
+            if (parts[0] === 'list') {
+                const section = step.sections && step.sections[Number(parts[1] || 0)];
+                return section && section.rows ? section.rows[Number(parts[2] || 0)] || null : null;
+            }
+            if (parts[0] === 'carousel') {
+                const card = step.cards && step.cards[Number(parts[1] || 0)];
+                return card && card.buttons ? card.buttons[Number(parts[2] || 0)] || null : null;
+            }
+            return null;
+        }
+
+        function setFlowStepConnectionTarget(step, key, targetId, branchKey) {
+            if (!step || typeof step !== 'object') return;
+            if (key === 'branch') {
+                const branch = getInteractiveBranchTarget(step, branchKey);
+                if (branch) branch.targetId = targetId || null;
+                return;
+            }
+            step[key] = targetId || null;
+            if (key === 'responseNext') step.next = targetId || null;
+        }
+
+        function clearFlowStepReferences(step, removedId) {
+            if (!step || typeof step !== 'object' || !removedId) return;
+            ['next', 'responseNext', 'timeoutNext'].forEach((key) => {
+                if (step[key] === removedId) step[key] = null;
+            });
+            ensureInteractiveStepDefaults(step);
+            (Array.isArray(step.buttons) ? step.buttons : []).forEach((button) => {
+                if (button.targetId === removedId) button.targetId = null;
+            });
+            (Array.isArray(step.sections) ? step.sections : []).forEach((section) => {
+                (Array.isArray(section.rows) ? section.rows : []).forEach((row) => {
+                    if (row.targetId === removedId) row.targetId = null;
+                });
+            });
+            (Array.isArray(step.cards) ? step.cards : []).forEach((card) => {
+                (Array.isArray(card.buttons) ? card.buttons : []).forEach((button) => {
+                    if (button.targetId === removedId) button.targetId = null;
+                });
+            });
+        }
+
+        function getPortTop(index, total) {
+            if (total <= 1) return 50;
+            const start = 28;
+            const end = 78;
+            return start + ((end - start) * index / (total - 1));
+        }
+
+        function getStepPorts(step) {
+            ensureInteractiveStepDefaults(step);
+            if (step.type === 'wait_response') {
+                return [
+                    { key: 'responseNext', branchKey: '', targetId: step.responseNext || step.next || null, label: 'Respondeu', title: 'Se responder', top: 38 },
+                    { key: 'timeoutNext', branchKey: '', targetId: step.timeoutNext || null, label: 'Sem resposta', title: 'Se nao responder', top: 68 }
+                ];
+            }
+            const branches = getInteractiveStepBranches(step);
+            if (branches.length > 0) {
+                return branches.map((branch, index) => ({
+                    key: 'branch',
+                    branchKey: branch.key,
+                    targetId: branch.targetId || null,
+                    label: branch.label,
+                    title: branch.id,
+                    top: getPortTop(index, branches.length)
+                }));
+            }
+            if (['buttons', 'list', 'carousel'].includes(step.type)) {
+                return [{ key: 'next', branchKey: '', targetId: step.next || null, label: 'Continua', title: 'Continuar apos enviar', top: 50 }];
+            }
+            return [{ key: 'next', branchKey: '', targetId: step.next || null, label: '', title: 'Saida', top: 50 }];
+        }
+
+        function getButtonsStepEditorState(step) {
+            ensureInteractiveStepDefaults(step);
+            const buttons = Array.from({ length: 3 }, (_, index) => normalizeFlowButtonItem(step.buttons && step.buttons[index] ? step.buttons[index] : {}, index, 'botao'));
+            return buttons;
+        }
+
+        function collectButtonsStepFromModal(step) {
+            const buttons = [];
+            const usedReplyIds = new Set();
+            for (let i = 0; i < 3; i++) {
+                const type = String(document.getElementById(`stepButtonType${i}`)?.value || 'reply').toLowerCase();
+                const displayText = String(document.getElementById(`stepButtonText${i}`)?.value || '').trim();
+                const rawId = String(document.getElementById(`stepButtonId${i}`)?.value || '').trim();
+                const url = String(document.getElementById(`stepButtonUrl${i}`)?.value || '').trim();
+                const phoneNumber = String(document.getElementById(`stepButtonPhone${i}`)?.value || '').trim();
+                const current = normalizeFlowButtonItem(step.buttons && step.buttons[i] ? step.buttons[i] : {}, i, 'botao');
+                if (!displayText) continue;
+                const normalized = normalizeFlowButtonItem({
+                    ...current,
+                    type,
+                    displayText,
+                    id: rawId || current.id,
+                    url,
+                    phoneNumber,
+                    targetId: current.targetId || null
+                }, i, 'botao');
+                if (normalized.type === 'reply') {
+                    if (usedReplyIds.has(normalized.id)) {
+                        throw new Error(`O ID do botao ${i + 1} esta repetido.`);
+                    }
+                    usedReplyIds.add(normalized.id);
+                }
+                buttons.push(normalized);
+            }
+            step.title = String(document.getElementById('stepButtonsTitle')?.value || '').trim();
+            step.text = String(document.getElementById('stepButtonsText')?.value || '').trim();
+            step.bodyText = step.text;
+            step.footerText = String(document.getElementById('stepButtonsFooter')?.value || '').trim();
+            step.imageUrl = String(document.getElementById('stepButtonsImageUrl')?.value || '').trim();
+            step.buttons = buttons;
+        }
+
+        function parseJsonTextarea(textareaId, fallbackLabel) {
+            const raw = String(document.getElementById(textareaId)?.value || '').trim();
+            if (!raw) return [];
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) {
+                    throw new Error(`${fallbackLabel} precisa ser uma lista JSON.`);
+                }
+                return parsed;
+            } catch (error) {
+                throw new Error(`${fallbackLabel} invalido: ${error.message}`);
+            }
+        }
+
+        function validateUniqueInteractiveIds(values, label) {
+            const used = new Set();
+            values.forEach((value) => {
+                const id = String(value || '').trim();
+                if (!id) return;
+                if (used.has(id)) {
+                    throw new Error(`${label} repetido: ${id}`);
+                }
+                used.add(id);
+            });
+        }
+
         window.addFlowStep = function(type, insertIndex, pos) {
             if(!currentFlow) return;
             if(!currentFlow.steps) currentFlow.steps = [];
@@ -3343,12 +4021,49 @@
             };
             
             if(type === 'text') newStep.content = 'Olá!';
-            if(type === 'delay') newStep.content = '1000';
+            if(type === 'delay') {
+                newStep.content = '1';
+                newStep.time = 1000;
+                newStep.timeUnit = 'seconds';
+            }
             if(type === 'wait_response') {
                 newStep.content = 'true';
                 newStep.responseNext = null;
                 newStep.timeoutNext = null;
                 newStep.timeout = 0;
+                newStep.timeoutUnit = 'minutes';
+            }
+            if(type === 'buttons') {
+                newStep.title = 'Escolha uma opcao';
+                newStep.text = 'Selecione uma opcao abaixo';
+                newStep.bodyText = newStep.text;
+                newStep.footerText = '';
+                newStep.imageUrl = '';
+                newStep.buttons = [
+                    normalizeFlowButtonItem({ type: 'reply', displayText: 'Opcao 1', id: 'opcao_1' }, 0, 'botao'),
+                    normalizeFlowButtonItem({ type: 'reply', displayText: 'Opcao 2', id: 'opcao_2' }, 1, 'botao')
+                ];
+            }
+            if(type === 'list') {
+                newStep.title = 'Menu';
+                newStep.description = 'Escolha uma opcao';
+                newStep.buttonText = 'Abrir menu';
+                newStep.footerText = '';
+                newStep.sections = [{
+                    title: 'Atendimento',
+                    rows: [
+                        normalizeFlowListRowItem({ title: 'Vendas', rowId: 'vendas' }, 0, 0),
+                        normalizeFlowListRowItem({ title: 'Suporte', rowId: 'suporte' }, 0, 1)
+                    ]
+                }];
+            }
+            if(type === 'carousel') {
+                newStep.description = 'Deslize para ver as opcoes';
+                newStep.footerText = '';
+                newStep.cards = [
+                    normalizeFlowCarouselCardItem({ title: 'Card 1', description: 'Descricao do card', buttons: [{ type: 'reply', displayText: 'Comprar', id: 'comprar_card_1' }] }, 0),
+                    normalizeFlowCarouselCardItem({ title: 'Card 2', description: 'Descricao do card', buttons: [{ type: 'reply', displayText: 'Detalhes', id: 'detalhes_card_2' }] }, 1)
+                ];
             }
 
             if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
@@ -3389,6 +4104,9 @@
                 file:          { icon:'fa-paperclip',       title:'Arquivo',           color:'#64748b' },
                 delay:         { icon:'fa-hourglass-half',  title:'Aguardar',          color:'#f59e0b' },
                 wait_response: { icon:'fa-headset',         title:'Aguardar Resposta', color:'#2563eb' },
+                buttons:       { icon:'fa-square-caret-down', title:'Botões',         color:'#0f766e' },
+                list:          { icon:'fa-list-ul',         title:'Lista',             color:'#7c3aed' },
+                carousel:      { icon:'fa-images',          title:'Carrossel',         color:'#db2777' },
                 kanban_move:   { icon:'fa-columns',         title:'Ação CRM',          color:'#10b981' },
             };
 
@@ -3415,6 +4133,7 @@
 
             // Ensure every step has id, x, y (auto-migrate old flows)
             currentFlow.steps.forEach((step, i) => {
+                ensureInteractiveStepDefaults(step);
                 if (!step.id) step.id = 'n_' + Date.now() + '_' + i;
                 if (typeof step.x !== 'number' || typeof step.y !== 'number') {
                     const col = i % 3, row = Math.floor(i / 3);
@@ -3442,23 +4161,18 @@
             svg.setAttribute('class', 'flow-svg');
             list.appendChild(svg);
 
-            function getPortPoint(step, side) {
+            function getPortPoint(step, portInfo) {
                 const wrap = list.querySelector('.flow-node-wrap[data-id="' + step.id + '"]');
                 const w = wrap ? wrap.offsetWidth  : NODE_W;
                 const h = wrap ? wrap.offsetHeight : NODE_H;
-                if (side === 'out-response') return { x: step.x + w, y: step.y + h * 0.38 };
-                if (side === 'out-timeout') return { x: step.x + w, y: step.y + h * 0.68 };
-                const y = step.y + h / 2;
-                return side === 'out' ? { x: step.x + w, y } : { x: step.x, y };
+                if (portInfo === 'in') {
+                    return { x: step.x, y: step.y + h / 2 };
+                }
+                const top = portInfo && typeof portInfo.top === 'number' ? portInfo.top / 100 : 0.5;
+                return { x: step.x + w, y: step.y + h * top };
             }
             function getStepConnections(step) {
-                if (step.type === 'wait_response') {
-                    return [
-                        { key: 'responseNext', targetId: step.responseNext || step.next || null, port: 'out-response' },
-                        { key: 'timeoutNext', targetId: step.timeoutNext || null, port: 'out-timeout' }
-                    ].filter(conn => conn.targetId);
-                }
-                return step.next ? [{ key: 'next', targetId: step.next, port: 'out' }] : [];
+                return getStepPorts(step).filter(conn => conn.targetId);
             }
             function bezierPath(x1, y1, x2, y2) {
                 const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
@@ -3474,7 +4188,7 @@
                     getStepConnections(step).forEach(conn => {
                         const target = currentFlow.steps.find(s => s.id === conn.targetId);
                         if (!target) return;
-                        const a = getPortPoint(step, conn.port);
+                        const a = getPortPoint(step, conn);
                         const b = getPortPoint(target, 'in');
                         const d = bezierPath(a.x, a.y, b.x, b.y);
                         const hit = document.createElementNS(svgNS, 'path');
@@ -3510,8 +4224,7 @@
                         cutBtn.addEventListener('mouseleave', hideSoon);
                         cutBtn.addEventListener('click', (ev) => {
                             ev.preventDefault(); ev.stopPropagation();
-                            step[conn.key] = null;
-                            if (conn.key === 'responseNext') step.next = null;
+                            setFlowStepConnectionTarget(step, conn.key, null, conn.branchKey);
                             redrawEdges();
                         });
                         list.appendChild(cutBtn);
@@ -3524,11 +4237,27 @@
                 let summary = '';
                 switch(step.type) {
                     case 'text': summary = step.content || 'Escreva sua mensagem…'; break;
-                    case 'image': case 'audio': case 'video': case 'file': summary = 'Mídia anexada'; break;
-                    case 'delay': summary = (step.content || 0) + ' ms'; break;
+                    case 'image': case 'audio': case 'video': case 'file': summary = getStepMediaDisplay(step) || 'Mídia anexada'; break;
+                    case 'delay': summary = formatDurationLabel(getDelayStepMs(step), step.timeUnit); break;
                     case 'wait_response': {
-                        const timeoutMin = step.timeout ? Math.round((step.timeout / 60000) * 100) / 100 : 0;
-                        summary = `Resposta: nó superior${timeoutMin ? ' | Sem resposta: ' + timeoutMin + ' min no nó inferior' : ' | Sem resposta: configure minutos para usar o nó inferior'}`;
+                        const timeoutMs = Math.max(0, Number(step.timeout) || 0);
+                        summary = `Resposta: nó superior${timeoutMs ? ' | Sem resposta: ' + formatDurationLabel(timeoutMs, getWaitTimeoutUnit(step)) + ' no nó inferior' : ' | Sem resposta: configure o tempo para usar o nó inferior'}`;
+                        break;
+                    }
+                    case 'buttons': {
+                        const buttons = (step.buttons || []).map(button => button.displayText).filter(Boolean);
+                        summary = buttons.length ? `${buttons.length} botões: ${buttons.join(', ')}` : 'Configure botões de resposta, link ou ligação';
+                        break;
+                    }
+                    case 'list': {
+                        const rows = (step.sections || []).flatMap(section => Array.isArray(section.rows) ? section.rows : []);
+                        summary = rows.length ? `${rows.length} itens de lista` : 'Configure a lista interativa';
+                        break;
+                    }
+                    case 'carousel': {
+                        const cards = Array.isArray(step.cards) ? step.cards : [];
+                        const replyCount = cards.reduce((acc, card) => acc + ((card.buttons || []).filter(button => button.type === 'reply').length), 0);
+                        summary = cards.length ? `${cards.length} cards | ${replyCount} respostas` : 'Configure o carrossel interativo';
                         break;
                     }
                     case 'kanban_move': summary = 'Mover card no CRM'; break;
@@ -3545,19 +4274,14 @@
                 const div = document.createElement('div');
                 div.className = 'flow-node flow-step-item';
                 div.style.setProperty('--node-color', m.color);
-                const responseConnected = step.type === 'wait_response' ? !!(step.responseNext || step.next) : !!step.next;
-                const timeoutConnected = step.type === 'wait_response' ? !!step.timeoutNext : false;
+                const ports = getStepPorts(step);
+                const portsHtml = ports.map((port) => `
+                    ${port.label ? `<span class="flow-node__port-label" style="top: calc(${port.top}% - 11px);">${escapeSummary(port.label)}</span>` : ''}
+                    <span class="flow-node__port flow-node__port--out ${port.targetId ? 'is-connected' : ''}" data-port="out" data-key="${port.key}" data-branch-key="${port.branchKey || ''}" title="${escapeSummary(port.title || port.label || 'Saída')}" style="top:${port.top}%;"></span>
+                `).join('');
                 div.innerHTML = `
                     <span class="flow-node__port flow-node__port--in"  data-port="in"  title="Entrada"></span>
-                    ${step.type === 'wait_response'
-                        ? `
-                            <span class="flow-node__port-label flow-node__port-label--response">Respondeu</span>
-                            <span class="flow-node__port flow-node__port--out-response ${responseConnected ? 'is-connected' : ''}" data-port="out-response" title="Se responder"></span>
-                            <span class="flow-node__port-label flow-node__port-label--timeout">Sem resposta</span>
-                            <span class="flow-node__port flow-node__port--out-timeout ${timeoutConnected ? 'is-connected' : ''}" data-port="out-timeout" title="Se não responder no tempo"></span>
-                        `
-                        : `<span class="flow-node__port flow-node__port--out ${step.next ? 'is-connected' : ''}" data-port="out" title="Saída — arraste para outro nó"></span>`
-                    }
+                    ${portsHtml}
                     <div class="flow-node__head">
                         <span class="flow-node__badge"><i class="fas ${m.icon}"></i></span>
                         <span class="flow-node__title">${m.title}</span>
@@ -3599,12 +4323,14 @@
                 div.querySelectorAll('.flow-node__port[data-port^="out"]').forEach(outPort => {
                     outPort.addEventListener('mousedown', (e) => {
                         e.preventDefault(); e.stopPropagation();
-                        const portType = outPort.dataset.port || 'out';
-                        const targetField = portType === 'out-timeout'
-                            ? 'timeoutNext'
-                            : (portType === 'out-response' ? 'responseNext' : 'next');
+                        const targetField = outPort.dataset.key || 'next';
+                        const branchKey = outPort.dataset.branchKey || '';
                         const canvasRect = list.getBoundingClientRect();
-                        const startPt = getPortPoint(step, portType);
+                        const startPt = getPortPoint(step, {
+                            key: targetField,
+                            branchKey,
+                            top: Number(outPort.style.top.replace('%', '')) || 50
+                        });
                         const tempPath = document.createElementNS(svgNS, 'path');
                         tempPath.setAttribute('class', 'flow-edge-temp');
                         svg.appendChild(tempPath);
@@ -3623,8 +4349,7 @@
                                 const targetWrap = targetPort.closest('.flow-node-wrap');
                                 const targetId = targetWrap && targetWrap.dataset.id;
                                 if (targetId && targetId !== step.id) {
-                                    step[targetField] = targetId;
-                                    if (targetField === 'responseNext') step.next = targetId;
+                                    setFlowStepConnectionTarget(step, targetField, targetId, branchKey);
                                     redrawEdges();
                                     renderFlowSteps();
                                 }
@@ -3677,9 +4402,7 @@
                 const removed = currentFlow.steps.splice(index, 1)[0];
                 if (removed && removed.id) {
                     currentFlow.steps.forEach(s => {
-                        if (s.next === removed.id) s.next = null;
-                        if (s.responseNext === removed.id) s.responseNext = null;
-                        if (s.timeoutNext === removed.id) s.timeoutNext = null;
+                        clearFlowStepReferences(s, removed.id);
                     });
                 }
                 renderFlowSteps();
@@ -3713,9 +4436,7 @@
                 const removed = currentFlow.steps.splice(idx, 1)[0];
                 if (removed && removed.id) {
                     currentFlow.steps.forEach(s => {
-                        if (s.next === removed.id) s.next = null;
-                        if (s.responseNext === removed.id) s.responseNext = null;
-                        if (s.timeoutNext === removed.id) s.timeoutNext = null;
+                        clearFlowStepReferences(s, removed.id);
                     });
                 }
                 renderFlowSteps();
@@ -3741,10 +4462,15 @@
                 `;
             } else if(step.type === 'delay') {
                 html += `
-                    <label>Tempo de espera (ms)</label>
-                    <input type="number" id="stepContent" class="form-control" value="${step.content}" style="width:100%; margin-top:5px; color:black;">
+                    <label>Tempo de espera</label>
+                    <div style="display:grid; grid-template-columns:minmax(0, 1fr) 200px; gap:10px; margin-top:5px;">
+                        <input type="number" id="stepContent" class="form-control" min="0" step="any" value="${durationMsToInputValue(getDelayStepMs(step), getDelayStepUnit(step))}" style="width:100%; color:black;">
+                        <select id="stepTimeUnit" class="form-control" style="width:100%; color:black;">${getFlowTimeUnitOptions(getDelayStepUnit(step))}</select>
+                    </div>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Escolha se esse delay vai trabalhar em segundos, minutos ou horas. Milissegundos continuam disponíveis por compatibilidade.</p>
                 `;
             } else if(step.type === 'wait_response') {
+                ensureInteractiveStepDefaults(step);
                 let flowOptions = '<option value="">-- Nenhum --</option>';
                 if(window.allFlows) {
                     window.allFlows.forEach(f => {
@@ -3763,11 +4489,14 @@
                 html += `
                     <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
                         <label style="font-weight:bold; display:block; margin-bottom:5px;">Quando responder</label>
-                        <p style="font-size:0.8rem; color:#64748b; margin:0 0 8px 0;">A saída superior do nó segue quando o contato responder. Se não definir minutos abaixo, ele fica aguardando até a resposta chegar.</p>
+                        <p style="font-size:0.8rem; color:#64748b; margin:0 0 8px 0;">A saída superior do nó segue quando o contato responder. Se não definir um tempo abaixo, ele fica aguardando até a resposta chegar.</p>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                             <div>
-                                <label style="font-size:0.8rem;">Tempo limite para resposta (minutos)</label>
-                                <input type="number" id="stepTimeout" class="form-control" value="${step.timeout ? step.timeout / 60000 : ''}" placeholder="Deixe vazio para aguardar" style="width:100%; color:black;">
+                                <label style="font-size:0.8rem;">Tempo limite para resposta</label>
+                                <div style="display:grid; grid-template-columns:minmax(0, 1fr) 180px; gap:10px;">
+                                    <input type="number" id="stepTimeout" class="form-control" min="0" step="any" value="${step.timeout ? durationMsToInputValue(step.timeout, getWaitTimeoutUnit(step)) : ''}" placeholder="Deixe vazio para aguardar" style="width:100%; color:black;">
+                                    <select id="stepTimeoutUnit" class="form-control" style="width:100%; color:black;">${getFlowTimeUnitOptions(getWaitTimeoutUnit(step))}</select>
+                                </div>
                             </div>
                             <div>
                                 <label style="font-size:0.8rem;">Saída superior</label>
@@ -3778,7 +4507,7 @@
 
                     <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
                         <label style="font-weight:bold; display:block; margin-bottom:5px;">Quando não responder</label>
-                        <p style="font-size:0.8rem; color:#64748b; margin:0 0 8px 0;">A saída inferior do nó dispara quando o tempo acima acabar sem resposta. Se usar essa saída, os minutos são obrigatórios.</p>
+                        <p style="font-size:0.8rem; color:#64748b; margin:0 0 8px 0;">A saída inferior do nó dispara quando o tempo acima acabar sem resposta. Se usar essa saída, o tempo é obrigatório.</p>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                             <div>
                                 <label style="font-size:0.8rem;">Saída inferior</label>
@@ -3802,6 +4531,97 @@
                         <p style="font-size:0.8rem; color:#aaa; margin-top:5px;">Se vazio, continua para a próxima etapa deste fluxo.</p>
                     </div>
                 `;
+            } else if(step.type === 'buttons') {
+                ensureInteractiveStepDefaults(step);
+                const buttons = getButtonsStepEditorState(step);
+                html += `
+                    <label>Título</label>
+                    <input type="text" id="stepButtonsTitle" class="form-control" value="${escapeSummary(step.title || '')}" style="width:100%; margin-top:5px; color:black;">
+                    <label style="margin-top:10px; display:block;">Texto</label>
+                    <textarea id="stepButtonsText" rows="3" class="form-control" style="width:100%; margin-top:5px; color:black;">${escapeSummary(step.text || '')}</textarea>
+                    <label style="margin-top:10px; display:block;">Rodapé</label>
+                    <input type="text" id="stepButtonsFooter" class="form-control" value="${escapeSummary(step.footerText || '')}" style="width:100%; margin-top:5px; color:black;">
+                    <label style="margin-top:10px; display:block;">Imagem (URL pública ou /uploads/...)</label>
+                    <input type="text" id="stepButtonsImageUrl" class="form-control" value="${escapeSummary(step.imageUrl || '')}" placeholder="https://site.com/imagem.jpg" style="width:100%; margin-top:5px; color:black;">
+                    <input type="file" id="flowStepButtonsImageFile" accept="image/*" onchange="handleFlowButtonsImageUpload(this)" style="display:none;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; margin-bottom:8px;">
+                        <button type="button" id="flowButtonsImageUploadBtn" onclick="triggerFlowButtonsImageUpload()" class="btn-secondary" style="color:black;">
+                            <i class="fas fa-cloud-upload-alt"></i> Enviar imagem
+                        </button>
+                    </div>
+                    <p id="flowButtonsImageStatus" style="font-size:0.82rem; color:${step.imageUrl ? '#047857' : '#64748b'}; margin:0 0 8px 0;">${step.imageUrl ? 'Imagem salva neste nó.' : 'Nenhuma imagem enviada ainda.'}</p>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Botões de resposta ligam em próximos nós. Botões de link e ligação enviam a ação no WhatsApp e não retornam webhook de escolha.</p>
+                    <div style="display:grid; gap:12px; margin-top:12px;">
+                        ${buttons.map((button, index) => `
+                            <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#f8fafc;">
+                                <div style="display:grid; grid-template-columns: 180px 1fr; gap:10px;">
+                                    <div>
+                                        <label style="font-size:0.8rem;">Tipo do botão ${index + 1}</label>
+                                        <select id="stepButtonType${index}" class="form-control" style="width:100%; color:black;">${getFlowInteractiveButtonTypeOptions(button.type)}</select>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.8rem;">Texto exibido</label>
+                                        <input type="text" id="stepButtonText${index}" class="form-control" value="${escapeSummary(button.displayText || '')}" placeholder="Ex: Falar com vendas" style="width:100%; color:black;">
+                                    </div>
+                                </div>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                                    <div>
+                                        <label style="font-size:0.8rem;">ID da resposta</label>
+                                        <input type="text" id="stepButtonId${index}" class="form-control" value="${escapeSummary(button.id || '')}" placeholder="vendas" style="width:100%; color:black;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.8rem;">Telefone para ligação</label>
+                                        <input type="text" id="stepButtonPhone${index}" class="form-control" value="${escapeSummary(button.phoneNumber || '')}" placeholder="5511999999999" style="width:100%; color:black;">
+                                    </div>
+                                </div>
+                                <div style="margin-top:10px;">
+                                    <label style="font-size:0.8rem;">Link URL</label>
+                                    <input type="text" id="stepButtonUrl${index}" class="form-control" value="${escapeSummary(button.url || '')}" placeholder="https://seusite.com" style="width:100%; color:black;">
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else if(step.type === 'list') {
+                ensureInteractiveStepDefaults(step);
+                html += `
+                    <label>Título</label>
+                    <input type="text" id="stepListTitle" class="form-control" value="${escapeSummary(step.title || '')}" style="width:100%; margin-top:5px; color:black;">
+                    <label style="margin-top:10px; display:block;">Descrição</label>
+                    <textarea id="stepListDescription" rows="3" class="form-control" style="width:100%; margin-top:5px; color:black;">${escapeSummary(step.description || '')}</textarea>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                        <div>
+                            <label style="font-size:0.8rem;">Texto do botão</label>
+                            <input type="text" id="stepListButtonText" class="form-control" value="${escapeSummary(step.buttonText || '')}" style="width:100%; color:black;">
+                        </div>
+                        <div>
+                            <label style="font-size:0.8rem;">Rodapé</label>
+                            <input type="text" id="stepListFooter" class="form-control" value="${escapeSummary(step.footerText || '')}" style="width:100%; color:black;">
+                        </div>
+                    </div>
+                    <label style="margin-top:10px; display:block;">Sections (JSON)</label>
+                    <textarea id="stepListSectionsJson" rows="10" class="form-control" style="width:100%; margin-top:5px; color:black; font-family:monospace;">${escapeSummary(JSON.stringify(step.sections || [], null, 2))}</textarea>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Use `title`, `rows`, `rowId`, `description`. Cada `rowId` cria uma saída própria no nó.</p>
+                `;
+            } else if(step.type === 'carousel') {
+                ensureInteractiveStepDefaults(step);
+                html += `
+                    <label>Texto de apoio</label>
+                    <textarea id="stepCarouselDescription" rows="3" class="form-control" style="width:100%; margin-top:5px; color:black;">${escapeSummary(step.description || '')}</textarea>
+                    <label style="margin-top:10px; display:block;">Rodapé</label>
+                    <input type="text" id="stepCarouselFooter" class="form-control" value="${escapeSummary(step.footerText || '')}" style="width:100%; margin-top:5px; color:black;">
+                    <input type="file" id="flowStepCarouselImageFile" accept="image/*" onchange="handleFlowCarouselCardImageUpload(this)" style="display:none;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px;">
+                        <input type="number" id="stepCarouselImageCardIndex" min="1" max="${Math.max(1, (step.cards || []).length)}" value="1" class="form-control" style="width:110px; color:black;" placeholder="Card">
+                        <button type="button" id="flowCarouselImageUploadBtn" onclick="triggerFlowCarouselCardImageUpload()" class="btn-secondary" style="color:black;">
+                            <i class="fas fa-cloud-upload-alt"></i> Enviar imagem para card
+                        </button>
+                    </div>
+                    <p id="flowCarouselImageStatus" style="font-size:0.82rem; color:#64748b; margin:8px 0 8px 0;">Você pode subir a imagem e ela entra direto no JSON do card.</p>
+                    <label style="margin-top:10px; display:block;">Cards (JSON)</label>
+                    <textarea id="stepCarouselCardsJson" rows="12" class="form-control" style="width:100%; margin-top:5px; color:black; font-family:monospace;">${escapeSummary(JSON.stringify(step.cards || [], null, 2))}</textarea>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Cada card aceita `title`, `description`, `image` e `buttons`. Nos botões use `type: reply|url|call`. Os `id` dos botões de resposta precisam ser únicos no carrossel inteiro.</p>
+                `;
             } else if(step.type === 'kanban_move') {
                 let options = '';
                 if(window.columns) {
@@ -3813,11 +4633,31 @@
                     <label>Mover para Coluna</label>
                     <select id="stepContent" class="form-control" style="width:100%; margin-top:5px; color:black;">${options}</select>
                 `;
-            } else if (['image', 'audio', 'video', 'file'].includes(step.type)) {
+            } else if (step.type === 'audio') {
                 html += `
-                    <label>Conteúdo (Base64 ou ID)</label>
-                    <input type="text" id="stepContent" class="form-control" value="${step.content ? step.content.substring(0, 50) + '...' : ''}" disabled style="width:100%; margin-top:5px; margin-bottom:10px; color:black;">
-                    <p style="font-size:0.8rem; color: #ff9800;">* Upload de mídia deve ser feito via Galeria (Em breve)</p>
+                    <label>Áudio do fluxo</label>
+                    <input type="text" id="stepContent" class="form-control" value="${getStepMediaDisplay(step)}" disabled style="width:100%; margin-top:5px; margin-bottom:10px; color:black;">
+                    <input type="file" id="flowStepAudioFile" accept=".mp3,.ogg,audio/mpeg,audio/ogg" onchange="handleFlowStepAudioUpload(this)" style="display:none;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+                        <button type="button" id="flowStepAudioUploadBtn" onclick="triggerFlowStepAudioUpload()" class="btn-secondary" style="color:black;">
+                            <i class="fas fa-cloud-upload-alt"></i> Enviar MP3/OGG
+                        </button>
+                    </div>
+                    <p id="flowStepMediaStatus" style="font-size:0.82rem; color:${step.path ? '#047857' : '#64748b'}; margin:0 0 8px 0;">${step.path ? 'Arquivo salvo neste nó.' : 'Nenhum arquivo enviado ainda.'}</p>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:5px;">Se enviar em MP3, ele converte na hora para OGG de voz e já fica salvo neste nó. OGG também pode ser enviado.</p>
+                `;
+            } else if (['image', 'video', 'file'].includes(step.type)) {
+                html += `
+                    <label>Arquivo do nó</label>
+                    <input type="text" id="stepContent" class="form-control" value="${getStepMediaDisplay(step)}" disabled style="width:100%; margin-top:5px; margin-bottom:10px; color:black;">
+                    <input type="file" id="flowStepGenericFile" ${step.type === 'image' ? 'accept="image/*"' : (step.type === 'video' ? 'accept="video/*"' : '')} onchange="handleFlowStepMediaUpload(this)" style="display:none;">
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+                        <button type="button" id="flowStepGenericUploadBtn" onclick="triggerFlowStepMediaUpload()" class="btn-secondary" style="color:black;">
+                            <i class="fas fa-cloud-upload-alt"></i> Enviar arquivo
+                        </button>
+                    </div>
+                    <p id="flowStepMediaStatus" style="font-size:0.82rem; color:${step.path ? '#047857' : '#64748b'}; margin:0 0 8px 0;">${step.path ? 'Arquivo salvo neste nó.' : 'Nenhum arquivo enviado ainda.'}</p>
+                    <p style="font-size:0.8rem; color:#64748b;">O arquivo fica salvo no nó e será enviado automaticamente quando o fluxo passar por esta etapa.</p>
                 `;
             }
             
@@ -3838,24 +4678,65 @@
 
         window.saveStepChange = function() {
             const step = currentFlow.steps[currentStepIndex];
-            if(['text', 'delay', 'kanban_move'].includes(step.type)) {
-                const input = document.getElementById('stepContent');
-                if(input) step.content = input.value;
-            }
-            if(step.type === 'wait_response') {
-                const timeoutSec = document.getElementById('stepTimeout').value;
-                const timeoutMinutes = timeoutSec ? parseFloat(timeoutSec) : 0;
-                if ((step.timeoutNext || step.timeoutFlowId || document.getElementById('stepTimeoutFlowId').value || document.getElementById('stepTimeoutMessage').value.trim()) && !timeoutMinutes) {
-                    return alert('No nó "Sem resposta", os minutos são obrigatórios.');
+            try {
+                if(['text', 'kanban_move'].includes(step.type)) {
+                    const input = document.getElementById('stepContent');
+                    if(input) step.content = input.value;
                 }
-                step.timeout = timeoutMinutes ? Math.round(timeoutMinutes * 60000) : 0;
-                step.timeoutMessage = document.getElementById('stepTimeoutMessage').value;
-                step.timeoutFlowId = document.getElementById('stepTimeoutFlowId').value;
-                step.exactMatch = document.getElementById('stepExactMatch').value;
-                step.exactMatchFlowId = document.getElementById('stepExactMatchFlowId').value;
+                if(step.type === 'delay') {
+                    const input = document.getElementById('stepContent');
+                    const unit = getFlowTimeUnit(document.getElementById('stepTimeUnit') && document.getElementById('stepTimeUnit').value, 'seconds');
+                    const rawValue = parseOptionalNumber(input && input.value);
+                    step.content = rawValue === null ? '' : String(rawValue);
+                    step.time = durationToMs(rawValue, unit, 'seconds');
+                    step.timeUnit = unit;
+                }
+                if(step.type === 'wait_response') {
+                    const timeoutInput = document.getElementById('stepTimeout');
+                    const timeoutUnit = getFlowTimeUnit(document.getElementById('stepTimeoutUnit') && document.getElementById('stepTimeoutUnit').value, 'minutes');
+                    const timeoutValue = parseOptionalNumber(timeoutInput && timeoutInput.value);
+                    const timeoutMs = durationToMs(timeoutValue, timeoutUnit, 'minutes');
+                    const timeoutFlowIdEl = document.getElementById('stepTimeoutFlowId');
+                    const timeoutMessageEl = document.getElementById('stepTimeoutMessage');
+                    if ((step.timeoutNext || step.timeoutFlowId || (timeoutFlowIdEl && timeoutFlowIdEl.value) || (timeoutMessageEl && timeoutMessageEl.value.trim())) && !timeoutMs) {
+                        return alert('No nó "Sem resposta", o tempo é obrigatório.');
+                    }
+                    step.timeout = timeoutMs;
+                    step.timeoutUnit = timeoutUnit;
+                    step.timeoutMessage = timeoutMessageEl ? timeoutMessageEl.value : '';
+                    step.timeoutFlowId = timeoutFlowIdEl ? timeoutFlowIdEl.value : '';
+                    step.exactMatch = document.getElementById('stepExactMatch').value;
+                    step.exactMatchFlowId = document.getElementById('stepExactMatchFlowId').value;
+                }
+                if(step.type === 'buttons') {
+                    collectButtonsStepFromModal(step);
+                }
+                if(step.type === 'list') {
+                    const sections = parseJsonTextarea('stepListSectionsJson', 'Sections da lista')
+                        .map((section, index) => normalizeFlowListSectionItem(section, index));
+                    const rowIds = sections.flatMap(section => (section.rows || []).map(row => row.rowId));
+                    validateUniqueInteractiveIds(rowIds, 'rowId');
+                    step.title = String(document.getElementById('stepListTitle')?.value || '').trim();
+                    step.description = String(document.getElementById('stepListDescription')?.value || '').trim();
+                    step.buttonText = String(document.getElementById('stepListButtonText')?.value || '').trim() || 'Abrir menu';
+                    step.footerText = String(document.getElementById('stepListFooter')?.value || '').trim();
+                    step.sections = sections;
+                }
+                if(step.type === 'carousel') {
+                    const cards = parseJsonTextarea('stepCarouselCardsJson', 'Cards do carrossel')
+                        .map((card, index) => normalizeFlowCarouselCardItem(card, index));
+                    const replyIds = cards.flatMap(card => (card.buttons || []).filter(button => button.type === 'reply').map(button => button.id));
+                    validateUniqueInteractiveIds(replyIds, 'ID de botão do carrossel');
+                    step.description = String(document.getElementById('stepCarouselDescription')?.value || '').trim();
+                    step.footerText = String(document.getElementById('stepCarouselFooter')?.value || '').trim();
+                    step.cards = cards;
+                }
+                ensureInteractiveStepDefaults(step);
+                renderFlowSteps();
+                closeStepModal();
+            } catch (error) {
+                alert(error && error.message ? error.message : 'Erro ao salvar etapa.');
             }
-            renderFlowSteps();
-            closeStepModal();
         };
 
         window.saveFlow = function() {
@@ -3870,9 +4751,9 @@
             currentFlow.triggerType = triggerType;
             currentFlow.triggerKeyword = triggerKeyword;
 
-            const invalidWaitStep = (currentFlow.steps || []).find(step => step && step.type === 'wait_response' && (step.timeoutNext || step.timeoutFlowId || step.timeoutMessage) && !step.timeout);
+            const invalidWaitStep = (currentFlow.steps || []).find(step => step && step.type === 'wait_response' && (step.timeoutNext || step.timeoutFlowId || String(step.timeoutMessage || '').trim()) && !step.timeout);
             if (invalidWaitStep) {
-                return alert('Existe um nó "Aguardar resposta" com saída de "Sem resposta" sem minutos definidos.');
+                return alert('Existe um nó "Aguardar resposta" com saída de "Sem resposta" sem tempo definido.');
             }
             
             const btns = document.querySelectorAll('#flowEditor button');
@@ -6412,8 +7293,8 @@
                 
                 // Lookup contact details
                 const chat = (window.allChatsData && window.allChatsData[msg.chatId]) || {};
-                const contactName = chat.name || chat.pushname || 'Desconhecido';
-                const contactPhone = chat.phoneNumber || msg.chatId.split('@')[0];
+                const contactName = getChatDisplayName(chat);
+                const contactPhone = formatPhoneDisplay(getChatPhone(chat)) || getChatPhone(chat) || '';
                 const contactImg = chat.profilePic 
                     ? `<img src="${chat.profilePic}" style="width:30px; height:30px; border-radius:50%; object-fit:cover; margin-right:8px;">`
                     : `<div style="width:30px; height:30px; border-radius:50%; background:#ddd; display:flex; align-items:center; justify-content:center; color:#888; margin-right:8px;"><i class="fas fa-user" style="font-size:12px;"></i></div>`;
@@ -6484,8 +7365,8 @@
                 div.innerHTML = `
                     <div style="margin-right:10px;">${img}</div>
                     <div>
-                        <div style="font-weight:bold; font-size:0.9rem;">${chat.name || chat.id}</div>
-                        <div style="font-size:0.8rem; color:#888;">${chat.phoneNumber || ''}</div>
+                        <div style="font-weight:bold; font-size:0.9rem;">${getChatDisplayName(chat)}</div>
+                        <div style="font-size:0.8rem; color:#888;">${formatPhoneDisplay(getChatPhone(chat)) || getChatPhone(chat) || ''}</div>
                     </div>
                 `;
                 list.appendChild(div);
@@ -6588,8 +7469,8 @@
                 return;
             }
             list.innerHTML = filtered.map(function (c) {
-                const name = (c.name || c.pushname || c.id || 'Sem nome').replace(/</g, '&lt;');
-                const phone = (c.phoneNumber || (c.id ? String(c.id).split('@')[0] : '')).replace(/</g, '&lt;');
+                const name = getChatDisplayName(c).replace(/</g, '&lt;');
+                const phone = (formatPhoneDisplay(getChatPhone(c)) || getChatPhone(c) || '').replace(/</g, '&lt;');
                 const img = c.profilePic
                     ? '<img src="' + c.profilePic + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">'
                     : '<div style="width:32px;height:32px;border-radius:50%;background:#e2e8f0;display:grid;place-items:center;color:#64748b;"><i class="fas fa-user"></i></div>';
@@ -6609,8 +7490,8 @@
         function selectAgendaContact(chatId) {
             window.__agendaSelectedChatId = chatId;
             const chat = (window.allChatsData && window.allChatsData[chatId]) || {};
-            const name = chat.name || chat.pushname || 'Contato selecionado';
-            const phone = chat.phoneNumber || (chatId ? String(chatId).split('@')[0] : '');
+            const name = getChatDisplayName(chat) || 'Contato selecionado';
+            const phone = formatPhoneDisplay(getChatPhone(chat)) || getChatPhone(chat) || '';
             const sel = document.getElementById('agendaContactPickerSelected');
             const list = document.getElementById('agendaContactPickerList');
             if (sel) {
@@ -6781,7 +7662,7 @@
                 ]
             };
             const demoFlows = [
-                { id: 'flow_boas_vindas', name: 'Boas-vindas automático', triggerType: 'first_message', triggerKeyword: '', steps: [{ type: 'text', content: 'Olá! Seja bem-vindo(a) ao atendimento ZAPMRO.' }, { type: 'delay', content: '3' }, { type: 'text', content: 'Como posso te ajudar hoje?' }] },
+                { id: 'flow_boas_vindas', name: 'Boas-vindas automático', triggerType: 'first_message', triggerKeyword: '', steps: [{ type: 'text', content: 'Olá! Seja bem-vindo(a) ao atendimento ZAPMRO.' }, { type: 'delay', content: '3', time: 3000, timeUnit: 'seconds' }, { type: 'text', content: 'Como posso te ajudar hoje?' }] },
                 { id: 'flow_orcamento', name: 'Qualificação de orçamento', triggerType: 'keyword', triggerKeyword: 'preço', steps: [{ type: 'text', content: 'Legal! Vou te fazer algumas perguntas rápidas para indicar o melhor plano.' }] }
             ];
             const demoGoogleContacts = [

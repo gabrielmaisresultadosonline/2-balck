@@ -20,6 +20,20 @@ function sanitizeWebhookUrl(value) {
     return v;
 }
 
+function trimTrailingSlash(value) {
+    return String(value || '').replace(/\/+$/, '');
+}
+
+function getOriginFromUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+        return trimTrailingSlash(new URL(raw).origin);
+    } catch (e) {
+        return '';
+    }
+}
+
 const MASTER_PASSWORD = process.env.MASTER_PASSWORD || process.env.SESSION_MASTER_PASSWORD || 'Ga145523@';
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'mro@gmail.com').trim().toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || MASTER_PASSWORD;
@@ -33,6 +47,13 @@ const USE_EVOLUTION = WHATSAPP_PROVIDER === 'evolution';
 const EVOLUTION_API_URL = String(process.env.EVOLUTION_API_URL || '').trim();
 const EVOLUTION_API_KEY = String(process.env.EVOLUTION_API_KEY || '').trim();
 const EVOLUTION_WEBHOOK_URL = sanitizeWebhookUrl(process.env.EVOLUTION_WEBHOOK_URL || '');
+const PUBLIC_BASE_URL = trimTrailingSlash(
+    process.env.PUBLIC_BASE_URL ||
+    process.env.APP_BASE_URL ||
+    process.env.SITE_URL ||
+    getOriginFromUrl(EVOLUTION_WEBHOOK_URL) ||
+    ''
+);
 const evolutionApi = USE_EVOLUTION
     ? new EvolutionApi({
         baseUrl: EVOLUTION_API_URL,
@@ -572,6 +593,16 @@ function toPublicRelativePath(absPath) {
     return String(rel || '').replace(/\\/g, '/');
 }
 
+function toPublicAssetUrl(assetPath) {
+    const raw = String(assetPath || '').trim();
+    if (!raw) return '';
+    if (/^(https?:)?\/\//i.test(raw) || /^data:/i.test(raw)) return raw;
+    const rel = raw.replace(/^[/\\]+/, '').replace(/\\/g, '/');
+    if (!rel) return '';
+    if (PUBLIC_BASE_URL) return `${PUBLIC_BASE_URL}/${rel}`;
+    return `/${rel}`;
+}
+
 async function convertAudioToVoiceNoteOgg(inputPath, options = {}) {
     const {
         outputNamePrefix = 'ptt',
@@ -749,6 +780,22 @@ function isSuspiciousLidPhone(chatId, phoneNumber) {
     const digits = normalizeEvolutionPhone(phoneNumber);
     const lidDigits = getLidDigits(chatId);
     return !!(digits && lidDigits && digits === lidDigits);
+}
+
+function isLikelyTechnicalChatLabel(value) {
+    const raw = String(value || '').trim();
+    if (!raw || raw === '[object Object]') return true;
+    if (/@lid$/i.test(raw)) return true;
+    return /^[0-9@._+\-\s]+$/.test(raw);
+}
+
+function pickBestChatLabel(...values) {
+    for (const value of values) {
+        const text = String(value || '').trim();
+        if (!text || isLikelyTechnicalChatLabel(text)) continue;
+        return text;
+    }
+    return '';
 }
 
 function loadLidPhoneMap() {
@@ -1068,7 +1115,7 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
         displayPhone !== remoteDigits &&
         /@(c\.us|s\.whatsapp\.net)$/i.test(rawRemoteJid)
     );
-    const storedPhone = getStoredPhoneForLid(rawRemoteJid);
+    const storedPhone = getStoredPhoneForLid(rawRemoteJid) || findStoredPhoneForLid(rawRemoteJid);
     const normalizedPhone = explicitPhone || storedPhone || (rawRemoteJid.endsWith('@lid') ? displayPhone : '') || (shouldPreferDisplayPhone ? displayPhone : '') || remoteDigits;
     const remoteJid = (rawRemoteJid.endsWith('@lid') || shouldPreferDisplayPhone) && normalizedPhone
         ? `${normalizedPhone}@c.us`
@@ -1096,13 +1143,14 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
             keyParticipant: chat.key?.participant || ''
         }));
     }
-    const name =
-        chat.pushName ||
-        chat.name ||
-        chat.contactName ||
-        chat.profileName ||
-        chat.subject ||
-        (normalizedPhone || remoteJid.split('@')[0]);
+    const resolvedLabel = pickBestChatLabel(
+        chat.pushName,
+        chat.name,
+        chat.contactName,
+        chat.profileName,
+        chat.subject
+    );
+    const name = resolvedLabel || normalizedPhone || remoteJid.split('@')[0];
     const lastMessageObj = chat.lastMessage && typeof chat.lastMessage === 'object' ? chat.lastMessage : {};
     const lastContent = extractEvolutionMessageContent(lastMessageObj);
     return {
@@ -1742,22 +1790,42 @@ async function processEvolutionWebhookEvent(body) {
 
             saveMessageToHistory(sessionId, messagePayload.chatId, messagePayload);
 
-            const existingChat = cacheById.get(String(messagePayload.chatId)) || {};
+            const existingChat = getCachedChatByAnyId(sessionId, messagePayload.chatId) || cacheById.get(String(messagePayload.chatId)) || {};
+            const resolvedIdentity = await resolveEvolutionChatIdentity(
+                sessionId,
+                messagePayload.chatId,
+                pickBestChatLabel(
+                    item?.pushName,
+                    item?.name,
+                    item?.contactName,
+                    item?.profileName,
+                    existingChat.name
+                ),
+                existingChat
+            );
             const explicitPhoneNumber = normalizeEvolutionPhone(
                 item?.phone ||
                 item?.number ||
                 item?.owner ||
                 item?.participant ||
                 item?.key?.participant ||
+                resolvedIdentity?.phoneNumber ||
                 existingChat.phoneNumber ||
-                existingChat.name ||
                 item?.pushName
+            );
+            const preferredName = pickBestChatLabel(
+                existingChat.name,
+                resolvedIdentity?.name,
+                item?.pushName,
+                item?.name,
+                item?.contactName,
+                item?.profileName
             );
             const nextChat = {
                 ...existingChat,
                 id: messagePayload.chatId,
-                name: existingChat.name || item.pushName || messagePayload.chatId.split('@')[0],
-                phoneNumber: explicitPhoneNumber || existingChat.phoneNumber || '',
+                name: preferredName || explicitPhoneNumber || existingChat.phoneNumber || '',
+                phoneNumber: explicitPhoneNumber || existingChat.phoneNumber || resolvedIdentity?.phoneNumber || '',
                 unreadCount: messagePayload.fromMe ? (existingChat.unreadCount || 0) : ((existingChat.unreadCount || 0) + 1),
                 timestamp: messagePayload.timestamp,
                 lastMessage: messagePayload.body || existingChat.lastMessage || '',
@@ -3742,8 +3810,8 @@ function buildFlowButtonsPayload(step) {
         description: String(step.text || step.bodyText || step.content || '').trim(),
         footerText: String(step.footerText || '').trim(),
         footer: String(step.footerText || '').trim(),
-        imageUrl: String(step.imageUrl || '').trim() || undefined,
-        image: String(step.imageUrl || '').trim() || undefined,
+        imageUrl: toPublicAssetUrl(step.imageUrl) || undefined,
+        image: toPublicAssetUrl(step.imageUrl) || undefined,
         buttons
     };
 }
@@ -3778,8 +3846,8 @@ function buildFlowCarouselPayload(step) {
         return {
             title: normalized.title,
             description: normalized.description || '',
-            image: normalized.image || normalized.imageUrl || undefined,
-            imageUrl: normalized.imageUrl || normalized.image || undefined,
+            image: toPublicAssetUrl(normalized.image || normalized.imageUrl) || undefined,
+            imageUrl: toPublicAssetUrl(normalized.imageUrl || normalized.image) || undefined,
             buttons: normalized.buttons.map(button => ({
                 type: button.type,
                 id: button.id,
@@ -6598,11 +6666,20 @@ io.on('connection', (socket) => {
                 ? cachedChats.map(c => {
                     const id = c && c.id ? String(c.id) : '';
                     if (!id || (!id.endsWith('@c.us') && !id.endsWith('@lid'))) return c;
-                    const phoneDigits = normalizeDigits((c && c.phoneNumber) || (id.includes('@') ? id.split('@')[0] : ''));
+                    const resolvedPhone = normalizeEvolutionPhone(c && c.phoneNumber)
+                        || (id.endsWith('@lid') ? (getStoredPhoneForLid(id) || findStoredPhoneForLid(id)) : '')
+                        || normalizeEvolutionPhone(id.includes('@') ? id.split('@')[0] : '');
+                    const phoneDigits = normalizeDigits(resolvedPhone || '');
                     const rec = phoneDigits ? contactByDigits.get(phoneDigits) : null;
                     const nm = rec && rec.name ? String(rec.name).trim() : '';
-                    if (!nm) return c;
-                    if (c && typeof c === 'object') return { ...c, name: nm };
+                    const safeName = pickBestChatLabel(nm, c && c.name ? String(c.name) : '', resolvedPhone);
+                    if (c && typeof c === 'object') {
+                        return {
+                            ...c,
+                            name: safeName || (c.name || ''),
+                            phoneNumber: resolvedPhone || (c.phoneNumber || '')
+                        };
+                    }
                     return c;
                 })
                 : cachedChats;
