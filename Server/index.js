@@ -8,12 +8,28 @@ const fs = require('fs');
 const crypto = require('crypto');
 const axios = require('axios');
 const proxyManager = require('./proxyManager');
+const { EvolutionApi, toDigits: evolutionDigits, toRemoteJid: evolutionRemoteJid } = require('./evolutionApi');
 require('dotenv').config();
 
 const MASTER_PASSWORD = process.env.MASTER_PASSWORD || process.env.SESSION_MASTER_PASSWORD || 'Ga145523@';
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'mro@gmail.com').trim().toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || MASTER_PASSWORD;
 const TEST_PROMO_CODE = (process.env.TEST_PROMO_CODE || 'xxg2').trim();
+const WHATSAPP_PROVIDER = String(
+    process.env.WHATSAPP_PROVIDER ||
+    ((process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) ? 'evolution' : 'wwebjs')
+).trim().toLowerCase();
+const USE_EVOLUTION = WHATSAPP_PROVIDER === 'evolution';
+const EVOLUTION_API_URL = String(process.env.EVOLUTION_API_URL || '').trim();
+const EVOLUTION_API_KEY = String(process.env.EVOLUTION_API_KEY || '').trim();
+const EVOLUTION_WEBHOOK_URL = String(process.env.EVOLUTION_WEBHOOK_URL || '').trim();
+const evolutionApi = USE_EVOLUTION
+    ? new EvolutionApi({
+        baseUrl: EVOLUTION_API_URL,
+        apiKey: EVOLUTION_API_KEY,
+        integration: String(process.env.EVOLUTION_INTEGRATION || 'WHATSAPP-BAILEYS').trim() || 'WHATSAPP-BAILEYS'
+    })
+    : null;
 
 function shouldIgnoreFatalError(err) {
     const msg = err && (err.stack || err.message || String(err));
@@ -489,6 +505,719 @@ function saveMessageToHistory(sessionId, chatId, messageData) {
     }
 }
 
+function getEvolutionWebhookUrl() {
+    return EVOLUTION_WEBHOOK_URL;
+}
+
+function buildEvolutionWebhookConfig() {
+    const url = getEvolutionWebhookUrl();
+    if (!url) return null;
+    return {
+        enabled: true,
+        url,
+        byEvents: false,
+        base64: true,
+        events: [
+            'QRCODE_UPDATED',
+            'CONNECTION_UPDATE',
+            'MESSAGES_UPSERT',
+            'MESSAGES_UPDATE',
+            'SEND_MESSAGE',
+            'SEND_MESSAGE_UPDATE'
+        ]
+    };
+}
+
+function evolutionInstanceName(sessionId) {
+    return String(sessionId || '').trim();
+}
+
+function normalizeEvolutionChatId(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (raw.endsWith('@g.us') || raw.endsWith('@lid') || raw.endsWith('@newsletter')) return raw;
+    if (raw.endsWith('@s.whatsapp.net')) return `${raw.slice(0, raw.indexOf('@'))}@c.us`;
+    if (raw.endsWith('@c.us')) return raw;
+    const digits = normalizeEvolutionPhone(raw);
+    return digits ? `${digits}@c.us` : raw;
+}
+
+function normalizeEvolutionPhone(value) {
+    return evolutionDigits(value || '');
+}
+
+function toEvolutionApiTarget(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (raw.endsWith('@g.us') || raw.endsWith('@lid') || raw.endsWith('@newsletter')) return raw;
+    return evolutionRemoteJid(raw);
+}
+
+function normalizeEvolutionEventName(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+}
+
+function extractEvolutionSessionId(payload) {
+    const direct = [
+        payload?.instance,
+        payload?.session,
+        payload?.instanceName,
+        payload?.sender,
+        payload?.data?.instance,
+        payload?.data?.session,
+        payload?.data?.instanceName,
+        payload?.data?.instance?.instanceName,
+        payload?.data?.instance?.name
+    ];
+    for (const item of direct) {
+        if (typeof item === 'string' && item.trim()) return item.trim();
+        if (item && typeof item === 'object') {
+            const nested = item.instanceName || item.name;
+            if (typeof nested === 'string' && nested.trim()) return nested.trim();
+        }
+    }
+    return '';
+}
+
+function normalizeEvolutionAck(value) {
+    const raw = String(value || '').trim().toUpperCase();
+    if (!raw) return 0;
+    if (raw === 'PENDING') return 0;
+    if (raw === 'SERVER_ACK') return 1;
+    if (raw === 'DELIVERY_ACK') return 2;
+    if (raw === 'READ') return 3;
+    if (raw === 'PLAYED') return 4;
+    if (raw === 'DELETED') return 5;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : 0;
+}
+
+function normalizeEvolutionTimestamp(value) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n <= 0) return Math.floor(Date.now() / 1000);
+    return n > 10_000_000_000 ? Math.floor(n / 1000) : Math.floor(n);
+}
+
+function extractEvolutionMessageContent(rawMessage) {
+    const wrapper = rawMessage && typeof rawMessage === 'object' ? rawMessage : {};
+    const message = wrapper.message && typeof wrapper.message === 'object' ? wrapper.message : wrapper;
+
+    if (typeof message.conversation === 'string') {
+        return { type: 'chat', body: message.conversation, hasMedia: false, media: null };
+    }
+    if (message.extendedTextMessage && typeof message.extendedTextMessage.text === 'string') {
+        return { type: 'chat', body: message.extendedTextMessage.text, hasMedia: false, media: null };
+    }
+    if (message.imageMessage) {
+        const media = message.imageMessage;
+        return {
+            type: 'image',
+            body: media.caption || '',
+            hasMedia: true,
+            media: {
+                mimetype: media.mimetype || 'image/jpeg',
+                data: media.base64 || media.jpegThumbnail || null,
+                filename: media.fileName || 'image'
+            }
+        };
+    }
+    if (message.videoMessage) {
+        const media = message.videoMessage;
+        return {
+            type: 'video',
+            body: media.caption || '',
+            hasMedia: true,
+            media: {
+                mimetype: media.mimetype || 'video/mp4',
+                data: media.base64 || media.jpegThumbnail || null,
+                filename: media.fileName || 'video'
+            }
+        };
+    }
+    if (message.audioMessage) {
+        const media = message.audioMessage;
+        return {
+            type: media.ptt ? 'ptt' : 'audio',
+            body: '',
+            hasMedia: true,
+            media: {
+                mimetype: media.mimetype || 'audio/ogg',
+                data: media.base64 || null,
+                filename: media.fileName || 'audio'
+            }
+        };
+    }
+    if (message.documentMessage) {
+        const media = message.documentMessage;
+        return {
+            type: 'document',
+            body: media.caption || media.fileName || '',
+            hasMedia: true,
+            media: {
+                mimetype: media.mimetype || 'application/octet-stream',
+                data: media.base64 || null,
+                filename: media.fileName || 'document'
+            }
+        };
+    }
+    if (message.stickerMessage) {
+        return {
+            type: 'sticker',
+            body: '',
+            hasMedia: true,
+            media: {
+                mimetype: 'image/webp',
+                data: message.stickerMessage.base64 || null,
+                filename: 'sticker.webp'
+            }
+        };
+    }
+    return { type: 'chat', body: '', hasMedia: false, media: null };
+}
+
+function normalizeEvolutionInboundMessage(sessionId, rawMessage) {
+    const msg = rawMessage && typeof rawMessage === 'object' ? rawMessage : {};
+    const key = msg.key && typeof msg.key === 'object' ? msg.key : {};
+    const chatId = normalizeEvolutionChatId(
+        key.remoteJid ||
+        msg.remoteJid ||
+        msg.chatId ||
+        msg.from
+    );
+    const content = extractEvolutionMessageContent(msg);
+    const fromMe = !!(key.fromMe || msg.fromMe);
+    const id = key.id || msg.id || crypto.randomBytes(8).toString('hex');
+    const from = fromMe ? (msg.sender || chatId) : (msg.sender || chatId);
+    const to = fromMe ? chatId : (msg.owner || '');
+    return {
+        id,
+        body: content.body || '',
+        from,
+        to,
+        chatId,
+        timestamp: normalizeEvolutionTimestamp(msg.messageTimestamp || msg.timestamp || msg.date_time),
+        fromMe,
+        type: content.type,
+        hasMedia: !!content.hasMedia,
+        ack: normalizeEvolutionAck(msg.status || msg.messageStatus),
+        media: content.media,
+        _evoRaw: msg
+    };
+}
+
+function getEvolutionMessageId(message) {
+    if (!message) return '';
+    const key = message.key && typeof message.key === 'object' ? message.key : {};
+    return String(key.id || message.id || '');
+}
+
+function getEvolutionMessageChatId(message) {
+    if (!message) return '';
+    const key = message.key && typeof message.key === 'object' ? message.key : {};
+    return normalizeEvolutionChatId(key.remoteJid || message.remoteJid || message.chatId || '');
+}
+
+function extractEvolutionRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+    if (Array.isArray(payload.chats)) return payload.chats;
+    if (Array.isArray(payload.messages)) return payload.messages;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.records)) return payload.records;
+    return [];
+}
+
+function normalizeEvolutionChatRecord(sessionId, rawChat) {
+    const chat = rawChat && typeof rawChat === 'object' ? rawChat : {};
+    const remoteJid = normalizeEvolutionChatId(
+        chat.remoteJid ||
+        chat.id ||
+        chat.key?.remoteJid ||
+        chat.chatId ||
+        chat.jid
+    );
+    const name =
+        chat.pushName ||
+        chat.name ||
+        chat.contactName ||
+        chat.profileName ||
+        chat.subject ||
+        remoteJid.split('@')[0];
+    const lastMessageObj = chat.lastMessage && typeof chat.lastMessage === 'object' ? chat.lastMessage : {};
+    const lastContent = extractEvolutionMessageContent(lastMessageObj);
+    return {
+        id: remoteJid,
+        name,
+        phoneNumber: normalizeEvolutionPhone(chat.phone || chat.number || remoteJid),
+        unreadCount: Number(chat.unreadCount || chat.unread || 0) || 0,
+        timestamp: normalizeEvolutionTimestamp(chat.updatedAt || chat.messageTimestamp || lastMessageObj.messageTimestamp || chat.timestamp),
+        lastMessage: lastContent.body || chat.lastMessageText || chat.lastMessage || '',
+        profilePic: chat.profilePictureUrl || chat.profilePicUrl || null
+    };
+}
+
+function buildEvolutionContactFromCache(sessionId, chatId) {
+    const cache = loadChatCache(sessionId);
+    const list = Array.isArray(cache) ? cache : [];
+    const found = list.find(item => item && String(item.id) === String(chatId)) || null;
+    const phoneDigits = normalizeEvolutionPhone(found && (found.phoneNumber || found.id) ? (found.phoneNumber || found.id) : chatId);
+    return {
+        id: { _serialized: String(chatId) },
+        name: found && found.name ? String(found.name) : '',
+        pushname: found && found.name ? String(found.name) : '',
+        number: phoneDigits || '',
+        async getProfilePicUrl() {
+            if (found && found.profilePic) return found.profilePic;
+            if (!USE_EVOLUTION || !evolutionApi) return null;
+            try {
+                const res = await evolutionApi.fetchProfilePictureUrl(evolutionInstanceName(sessionId), toEvolutionApiTarget(chatId));
+                return res && (res.profilePictureUrl || res.url || res.picture || null);
+            } catch (e) {
+                return null;
+            }
+        },
+        async getAbout() {
+            if (!USE_EVOLUTION || !evolutionApi) return '';
+            try {
+                const res = await evolutionApi.fetchProfile(evolutionInstanceName(sessionId), toEvolutionApiTarget(chatId));
+                return res && (res.about || res.description || '') ? String(res.about || res.description || '') : '';
+            } catch (e) {
+                return '';
+            }
+        }
+    };
+}
+
+function createEvolutionMessageObject(sessionId, chatId, raw) {
+    const payload = normalizeEvolutionInboundMessage(sessionId, raw);
+    return {
+        id: { _serialized: payload.id, remote: payload.chatId },
+        body: payload.body,
+        from: payload.from,
+        to: payload.to,
+        timestamp: payload.timestamp,
+        fromMe: payload.fromMe,
+        type: payload.type,
+        hasMedia: payload.hasMedia,
+        ack: payload.ack,
+        _raw: raw,
+        async getChat() {
+            const sessionData = activeClients.get(sessionId);
+            if (!sessionData || !sessionData.client) throw new Error('session_not_ready');
+            return sessionData.client.getChatById(chatId || payload.chatId);
+        },
+        async downloadMedia() {
+            if (payload.media && payload.media.data) return payload.media;
+            if (!USE_EVOLUTION || !evolutionApi || !payload._evoRaw) return null;
+            try {
+                const res = await evolutionApi.getBase64FromMediaMessage(evolutionInstanceName(sessionId), payload._evoRaw);
+                if (!res) return null;
+                return {
+                    mimetype: res.mimetype || payload.media?.mimetype || 'application/octet-stream',
+                    data: res.base64 || res.data || null,
+                    filename: res.fileName || payload.media?.filename || 'media'
+                };
+            } catch (e) {
+                return null;
+            }
+        },
+        async react() {
+            return true;
+        }
+    };
+}
+
+function createEvolutionChatWrapper(sessionId, chatId) {
+    const normalizedChatId = normalizeEvolutionChatId(chatId);
+    return {
+        id: { _serialized: normalizedChatId },
+        name: '',
+        unreadCount: 0,
+        timestamp: Math.floor(Date.now() / 1000),
+        lastMessage: { body: '' },
+        async fetchMessages({ limit = 100 } = {}) {
+            const local = loadMessageHistory(sessionId, normalizedChatId);
+            if (local && local.length > 0) {
+                return local.slice(-limit).map(msg => createEvolutionMessageObject(sessionId, normalizedChatId, msg._evoRaw || {
+                    key: { id: msg.id, remoteJid: normalizedChatId, fromMe: !!msg.fromMe },
+                    messageTimestamp: msg.timestamp,
+                    message: msg.hasMedia && msg.media ? { [`${msg.type === 'ptt' ? 'audio' : msg.type}Message`]: { ...msg.media, caption: msg.body || '' } } : { conversation: msg.body || '' }
+                }));
+            }
+            if (!USE_EVOLUTION || !evolutionApi) return [];
+            try {
+                const res = await evolutionApi.findMessages(evolutionInstanceName(sessionId), {
+                    where: {
+                        key: {
+                            remoteJid: {
+                                in: [
+                                    normalizedChatId,
+                                    toEvolutionApiTarget(normalizedChatId)
+                                ]
+                            }
+                        }
+                    },
+                    limit,
+                    offset: 0,
+                    page: 1
+                });
+                const rows = extractEvolutionRows(res);
+                return rows.slice(-limit).map(item => createEvolutionMessageObject(sessionId, normalizedChatId, item));
+            } catch (e) {
+                return [];
+            }
+        },
+        async getContact() {
+            return buildEvolutionContactFromCache(sessionId, normalizedChatId);
+        },
+        async getProfilePicUrl() {
+            const contact = buildEvolutionContactFromCache(sessionId, normalizedChatId);
+            return contact.getProfilePicUrl();
+        },
+        async sendStateTyping() {
+            if (USE_EVOLUTION && evolutionApi) {
+                try { await evolutionApi.setPresence(evolutionInstanceName(sessionId), toEvolutionApiTarget(normalizedChatId), 'composing', 1000); } catch (e) {}
+            }
+        },
+        async sendStateRecording() {
+            if (USE_EVOLUTION && evolutionApi) {
+                try { await evolutionApi.setPresence(evolutionInstanceName(sessionId), toEvolutionApiTarget(normalizedChatId), 'recording', 1000); } catch (e) {}
+            }
+        },
+        async clearState() {
+            if (USE_EVOLUTION && evolutionApi) {
+                try { await evolutionApi.setPresence(evolutionInstanceName(sessionId), toEvolutionApiTarget(normalizedChatId), 'paused', 500); } catch (e) {}
+            }
+        },
+        async delete() {
+            if (USE_EVOLUTION && evolutionApi) {
+                try { await evolutionApi.archiveChat(evolutionInstanceName(sessionId), toEvolutionApiTarget(normalizedChatId), true); } catch (e) {}
+            }
+        },
+        async clearMessages() {
+            return true;
+        },
+        async archive() {
+            if (USE_EVOLUTION && evolutionApi) {
+                try { await evolutionApi.archiveChat(evolutionInstanceName(sessionId), toEvolutionApiTarget(normalizedChatId), true); } catch (e) {}
+            }
+        },
+        async sendMessage(text) {
+            const sessionData = activeClients.get(sessionId);
+            if (!sessionData || !sessionData.client) throw new Error('session_not_ready');
+            return sessionData.client.sendMessage(normalizedChatId, text);
+        }
+    };
+}
+
+function createSyntheticEvolutionSentMessage(sessionId, targetId, body, responseData, meta = {}) {
+    const sessionData = activeClients.get(sessionId);
+    const fromNumber = sessionData && sessionData.phoneNumber ? normalizeEvolutionPhone(sessionData.phoneNumber) : '';
+    const chatId = normalizeEvolutionChatId(targetId);
+    const key = responseData && typeof responseData === 'object' ? (responseData.key || responseData.messageKey || {}) : {};
+    const id = key.id || responseData?.id || crypto.randomBytes(8).toString('hex');
+    return {
+        id: {
+            _serialized: String(id),
+            remote: chatId
+        },
+        body: String(body || ''),
+        from: fromNumber ? `${fromNumber}@s.whatsapp.net` : '',
+        to: chatId,
+        timestamp: Math.floor(Date.now() / 1000),
+        fromMe: true,
+        type: meta.type || 'chat',
+        hasMedia: !!meta.hasMedia,
+        ack: 0,
+        async getChat() {
+            const current = activeClients.get(sessionId);
+            if (!current || !current.client) throw new Error('session_not_ready');
+            return current.client.getChatById(chatId);
+        }
+    };
+}
+
+function createEvolutionClientWrapper(sessionId) {
+    return {
+        __provider: 'evolution',
+        info: {
+            wid: { user: '' },
+            pushname: ''
+        },
+        async getChats() {
+            if (!evolutionApi) return [];
+            const result = await evolutionApi.findChats(evolutionInstanceName(sessionId), {});
+            const rows = extractEvolutionRows(result);
+            return rows.map(item => {
+                const normalized = normalizeEvolutionChatRecord(sessionId, item);
+                const chat = createEvolutionChatWrapper(sessionId, normalized.id);
+                chat.name = normalized.name;
+                chat.unreadCount = normalized.unreadCount;
+                chat.timestamp = normalized.timestamp;
+                chat.lastMessage = { body: normalized.lastMessage || '' };
+                return chat;
+            });
+        },
+        async getChatById(chatId) {
+            return createEvolutionChatWrapper(sessionId, chatId);
+        },
+        async getContactById(chatId) {
+            return buildEvolutionContactFromCache(sessionId, normalizeEvolutionChatId(chatId));
+        },
+        async getProfilePicUrl(chatId) {
+            const contact = buildEvolutionContactFromCache(sessionId, normalizeEvolutionChatId(chatId));
+            return contact.getProfilePicUrl();
+        },
+        async getNumberId(number) {
+            if (!evolutionApi) return null;
+            const digits = normalizeEvolutionPhone(number);
+            const result = await evolutionApi.checkNumbers(evolutionInstanceName(sessionId), [digits]);
+            const rows = Array.isArray(result) ? result : (Array.isArray(result?.numbers) ? result.numbers : []);
+            const found = rows.find(item => item && (item.exists === true || item.jid || item.wid));
+            if (!found) return null;
+            return { _serialized: normalizeEvolutionChatId(found.jid || found.wid || `${digits}@s.whatsapp.net`) };
+        },
+        async isRegisteredUser(numberId) {
+            if (!evolutionApi) return false;
+            const digits = normalizeEvolutionPhone(numberId);
+            const result = await evolutionApi.checkNumbers(evolutionInstanceName(sessionId), [digits]);
+            const rows = Array.isArray(result) ? result : (Array.isArray(result?.numbers) ? result.numbers : []);
+            const found = rows.find(item => normalizeEvolutionPhone(item?.number || item?.jid || item?.wid) === digits);
+            return !!(found && found.exists !== false);
+        },
+        async sendMessage(chatId, content, options = {}) {
+            if (!evolutionApi) throw new Error('evolution_not_configured');
+            const targetId = normalizeEvolutionChatId(chatId);
+            const apiTarget = toEvolutionApiTarget(targetId);
+            if (typeof content === 'string') {
+                const result = await evolutionApi.sendText(evolutionInstanceName(sessionId), apiTarget, content, {
+                    delay: options.delay,
+                    linkPreview: options.linkPreview
+                });
+                return createSyntheticEvolutionSentMessage(sessionId, targetId, content, result, { type: 'chat' });
+            }
+
+            const payload = content && typeof content === 'object' ? content : {};
+            const mime = String(payload.mimetype || '').toLowerCase();
+            const body = options.caption || '';
+            if ((options && options.sendAudioAsVoice) || mime.startsWith('audio/')) {
+                const result = await evolutionApi.sendWhatsAppAudio(
+                    evolutionInstanceName(sessionId),
+                    apiTarget,
+                    payload.data,
+                    { delay: options.delay }
+                );
+                return createSyntheticEvolutionSentMessage(sessionId, targetId, body || '🎤 Áudio', result, { type: 'audio', hasMedia: true });
+            }
+
+            let mediatype = 'document';
+            if (mime.startsWith('image/')) mediatype = 'image';
+            else if (mime.startsWith('video/')) mediatype = 'video';
+            else if (mime.startsWith('audio/')) mediatype = 'audio';
+
+            const result = await evolutionApi.sendMedia(
+                evolutionInstanceName(sessionId),
+                apiTarget,
+                {
+                    mediatype,
+                    mimetype: payload.mimetype || undefined,
+                    caption: body || undefined,
+                    fileName: payload.filename || undefined,
+                    media: payload.data
+                },
+                { delay: options.delay }
+            );
+            return createSyntheticEvolutionSentMessage(sessionId, targetId, body || '📎 Mídia', result, { type: mediatype, hasMedia: true });
+        },
+        async destroy() {
+            if (!evolutionApi) return;
+            try {
+                await evolutionApi.logoutInstance(evolutionInstanceName(sessionId));
+            } catch (e) {}
+        }
+    };
+}
+
+function maybeEmitEvolutionQrToSocket(sessionId, socketId) {
+    const sessionData = activeClients.get(sessionId);
+    if (!sessionData || !sessionData.latestQr || !socketId) return;
+    io.to(socketId).emit('qr-generated', {
+        sessionId,
+        qr: sessionData.latestQr
+    });
+}
+
+async function syncEvolutionSessionState(sessionId, payload = null, options = {}) {
+    const sessionData = activeClients.get(sessionId);
+    if (!sessionData) return;
+    const normalized = payload ? evolutionApi.normalizeInstanceState(payload) : { state: 'close', number: null, profileName: null, profilePictureUrl: null };
+    const previousStatus = sessionData.status;
+    const mappedStatus =
+        normalized.state === 'open' ? 'connected'
+            : normalized.state === 'connecting' ? 'authenticated'
+            : normalized.state === 'close' ? 'reconnecting'
+            : normalized.state === 'refused' ? 'auth_failed'
+            : normalized.state;
+    sessionData.status = mappedStatus;
+    sessionData.ready = mappedStatus === 'connected';
+    if (normalized.number) {
+        sessionData.phoneNumber = normalizeEvolutionPhone(normalized.number);
+        sessionData.client.info.wid.user = sessionData.phoneNumber || '';
+    }
+    if (normalized.profileName) {
+        sessionData.name = String(normalized.profileName);
+        sessionData.client.info.pushname = sessionData.name;
+    }
+
+    if (mappedStatus === 'connected') {
+        clearReconnect(sessionId);
+        stopReadyProbe(sessionId);
+        const sessions = loadSessionsData();
+        sessions[sessionId] = {
+            phoneNumber: sessionData.phoneNumber,
+            name: sessionData.name,
+            createdAt: (sessions[sessionId] && sessions[sessionId].createdAt) || Date.now()
+        };
+        saveSessionsData(sessions);
+        const user = getUserBySessionId(sessionId);
+        if (user) {
+            upsertUser({
+                ...user,
+                connectedAt: Date.now(),
+                whatsappNumber: sessionData.phoneNumber || user.whatsappNumber || null,
+                whatsappName: sessionData.name || user.whatsappName || null
+            });
+        }
+        if (sessionData.socketId) {
+            io.to(sessionData.socketId).emit('client-ready', {
+                sessionId,
+                phoneNumber: sessionData.phoneNumber,
+                name: sessionData.name
+            });
+        }
+        io.to('admin').emit('client-ready', {
+            sessionId,
+            phoneNumber: sessionData.phoneNumber,
+            name: sessionData.name
+        });
+    }
+
+    if (sessionData.socketId) {
+        io.to(sessionData.socketId).emit('session-status', { sessionId, status: mappedStatus });
+    }
+    io.to('admin').emit('session-status', { sessionId, status: mappedStatus });
+
+    if (!options.silent && previousStatus !== mappedStatus) {
+        io.to(`session:${sessionId}`).emit('sessions-list-update');
+        io.to('admin').emit('sessions-list-update');
+    }
+}
+
+async function processEvolutionWebhookEvent(body) {
+    if (!USE_EVOLUTION || !evolutionApi) return;
+    const payload = body && typeof body === 'object' ? body : {};
+    const event = normalizeEvolutionEventName(payload.event || payload.type || payload.eventName || '');
+    const sessionId = extractEvolutionSessionId(payload);
+    if (!event || !sessionId) return;
+    const sessionData = activeClients.get(sessionId);
+    if (!sessionData) return;
+
+    if (event === 'qrcode_updated') {
+        const qr = evolutionApi.normalizeQr(payload.data || payload);
+        if (qr.base64) {
+            sessionData.latestQr = qr.base64.startsWith('data:') ? qr.base64 : `data:image/png;base64,${qr.base64}`;
+            const user = getUserBySessionId(sessionId);
+            if (user) upsertUser({ ...user, lastQrAt: Date.now() });
+            if (sessionData.socketId) {
+                io.to(sessionData.socketId).emit('qr-generated', { sessionId, qr: sessionData.latestQr });
+            }
+            io.to('admin').emit('qr-generated', { sessionId });
+        }
+        return;
+    }
+
+    if (event === 'connection_update') {
+        await syncEvolutionSessionState(sessionId, payload.data || payload);
+        return;
+    }
+
+    if (event === 'messages_update' || event === 'send_message_update') {
+        const rows = extractEvolutionRows(payload.data || payload);
+        rows.forEach(item => {
+            const id = getEvolutionMessageId(item);
+            const chatId = getEvolutionMessageChatId(item);
+            const ack = normalizeEvolutionAck(item?.status || item?.update?.status || item?.messageStatus);
+            if (!id || !chatId) return;
+            try {
+                const file = getHistoryFilePath(sessionId, chatId);
+                if (fs.existsSync(file)) {
+                    const raw = fs.readFileSync(file, 'utf8');
+                    const history = JSON.parse(raw);
+                    if (Array.isArray(history)) {
+                        const idx = history.findIndex(m => String(m.id) === String(id));
+                        if (idx >= 0) {
+                            history[idx].ack = ack;
+                            fs.writeFileSync(file, JSON.stringify(history, null, 2));
+                        }
+                    }
+                }
+            } catch (e) {}
+            if (sessionData.socketId) {
+                io.to(sessionData.socketId).emit('message-ack', { sessionId, msgId: id, chatId, ack });
+            }
+        });
+        return;
+    }
+
+    if (event === 'messages_upsert' || event === 'send_message') {
+        const rows = extractEvolutionRows(payload.data || payload);
+        const cache = loadChatCache(sessionId);
+        const cacheById = new Map(Array.isArray(cache) ? cache.map(item => [String(item.id), item]) : []);
+
+        for (const item of rows) {
+            const messagePayload = normalizeEvolutionInboundMessage(sessionId, item);
+            if (!messagePayload.chatId || !messagePayload.id) continue;
+
+            saveMessageToHistory(sessionId, messagePayload.chatId, messagePayload);
+
+            const existingChat = cacheById.get(String(messagePayload.chatId)) || {};
+            const nextChat = {
+                ...existingChat,
+                id: messagePayload.chatId,
+                name: existingChat.name || item.pushName || messagePayload.chatId.split('@')[0],
+                phoneNumber: normalizeEvolutionPhone(messagePayload.chatId),
+                unreadCount: messagePayload.fromMe ? (existingChat.unreadCount || 0) : ((existingChat.unreadCount || 0) + 1),
+                timestamp: messagePayload.timestamp,
+                lastMessage: messagePayload.body || existingChat.lastMessage || '',
+                profilePic: existingChat.profilePic || null
+            };
+            cacheById.set(String(nextChat.id), nextChat);
+
+            if (!messagePayload.fromMe && sessionData.socketId) {
+                io.to(sessionData.socketId).emit('new-message', {
+                    sessionId,
+                    message: messagePayload,
+                    chat: {
+                        id: nextChat.id,
+                        name: nextChat.name,
+                        unreadCount: nextChat.unreadCount,
+                        timestamp: nextChat.timestamp,
+                        lastMessage: nextChat.lastMessage,
+                        profilePic: nextChat.profilePic
+                    }
+                });
+            }
+        }
+
+        saveChatCache(sessionId, Array.from(cacheById.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)));
+        io.to(`session:${sessionId}`).emit('sessions-list-update');
+        return;
+    }
+}
+
 async function handleSentMessage(sessionId, sentMsg, client) {
     try {
         const messagePayload = {
@@ -555,6 +1284,41 @@ function saveWinbackStats(data) { saveData(WINBACK_STATS_FILE, data); }
 
 function normalizeEmail(email) {
     return String(email || '').trim().toLowerCase();
+}
+
+function hashPassword(password) {
+    const p = String(password || '');
+    const salt = crypto.randomBytes(16);
+    const iterations = 120000;
+    const keylen = 32;
+    const digest = 'sha256';
+    const derived = crypto.pbkdf2Sync(p, salt, iterations, keylen, digest);
+    return `pbkdf2$${iterations}$${salt.toString('base64')}$${derived.toString('base64')}`;
+}
+
+function verifyPassword(password, encoded) {
+    const p = String(password || '');
+    const raw = String(encoded || '');
+    const parts = raw.split('$');
+    if (parts.length !== 4) return false;
+    const algo = parts[0];
+    const iterations = Number(parts[1]);
+    const saltB64 = parts[2];
+    const hashB64 = parts[3];
+    if (algo !== 'pbkdf2') return false;
+    if (!Number.isFinite(iterations) || iterations <= 0) return false;
+    let salt;
+    let expected;
+    try {
+        salt = Buffer.from(saltB64, 'base64');
+        expected = Buffer.from(hashB64, 'base64');
+    } catch (e) {
+        return false;
+    }
+    if (!salt.length || !expected.length) return false;
+    const derived = crypto.pbkdf2Sync(p, salt, iterations, expected.length, 'sha256');
+    if (derived.length !== expected.length) return false;
+    return crypto.timingSafeEqual(derived, expected);
 }
 
 function generateId(prefix) {
@@ -1475,30 +2239,38 @@ setInterval(async () => {
 }, ARCHIVE_INTERVAL);
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 app.use(express.static(PUBLIC_DIR));
 
 // --- API ENDPOINTS ---
+app.post('/api/evolution/webhook', async (req, res) => {
+    try {
+        await processEvolutionWebhookEvent(req.body || {});
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Evolution webhook error:', e);
+        res.status(500).json({ success: false });
+    }
+});
+
 app.post('/api/auth/register', (req, res) => {
     try {
         const name = String(req.body && req.body.name ? req.body.name : '').trim();
         const email = normalizeEmail(req.body && req.body.email ? req.body.email : '');
-        const promoCode = String(req.body && req.body.promoCode ? req.body.promoCode : '').trim();
+        const password = String(req.body && req.body.password ? req.body.password : '');
 
-        if (!name || !email || !promoCode) {
-            res.status(400).json({ success: false, error: 'name, email e promoCode são obrigatórios' });
+        if (!name || !email || !password) {
+            res.status(400).json({ success: false, error: 'name, email e password são obrigatórios' });
             return;
         }
-        if (promoCode !== TEST_PROMO_CODE) {
-            res.status(400).json({ success: false, error: 'código promocional inválido' });
+        if (String(password).length < 6) {
+            res.status(400).json({ success: false, error: 'senha muito curta (mínimo 6 caracteres)' });
             return;
         }
 
         const existing = getUserByEmail(email);
         if (existing) {
-            const updated = upsertUser({ ...existing, name: existing.name || name, promoCode, updatedAt: Date.now() });
-            const token = createAuthToken({ userId: updated.id, isAdmin: false });
-            res.json({ success: true, token, user: { name: updated.name, email: updated.email, sessionId: updated.sessionId || null } });
+            res.status(409).json({ success: false, error: 'email já cadastrado' });
             return;
         }
 
@@ -1506,7 +2278,7 @@ app.post('/api/auth/register', (req, res) => {
             id: generateId('user'),
             name,
             email,
-            promoCode,
+            passwordHash: hashPassword(password),
             sessionId: null,
             createdAt: Date.now(),
             connectedAt: null,
@@ -1524,15 +2296,25 @@ app.post('/api/auth/register', (req, res) => {
 app.post('/api/auth/login', (req, res) => {
     try {
         const email = normalizeEmail(req.body && req.body.email ? req.body.email : '');
-        const promoCode = String(req.body && req.body.promoCode ? req.body.promoCode : '').trim();
-        if (!email || !promoCode) {
-            res.status(400).json({ success: false, error: 'email e promoCode são obrigatórios' });
+        const password = String(req.body && req.body.password ? req.body.password : '');
+        if (!email || !password) {
+            res.status(400).json({ success: false, error: 'email e password são obrigatórios' });
             return;
         }
         const user = getUserByEmail(email);
-        if (!user || String(user.promoCode || '').trim() !== promoCode) {
+        if (!user) {
             res.status(401).json({ success: false, error: 'credenciais inválidas' });
             return;
+        }
+        const hasHash = typeof user.passwordHash === 'string' && user.passwordHash.trim().length > 0;
+        const legacyOk = !hasHash && String(user.promoCode || '').trim() && String(user.promoCode || '').trim() === String(password || '').trim();
+        const ok = hasHash ? verifyPassword(password, user.passwordHash) : legacyOk;
+        if (!ok) {
+            res.status(401).json({ success: false, error: 'credenciais inválidas' });
+            return;
+        }
+        if (!hasHash) {
+            upsertUser({ ...user, passwordHash: hashPassword(password), updatedAt: Date.now() });
         }
         const token = createAuthToken({ userId: user.id, isAdmin: false });
         res.json({ success: true, token, user: { name: user.name, email: user.email, sessionId: user.sessionId || null } });
@@ -1576,7 +2358,6 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
                 id: u.id,
                 name: u.name,
                 email: u.email,
-                promoCode: u.promoCode,
                 sessionId: sid,
                 status,
                 proxy: proxy || '—',
@@ -2289,6 +3070,79 @@ function generateSessionId() {
 // Função para inicializar cliente
 async function initializeClient(sessionId, savedSession = null, retryCount = 0) {
     console.log(`Inicializando sessão: ${sessionId} (Tentativa ${retryCount})`);
+
+    if (USE_EVOLUTION) {
+        if (!evolutionApi || !evolutionApi.isConfigured()) {
+            console.error('Evolution API não configurada. Defina EVOLUTION_API_URL e EVOLUTION_API_KEY.');
+            return;
+        }
+
+        const existing = activeClients.get(sessionId);
+        const existingSocketId = existing ? existing.socketId : null;
+        const client = createEvolutionClientWrapper(sessionId);
+
+        activeClients.set(sessionId, {
+            client,
+            socketId: existingSocketId,
+            status: savedSession ? 'authenticated' : 'initializing',
+            ready: false,
+            phoneNumber: savedSession ? savedSession.phoneNumber : null,
+            name: savedSession ? savedSession.name : null,
+            latestQr: existing ? existing.latestQr : null
+        });
+        startReadyProbe(sessionId);
+
+        try {
+            const webhookConfig = buildEvolutionWebhookConfig();
+            const known = await evolutionApi.getInstance(evolutionInstanceName(sessionId)).catch(() => null);
+            if (webhookConfig && known) {
+                await evolutionApi.setWebhook(evolutionInstanceName(sessionId), webhookConfig).catch(() => null);
+            }
+
+            let createResponse = null;
+            if (!known) {
+                createResponse = await evolutionApi.createInstance(evolutionInstanceName(sessionId), webhookConfig, { qrcode: true });
+            }
+
+            let stateResponse = await evolutionApi.connectionState(evolutionInstanceName(sessionId)).catch(() => null);
+            let normalized = stateResponse ? evolutionApi.normalizeInstanceState(stateResponse) : { state: 'close' };
+
+            let connectResponse = null;
+            if (!stateResponse || normalized.state !== 'open') {
+                connectResponse = await evolutionApi.connectInstance(evolutionInstanceName(sessionId)).catch(() => null);
+                if (connectResponse) {
+                    await syncEvolutionSessionState(sessionId, connectResponse, { silent: true });
+                }
+            } else {
+                await syncEvolutionSessionState(sessionId, stateResponse, { silent: true });
+            }
+
+            const qrPayload = evolutionApi.normalizeQr(connectResponse || createResponse || {});
+            if (qrPayload.base64) {
+                const sessionData = activeClients.get(sessionId);
+                if (sessionData) {
+                    sessionData.latestQr = qrPayload.base64.startsWith('data:')
+                        ? qrPayload.base64
+                        : `data:image/png;base64,${qrPayload.base64}`;
+                    if (sessionData.socketId) {
+                        io.to(sessionData.socketId).emit('qr-generated', {
+                            sessionId,
+                            qr: sessionData.latestQr
+                        });
+                    }
+                }
+            }
+            return;
+        } catch (error) {
+            console.error(`Erro ao inicializar sessão Evolution ${sessionId}:`, error && error.message ? error.message : error);
+            const sessionData = activeClients.get(sessionId);
+            if (sessionData) {
+                sessionData.status = 'auth_failed';
+                sessionData.ready = false;
+            }
+            return;
+        }
+    }
     
     // Proxy Assignment
     let proxyConfig;
@@ -3416,13 +4270,22 @@ app.post('/api/create-session', requireUser, (req, res) => {
         return;
     }
     const sessionId = generateSessionId();
-    
-    // Check global proxy limit before creating session
-    try {
-        // This will throw if limit is reached
-        proxyManager.getAssignment(sessionId);
-    } catch (e) {
-        return res.status(400).json({ success: false, error: e.message });
+
+    if (USE_EVOLUTION) {
+        if (!evolutionApi || !evolutionApi.isConfigured()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Evolution API não configurada. Defina EVOLUTION_API_URL, EVOLUTION_API_KEY e EVOLUTION_WEBHOOK_URL.'
+            });
+        }
+    } else {
+        // Check global proxy limit before creating session
+        try {
+            // This will throw if limit is reached
+            proxyManager.getAssignment(sessionId);
+        } catch (e) {
+            return res.status(400).json({ success: false, error: e.message });
+        }
     }
 
     const updated = upsertUser({ ...user, sessionId, updatedAt: Date.now() });
@@ -3571,6 +4434,7 @@ io.on('connection', (socket) => {
         if (sessionData) {
             sessionData.socketId = socket.id;
             console.log(`Socket ${socket.id} vinculado à sessão ${allowed}`);
+            if (USE_EVOLUTION) maybeEmitEvolutionQrToSocket(allowed, socket.id);
         }
         socket.join(`session:${allowed}`);
     });
@@ -3619,6 +4483,9 @@ io.on('connection', (socket) => {
             const sessionData = activeClients.get(sid);
             if (sessionData && sessionData.client) {
                 try { await sessionData.client.destroy(); } catch (e) {}
+            }
+            if (USE_EVOLUTION && evolutionApi) {
+                try { await evolutionApi.deleteInstance(evolutionInstanceName(sid)); } catch (e) {}
             }
             activeClients.delete(sid);
 

@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acessar — ZAPMRO</title>
+    <meta name="description" content="Faça login ou cadastre-se no ZAPMRO para conectar seu WhatsApp e acessar CRM, Kanban, agendamento e IA.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="theme.css?v=3">
+    <style>
+        .auth-shell { max-width: 1120px; margin: 0 auto; }
+        /* When connected we let the shell fill the viewport */
+        body.zapmro-connected .container { max-width: min(1600px, calc(100vw - 32px)) !important; }
+        .auth-shell.is-connected { max-width: 100%; width: 100%; margin: 0 auto; display: block; }
+        .auth-shell.is-connected > .panel:not(#connectionPanel) { display: none !important; }
+        /* Admin panel — same full-width treatment as connected state */
+        .auth-shell.is-admin { max-width: 100%; width: 100%; margin: 0 auto; display: block; }
+        .auth-shell.is-admin > .panel:not(#connectionPanel) { display: none !important; }
+        .auth-shell.is-admin #connectionPanel {
+            display: block !important;
+            width: auto; max-width: 100%; margin: 0;
+            padding: 30px 34px;
+            background: linear-gradient(180deg, #ffffff 0%, #fafcfa 100%) !important;
+            border-radius: 24px !important;
+            box-sizing: border-box;
+        }
+        body.zapmro-admin .container { max-width: min(1600px, calc(100vw - 32px)) !important; }
+
+        /* --- Admin tab (pre-login) exclusive view --- */
+        /* --- Pre-login auth hero (logo 3D + big title) --- */
+        body.auth-mode header { position: relative; overflow: hidden; }
+        body.auth-mode .brand { perspective: 900px; }
+        body.auth-mode .brand-logo {
+            height: 96px !important;
+            filter: drop-shadow(0 18px 28px rgba(0,0,0,0.45)) drop-shadow(0 4px 8px rgba(16,163,127,0.4));
+            transform-style: preserve-3d;
+            animation: zapmroLogoFloat 5.5s ease-in-out infinite;
+            transition: transform .35s ease;
+            will-change: transform;
+        }
+        body.auth-mode .brand-logo:hover {
+            animation-play-state: paused;
+            transform: rotateY(18deg) rotateX(-8deg) scale(1.08);
+            filter: drop-shadow(0 22px 34px rgba(16,163,127,0.6)) drop-shadow(0 6px 12px rgba(0,0,0,0.5));
+        }
+        @keyframes zapmroLogoFloat {
+            0%   { transform: rotateY(-14deg) rotateX(6deg) translateY(0); }
+            50%  { transform: rotateY(14deg) rotateX(-6deg) translateY(-6px); }
+            100% { transform: rotateY(-14deg) rotateX(6deg) translateY(0); }
+        }
+        body.auth-mode header::before {
+            content:''; position:absolute; inset:0; pointer-events:none;
+            background:
+              radial-gradient(600px 200px at 8% 50%, rgba(16,163,127,0.28), transparent 60%),
+              radial-gradient(500px 180px at 92% 50%, rgba(201,168,76,0.14), transparent 65%);
+            animation: zapmroHeroPulse 6s ease-in-out infinite;
+        }
+        @keyframes zapmroHeroPulse {
+            0%,100% { opacity: .85; }
+            50%     { opacity: 1; }
+        }
+        body.auth-mode #pageTitle {
+            font-size: 2.1rem !important;
+            letter-spacing: -0.01em;
+            background: linear-gradient(90deg, #ffffff 0%, #a7f3d0 55%, #ffffff 100%);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: zapmroTitleShine 4.5s linear infinite;
+        }
+        @keyframes zapmroTitleShine {
+            0%   { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+        body.auth-mode .back-home {
+            padding: 6px 12px; border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            backdrop-filter: blur(6px);
+            transition: background .2s ease, transform .2s ease;
+        }
+        body.auth-mode .back-home:hover { background: rgba(255,255,255,0.16); transform: translateX(-2px); }
+        @media (max-width: 640px) {
+            body.auth-mode .brand-logo { height: 72px !important; }
+            body.auth-mode #pageTitle { font-size: 1.55rem !important; }
+        }
+
+        /* ---------- ADMIN PANEL v2 ---------- */
+        .admin-toolbar {
+            display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px;
+            align-items: center; margin-top: 14px; padding: 16px 18px;
+            background: linear-gradient(135deg, #0b3d2e 0%, #0f5a45 100%);
+            border-radius: 18px; color: #fff;
+            box-shadow: 0 20px 40px -25px rgba(6,78,59,0.55);
+        }
+        .admin-toolbar__info { min-width: 0; }
+        .admin-toolbar__title { font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; }
+        .admin-toolbar__title i { color: #a7f3d0; }
+        .admin-toolbar__sub { font-size: 0.82rem; color: rgba(255,255,255,0.75); margin-top: 3px; }
+        .admin-toolbar__meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+        .admin-ipbox {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 14px; border-radius: 14px; backdrop-filter: blur(4px);
+        }
+        .admin-ipbox i { color: #6ee7b7; font-size: 1.1rem; }
+        .admin-ipbox__label { display: block; font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.7); font-weight: 700; }
+        .admin-ipbox strong { font-family: var(--font-display); font-weight: 700; color: #fff; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+        .admin-refresh-btn { padding: 10px 16px !important; border-radius: 12px !important; background: #fff !important; color: #0b3d2e !important; font-weight: 700 !important; border: none !important; }
+        .admin-refresh-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 20px -10px rgba(0,0,0,0.35); }
+
+        /* --- Admin's own WhatsApp panel --- */
+        .admin-mywa-btn {
+            padding: 10px 16px !important; border-radius: 12px !important;
+            background: linear-gradient(135deg, #25d366 0%, #128c7e 100%) !important;
+            color: #fff !important; font-weight: 800 !important; border: none !important;
+            display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 10px 22px -12px rgba(18,140,126,0.7);
+            transition: transform .2s ease, box-shadow .25s ease, filter .2s ease;
+        }
+        .admin-mywa-btn:hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 14px 28px -12px rgba(18,140,126,0.85); }
+        .admin-mywa-btn.is-open { background: linear-gradient(135deg, #0b3d2e 0%, #10a37f 100%) !important; }
+
+        .admin-mywa {
+            margin-top: 16px;
+            background: linear-gradient(180deg, #ffffff 0%, #f5fbf8 100%);
+            border: 1px solid #d1fae5; border-radius: 22px;
+            padding: 20px 22px; position: relative; overflow: hidden;
+            box-shadow: 0 24px 50px -30px rgba(6,78,59,0.4);
+            animation: adminMyWaIn .35s cubic-bezier(.16,1,.3,1);
+        }
+        .admin-mywa::before {
+            content:''; position:absolute; left:0; top:0; bottom:0; width:5px;
+            background: linear-gradient(180deg, #25d366, #0b3d2e);
+        }
+        @keyframes adminMyWaIn { from { opacity:0; transform: translateY(-6px);} to { opacity:1; transform: translateY(0);} }
+        .admin-mywa__head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+        .admin-mywa__title { display:flex; gap:12px; align-items:center; min-width:0; }
+        .admin-mywa__icon { width:44px; height:44px; border-radius:14px; background: linear-gradient(135deg, #25d366, #128c7e); color:#fff; display:grid; place-items:center; font-size:1.15rem; box-shadow: 0 10px 20px -10px rgba(18,140,126,0.7); flex-shrink:0; }
+        .admin-mywa__title strong { display:block; font-family: var(--font-display); font-size:1.1rem; color: var(--ink); font-weight:800; }
+        .admin-mywa__title span { display:block; font-size:0.85rem; color: var(--muted); margin-top:2px; }
+        .admin-mywa__close { background: #f1f5f9; border: none; width:36px; height:36px; border-radius:10px; color:#475569; cursor:pointer; transition: background .2s; }
+        .admin-mywa__close:hover { background:#e2e8f0; color:#0f172a; }
+
+        .admin-mywa__grid { display:grid; grid-template-columns: minmax(0,1.1fr) minmax(220px, 0.9fr); gap:20px; margin-top:16px; align-items:stretch; }
+        .admin-mywa__info { display:flex; flex-direction:column; gap:14px; min-width:0; }
+        .admin-mywa__badge {
+            display:flex; align-items:center; gap:12px; padding:12px 14px;
+            background: linear-gradient(135deg, rgba(16,163,127,0.08), rgba(37,211,102,0.04));
+            border:1px solid #a7f3d0; border-radius:14px;
+        }
+        .admin-mywa__badge i { color:#10a37f; font-size:1.2rem; }
+        .admin-mywa__badge span { display:block; font-size:0.62rem; letter-spacing:0.14em; text-transform:uppercase; color: var(--muted); font-weight:700; }
+        .admin-mywa__badge strong { font-family: var(--font-display); font-weight:800; color: var(--ink); font-size:1rem; font-variant-numeric: tabular-nums; }
+
+        .admin-mywa__notes { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px; }
+        .admin-mywa__notes li { display:flex; align-items:center; gap:10px; font-size:0.85rem; color:#334155; }
+        .admin-mywa__notes li i { color:#10a37f; width:16px; text-align:center; }
+
+        .admin-mywa__actions { display:flex; gap:10px; flex-wrap:wrap; }
+        .admin-mywa__actions .btn { flex: 1 1 160px; min-width: 150px; }
+
+        .admin-mywa__msg { padding:10px 12px; border-radius:12px; font-size:0.85rem; font-weight:600; }
+        .admin-mywa__msg.is-ok { background:#dcfce7; color:#047857; border:1px solid #a7f3d0; }
+        .admin-mywa__msg.is-err { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+        .admin-mywa__msg.is-info { background:#e0f2fe; color:#075985; border:1px solid #bae6fd; }
+
+        .admin-mywa__qr {
+            background: #ffffff; border:1.5px dashed #a7f3d0; border-radius:18px;
+            display:grid; place-items:center; padding:20px; min-height: 260px;
+            transition: border-color .2s ease;
+        }
+        .admin-mywa__qr-empty { text-align:center; color: var(--muted); }
+        .admin-mywa__qr-empty i { font-size:2.6rem; color:#25d366; opacity:.65; margin-bottom:10px; display:block; animation: adminMyWaPulse 2.4s ease-in-out infinite; }
+        .admin-mywa__qr-empty p { margin:0; font-size:0.9rem; }
+        @keyframes adminMyWaPulse { 0%,100%{ transform:scale(1); opacity:.65;} 50%{ transform:scale(1.08); opacity:.9;} }
+        .admin-mywa__qr-loaded { display:flex; flex-direction:column; align-items:center; gap:10px; }
+        .admin-mywa__qr-loaded img { max-width: 220px; width:100%; border-radius:10px; border:1px solid #e2e8f0; }
+        .admin-mywa__qr-hint { font-size:0.82rem; color: var(--muted); }
+
+        @media (max-width: 760px) {
+            .admin-mywa__grid { grid-template-columns: 1fr; }
+            .admin-mywa__actions .btn { flex: 1 1 100%; }
+        }
+
+        .admin-summary { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+        .admin-summary__card {
+            background: linear-gradient(180deg, #ffffff, #f6faf8);
+            border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px;
+            display: flex; align-items: center; gap: 12px; min-width: 0;
+            transition: transform .25s ease, box-shadow .25s ease;
+        }
+        .admin-summary__card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -14px rgba(6,78,59,0.28); }
+        .admin-summary__icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; flex-shrink: 0; font-size: 1rem; }
+        .admin-summary__label { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+        .admin-summary__value { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; color: var(--ink); line-height: 1.1; margin-top: 2px; }
+
+        .admin-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 18px; margin-top: 20px;
+        }
+        .admin-card {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdfc 100%);
+            border: 1px solid var(--border); border-radius: 20px;
+            padding: 20px 20px 16px; position: relative; overflow: hidden;
+            box-shadow: 0 14px 30px -20px rgba(6,78,59,0.28);
+            transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+            display: flex; flex-direction: column; gap: 14px;
+        }
+        .admin-card:hover { transform: translateY(-3px); border-color: rgba(16,163,127,0.4); box-shadow: 0 24px 45px -22px rgba(6,78,59,0.4); }
+        .admin-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background: linear-gradient(180deg, var(--emerald-900), #10a37f); }
+        .admin-card__head { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+        .admin-card__avatar { width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg, #0b3d2e, #10a37f); color: #fff; display: grid; place-items: center; font-weight: 800; font-family: var(--font-display); font-size: 1.05rem; flex-shrink: 0; box-shadow: 0 8px 18px -10px rgba(6,78,59,0.55); }
+        .admin-card__idbox { min-width: 0; flex: 1; }
+        .admin-card__name { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--ink); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .admin-card__email { font-size: 0.82rem; color: var(--muted); word-break: break-all; margin-top: 2px; }
+        .admin-card__pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-weight: 800; font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase; flex-shrink: 0; }
+        .admin-card__pill.is-on { background: #dcfce7; color: #047857; }
+        .admin-card__pill.is-off { background: #fee2e2; color: #b91c1c; }
+        .admin-card__pill.is-warn { background: #fef3c7; color: #92400e; }
+        .admin-card__pill.is-mute { background: #f1f5f9; color: #475569; }
+        .admin-card__pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px currentColor; opacity: .95; }
+        .admin-card__pill.is-on .dot { animation: ucPulse 2s ease-in-out infinite; }
+
+        .admin-card__stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+        .admin-mini { background: #f8fafc; border: 1px solid #eef2f7; border-radius: 12px; padding: 8px 10px; min-width: 0; }
+        .admin-mini__label { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .admin-mini__label i { color: #10a37f; font-size: 0.75rem; }
+        .admin-mini__value { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 0.95rem; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .admin-mini.full { grid-column: 1 / -1; }
+
+        .admin-card__timeline { border-top: 1px dashed #e2e8f0; padding-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .admin-time { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #334155; min-width: 0; }
+        .admin-time i { color: #10a37f; }
+        .admin-time.off i { color: #ef4444; }
+        .admin-time strong { font-family: var(--font-display); color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+        .admin-card__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+        .admin-btn { flex: 1; min-width: 120px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 12px; font-weight: 700; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent; transition: transform .2s ease, box-shadow .25s ease, background .2s ease; font-family: inherit; }
+        .admin-btn.history { background: #f1f5f9; color: #0f172a; border-color: #e2e8f0; }
+        .admin-btn.history:hover { background: #e2e8f0; transform: translateY(-1px); }
+        .admin-btn.delete { background: linear-gradient(135deg, #b91c1c, #ef4444); color: #fff; box-shadow: 0 10px 20px -10px rgba(185,28,28,0.55); }
+        .admin-btn.delete:hover { transform: translateY(-1px); box-shadow: 0 14px 26px -12px rgba(185,28,28,0.7); }
+
+        .admin-history { border-top: 1px dashed #e2e8f0; padding-top: 12px; display: none; max-height: 220px; overflow-y: auto; }
+        .admin-history.open { display: block; animation: zcmIn .2s ease-out; }
+        .admin-history__item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px dotted #f1f5f9; font-size: 0.82rem; color: #334155; }
+        .admin-history__item:last-child { border-bottom: none; }
+        .admin-history__dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+        .admin-history__dot.on { background: #10a37f; }
+        .admin-history__dot.off { background: #ef4444; }
+        .admin-history__when { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+        .admin-empty { grid-column: 1 / -1; padding: 40px 20px; text-align: center; color: var(--muted); background: #f8fafc; border-radius: 16px; border: 1px dashed #e2e8f0; }
+        .admin-empty i { font-size: 2rem; color: #cbd5e1; margin-bottom: 10px; display: block; }
+
+        @media (max-width: 900px) {
+            .admin-summary { grid-template-columns: repeat(2, minmax(0,1fr)); }
+            .admin-toolbar { grid-template-columns: 1fr; }
+            .admin-toolbar__meta { justify-content: flex-start; }
+        }
+        @media (max-width: 560px) {
+            .admin-toolbar { padding: 14px; }
+            .admin-grid { grid-template-columns: 1fr; gap: 14px; }
+            .admin-card { padding: 16px; }
+            .admin-card__stats { grid-template-columns: 1fr; }
+            .admin-card__timeline { grid-template-columns: 1fr; }
+            .admin-btn { flex: 1 1 100%; }
+            .admin-refresh-btn span { display: none; }
+        }
+        .auth-shell.is-connected #connectionPanel {
+            display: block !important;
+            width: auto;
+            max-width: 100%;
+            margin: 0;
+            padding: 30px 34px;
+            background: linear-gradient(180deg, #ffffff 0%, #fafcfa 100%) !important;
+            border-radius: 24px !important;
+            box-sizing: border-box;
+        }
+        #sessionsContainer { width: 100%; }
+
+        /* ---------- UNIFIED CARD — full-width horizontal grid ---------- */
+        #sessionsContainer .session-card.unified-card {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(220px, 0.9fr);
+            gap: 28px;
+            align-items: stretch;
+            background:
+              radial-gradient(1200px 220px at -10% -20%, rgba(16,163,127,0.08), transparent 60%),
+              radial-gradient(900px 200px at 110% 120%, rgba(6,78,59,0.06), transparent 60%),
+              linear-gradient(180deg, #ffffff 0%, #fbfdfb 100%);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 28px 30px;
+            box-shadow: 0 30px 60px -35px rgba(6,78,59,0.35), 0 2px 6px -2px rgba(15,23,42,0.06);
+            position: relative;
+            overflow: hidden;
+            transition: transform .35s ease, box-shadow .35s ease;
+            width: 100%;
+        }
+        #sessionsContainer .session-card.unified-card::before {
+            content:''; position:absolute; left:0; top:0; bottom:0; width:5px;
+            background: linear-gradient(180deg, var(--emerald-900), #10a37f);
+        }
+        #sessionsContainer .session-card.unified-card::after {
+            content:''; position:absolute; inset:0; pointer-events:none;
+            background: linear-gradient(115deg, transparent 30%, rgba(16,163,127,0.06) 50%, transparent 70%);
+            transform: translateX(-100%);
+            transition: transform 1.2s ease;
+        }
+        #sessionsContainer .session-card.unified-card:hover::after { transform: translateX(100%); }
+        #sessionsContainer .session-card.unified-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 40px 75px -35px rgba(6,78,59,0.45), 0 4px 12px -2px rgba(15,23,42,0.08);
+        }
+
+        /* --- Column 1: user + stats --- */
+        #sessionsContainer .unified-card .uc-user {
+            min-width: 0;
+            display: flex; flex-direction: column; gap: 16px; justify-content: center;
+        }
+        #sessionsContainer .uc-user__top { display:flex; align-items:center; gap:16px; min-width:0; }
+        #sessionsContainer .uc-user__avatar {
+            width:64px; height:64px; border-radius:18px;
+            display:grid; place-items:center; color:#fff;
+            background:linear-gradient(135deg, var(--emerald-900), #10a37f);
+            flex-shrink:0; font-size:1.55rem;
+            box-shadow:0 12px 24px -12px rgba(6,78,59,0.55), inset 0 1px 0 rgba(255,255,255,0.25);
+        }
+        #sessionsContainer .uc-user__name { font-family: var(--font-display); font-size:1.4rem; font-weight:700; color: var(--ink); line-height:1.15; letter-spacing:-0.01em; }
+        #sessionsContainer .uc-user__email { font-size:0.9rem; color: var(--muted); margin-top:4px; word-break: break-word; }
+        #sessionsContainer .uc-stats { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; }
+        #sessionsContainer .uc-stat {
+            padding:12px 14px;
+            background: linear-gradient(180deg, #ffffff, #f6faf8);
+            border:1px solid var(--border);
+            border-radius:14px; min-width:0; overflow:hidden;
+            transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+        }
+        #sessionsContainer .uc-stat:hover { transform: translateY(-1px); border-color: rgba(16,163,127,0.4); box-shadow: 0 8px 18px -12px rgba(6,78,59,0.25); }
+        #sessionsContainer .uc-stat__label { font-size:0.62rem; letter-spacing:0.14em; text-transform:uppercase; color: var(--muted); font-weight:700; }
+        #sessionsContainer .uc-stat__value { display:flex; align-items:center; gap:6px; margin-top:6px; font-family: var(--font-display); font-size:0.98rem; color: var(--ink); font-weight:700; line-height:1.2; min-width:0; }
+        #sessionsContainer .uc-stat__value > span:not(.uc-stat__dot) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        #sessionsContainer .uc-stat__dot { width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,0.2); flex-shrink:0; animation: ucPulse 2s ease-in-out infinite; }
+        @keyframes ucPulse { 0%,100% { box-shadow:0 0 0 3px rgba(16,185,129,0.2);} 50%{ box-shadow:0 0 0 6px rgba(16,185,129,0.05);} }
+
+        /* --- Column 2: connection --- */
+        #sessionsContainer .uc-conn {
+            display:flex; flex-direction:column; gap:12px;
+            padding: 4px 26px;
+            border-left:1px dashed var(--border);
+            border-right:1px dashed var(--border);
+            justify-content:center;
+            min-width: 0;
+        }
+        #sessionsContainer .uc-conn__head { display:flex; align-items:center; gap:14px; min-width:0; }
+        #sessionsContainer .uc-conn__icon {
+            width:52px; height:52px; border-radius:16px;
+            display:grid; place-items:center;
+            background: linear-gradient(135deg, #dcfce7, #a7f3d0);
+            color:#047857; font-size:1.35rem; flex-shrink:0;
+            box-shadow: 0 8px 18px -10px rgba(4,120,87,0.4);
+        }
+        #sessionsContainer .uc-conn__title { font-family: var(--font-display); font-weight:700; color: var(--ink); font-size:1.1rem; line-height:1.2; min-width:0; }
+        #sessionsContainer .uc-conn__meta { font-size:0.9rem; color: var(--ink); line-height:1.55; word-break: break-word; }
+        #sessionsContainer .uc-conn__meta span { color: var(--muted); font-weight:600; }
+        #sessionsContainer .uc-badge {
+            display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+            padding:6px 14px; border-radius:999px;
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0); color:#047857;
+            font-weight:800; font-size:0.72rem; letter-spacing:0.1em;
+            box-shadow: 0 6px 14px -8px rgba(4,120,87,0.35);
+        }
+        #sessionsContainer .uc-badge::before { content:''; width:7px; height:7px; border-radius:50%; background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,0.22); animation: ucPulse 2s ease-in-out infinite;}
+        #sessionsContainer .uc-refresh { display:inline-flex; align-items:center; gap:8px; margin-top:2px; background:transparent; border:none; color: var(--muted); font-size:0.85rem; cursor:pointer; padding:0; text-align:left; }
+        #sessionsContainer .uc-refresh:hover { color: var(--emerald-700); }
+        #sessionsContainer .uc-refresh strong { color: var(--emerald-700); font-weight:800; }
+
+        /* --- Column 3: actions in 2×2 grid --- */
+        #sessionsContainer .uc-actions {
+            display:flex;
+            flex-direction: column;
+            gap:10px;
+            justify-content:center;
+            min-width: 0;
+        }
+        #sessionsContainer .uc-actions .btn {
+            width:100%; justify-content:center;
+            padding:12px 10px; font-size:0.88rem;
+            border-radius:14px;
+            transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+            white-space: normal; line-height:1.15;
+            min-width: 0;
+            position: relative; overflow: hidden;
+            text-align: center;
+        }
+        #sessionsContainer .uc-actions .btn:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 14px 26px -14px rgba(15,23,42,0.4); }
+        #sessionsContainer .uc-actions .btn:active { transform: translateY(0); }
+
+        /* Breakpoints */
+        @media (max-width: 1180px) {
+            #sessionsContainer .session-card.unified-card {
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            }
+            #sessionsContainer .uc-conn { border-right: none; padding-right: 0; }
+            #sessionsContainer .uc-actions {
+                grid-column: 1 / -1;
+                flex-direction: row; flex-wrap: wrap;
+                border-top: 1px dashed var(--border);
+                padding-top: 20px;
+                margin-top: 4px;
+            }
+            #sessionsContainer .uc-actions .btn { flex: 1 1 180px; }
+        }
+        @media (max-width: 900px) {
+            .auth-shell.is-connected #connectionPanel { padding: 24px 22px; }
+            #sessionsContainer .session-card.unified-card {
+                grid-template-columns: minmax(0, 1fr);
+                padding: 24px;
+            }
+            #sessionsContainer .uc-conn {
+                border-left:none; border-right:none;
+                border-top:1px dashed var(--border);
+                padding: 20px 0 0;
+            }
+        }
+        @media (max-width: 520px) {
+            body.zapmro-connected .container { max-width: 100% !important; padding-left: 12px; padding-right: 12px; }
+            .auth-shell.is-connected #connectionPanel { padding: 18px 14px; border-radius: 20px !important; }
+            #sessionsContainer .session-card.unified-card { padding: 18px; gap: 18px; border-radius: 20px; }
+            #sessionsContainer .uc-user__name { font-size: 1.2rem; }
+            #sessionsContainer .uc-user__avatar { width:56px; height:56px; font-size:1.35rem; }
+            #sessionsContainer .uc-stat { padding: 10px; }
+            #sessionsContainer .uc-stat__value { font-size: 0.88rem; }
+            #sessionsContainer .uc-actions { flex-direction: column; }
+            #sessionsContainer .uc-actions .btn { flex: 1 1 auto; }
+        }
+        #connectionPanel .unified-heading { font-family: var(--font-display); font-weight:700; color: var(--ink); font-size:1.2rem; margin: 0 0 20px; letter-spacing:-0.01em; }
+        #connectionPanel.is-unified > h2,
+        #connectionPanel.is-unified > p { display: none; }
+        #connectionPanel.is-unified #refreshSessionsBtn { display: none !important; }
+        .back-home { display:inline-flex; align-items:center; gap:6px; color: var(--cream-50); opacity:0.85; font-size:0.9rem; }
+        .back-home:hover { opacity:1; color: var(--cream-50); }
+        .conn-hero { display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:16px; background: linear-gradient(135deg, rgba(13,122,95,0.08), rgba(13,122,95,0.02)); border:1px solid var(--border); margin-bottom:16px; }
+        .conn-hero__icon { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; background: var(--emerald-900); color:#fff; font-size:1.1rem; flex-shrink:0; }
+        .conn-hero__text { min-width:0; }
+        .conn-hero__text strong { display:block; font-family: var(--font-display); font-size:1.05rem; color: var(--ink); }
+        .conn-hero__text span { font-size:0.85rem; color: var(--muted); }
+        .conn-empty { text-align:center; padding:28px 16px; border:1.5px dashed var(--border-strong); border-radius: var(--radius); color: var(--muted); }
+        .conn-empty i { font-size:2.4rem; color: var(--emerald-700); opacity:0.5; margin-bottom:10px; display:block; }
+
+        /* Welcome hero (usuário logado) */
+        .welcome-hero {
+            display:flex; align-items:center; gap:16px;
+            padding: 20px; border-radius: 20px;
+            background: linear-gradient(135deg, rgba(6,78,59,0.06), rgba(201,168,76,0.08));
+            border: 1px solid var(--border);
+        }
+        .welcome-hero__avatar {
+            width:56px; height:56px; border-radius: 18px; flex-shrink:0;
+            display:grid; place-items:center; color:#fff; font-size:1.4rem;
+            background: linear-gradient(135deg, var(--emerald-900), #10a37f);
+            box-shadow: 0 10px 24px -14px rgba(6,78,59,0.6);
+        }
+        .welcome-hero__text { min-width:0; }
+        .welcome-hero__eyebrow { display:block; font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; color: var(--emerald-700); font-weight:700; margin-bottom:2px; }
+        .welcome-hero__text strong { display:block; font-family: var(--font-display); font-size:1.35rem; color: var(--ink); line-height:1.15; }
+        .welcome-hero__text p { margin:6px 0 0; color: var(--muted); font-size:0.9rem; }
+
+        /* Centralização e responsividade dos botões de conectar */
+        .connect-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; justify-content:center; }
+        .connect-actions .btn { flex: 1 1 200px; min-width: 180px; max-width: 260px; }
+        @media (max-width: 480px) {
+            .connect-actions .btn { flex-basis: 100%; max-width: none; }
+        }
+
+        .stats-grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; margin-top:16px; }
+        .stat-card { padding:14px; border-radius:14px; background: var(--surface-2); border:1px solid var(--border); min-width:0; }
+        .stat-card__label { display:block; font-size:0.7rem; letter-spacing:0.12em; text-transform:uppercase; color: var(--muted); font-weight:700; }
+        .stat-card__value { display:block; margin-top:6px; font-family: var(--font-display); font-size:1.05rem; color: var(--ink); }
+        @media (max-width: 480px) { .stats-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } .stat-card { padding:10px; } .stat-card__value { font-size:0.9rem; } }
+        .qr-visual {
+            min-height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 22px;
+            background: linear-gradient(180deg, #f8fbf9 0%, #eef5f1 100%);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .qr-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: var(--emerald-700);
+            text-align: center;
+        }
+        .qr-loading i {
+            font-size: 2.2rem;
+            animation: qrSpin 1s linear infinite;
+        }
+        .qr-loading span {
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+        .qr-image {
+            display: none;
+            max-width: 260px;
+            width: 100%;
+            height: auto;
+        }
+        .qr-visual.is-ready .qr-loading { display: none; }
+        .qr-visual.is-ready .qr-image { display: block; }
+        @keyframes qrSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <img class="brand-logo" src="LOGOTRANSPARENTE01.png" alt="ZAPMRO">
+            </div>
+            <div id="headerTextBlock" style="flex:1; min-width:200px;">
+                <a class="back-home" id="backHomeLink" href="/"><i class="fas fa-arrow-left"></i> Voltar para o site</a>
+                <h1 id="pageTitle" style="margin-top:6px;">Acessar sua conta</h1>
+            </div>
+            <div id="headerGreeting" style="flex:1; min-width:200px; display:none;">
+                <span style="display:block; font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; opacity:0.75; font-weight:700;">Bem-vindo(a) de volta</span>
+                <h1 id="greetingName" style="margin:4px 0 0; font-size:1.6rem; line-height:1.15;">Seu painel</h1>
+            </div>
+            <div class="top-actions">
+                <button class="btn btn-dark" id="logoutBtn" style="display:none;">
+                    <i class="fas fa-right-from-bracket"></i> Sair
+                </button>
+            </div>
+        </header>
+
+        <div class="main-content auth-shell">
+            <div class="panel">
+                <div id="authBlock">
+                <h2><i class="fas fa-user-lock"></i> Acesso</h2>
+                <div class="hint">Cadastre-se com nome, email e senha. Depois, entre com seu email e senha.</div>
+                <div class="tabs">
+                    <button class="tab active" data-tab="register"><i class="fas fa-user-plus"></i> Cadastrar</button>
+                    <button class="tab" data-tab="login"><i class="fas fa-right-to-bracket"></i> Entrar</button>
+                    <button class="tab" data-tab="admin" id="adminTabBtn" hidden style="display:none;"><i class="fas fa-shield-halved"></i> Admin</button>
+                </div>
+
+                <div id="authRegister">
+                    <div class="field">
+                        <label for="registerName">Nome</label>
+                        <input id="registerName" type="text" autocomplete="name" placeholder="Seu nome" />
+                    </div>
+                    <div class="field">
+                        <label for="registerEmail">Email</label>
+                        <input id="registerEmail" type="email" autocomplete="email" placeholder="seuemail@gmail.com" />
+                    </div>
+                    <div class="field">
+                        <label for="registerPassword">Senha</label>
+                        <input id="registerPassword" type="password" autocomplete="new-password" placeholder="Crie uma senha" />
+                    </div>
+                    <button id="registerBtn" class="btn btn-dark" style="width:100%;">
+                        <i class="fas fa-user-plus"></i> Cadastrar
+                    </button>
+                    <div class="muted" style="margin-top:10px;">Ao cadastrar, você terá 1 conexão por usuário.</div>
+                </div>
+
+                <div id="authLogin" style="display:none;">
+                    <div class="field">
+                        <label for="loginEmail">Email</label>
+                        <input id="loginEmail" type="email" autocomplete="email" placeholder="seuemail@gmail.com" />
+                    </div>
+                    <div class="field">
+                        <label for="loginPassword">Senha</label>
+                        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Sua senha" />
+                    </div>
+                    <button id="loginBtn" class="btn btn-dark" style="width:100%;">
+                        <i class="fas fa-right-to-bracket"></i> Entrar
+                    </button>
+                </div>
+
+                <div id="authAdmin" style="display:none;">
+                    <div class="field">
+                        <label for="adminEmail">Email</label>
+                        <input id="adminEmail" type="email" autocomplete="username" placeholder="( digite seu email )" />
+                    </div>
+                    <div class="field">
+                        <label for="adminPassword">Senha</label>
+                        <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" />
+                    </div>
+                    <button id="adminLoginBtn" class="btn btn-dark" style="width:100%;">
+                        <i class="fas fa-shield-halved"></i> Entrar como admin
+                    </button>
+                </div>
+
+                <div id="authSuccess" class="success"></div>
+                <div id="authError" class="error"></div>
+                </div>
+
+                <div id="welcomeBlock" style="display:none;">
+                    <div class="welcome-hero">
+                        <div class="welcome-hero__avatar"><i class="fas fa-user-astronaut"></i></div>
+                        <div class="welcome-hero__text">
+                            <span class="welcome-hero__eyebrow">Sua conta</span>
+                            <strong id="welcomeName">Usuário ZAPMRO</strong>
+                            <p id="welcomeEmail">Gerencie seu número, sessões e acessos por aqui.</p>
+                        </div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-card__label">Status</span>
+                            <strong class="stat-card__value" id="statConn">—</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-card__label">Sessões</span>
+                            <strong class="stat-card__value" id="statSessions">0</strong>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-card__label">Plano</span>
+                            <strong class="stat-card__value">Teste</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="userConnectPanel" style="display:none; margin-top:18px;">
+                    <h2 style="margin-top:10px;"><i class="fas fa-link"></i> Conectar WhatsApp</h2>
+                    <div class="hint" id="connectHint">Você pode conectar apenas 1 aparelho. Se já estiver conectado, é só abrir o painel.</div>
+                    <div class="connect-actions">
+                        <button id="createSessionBtn" class="btn btn-whatsapp">
+                            <i class="fas fa-qrcode"></i> Gerar QR Code
+                        </button>
+                        <a id="openCrmBtn" class="btn btn-dark" style="display:none;" href="/crm.html">
+                            <i class="fas fa-columns"></i> Abrir dashboard
+                        </a>
+                    </div>
+                    <div id="qrContainer" style="display: none; margin-top:18px;">
+                        <h3 style="margin:0 0 6px; font-family: var(--font-display);">Escaneie o QR Code</h3>
+                        <p class="muted" style="margin:0;">WhatsApp → Dispositivos conectados → Conectar um dispositivo</p>
+                        <div id="qrVisual" class="qr-visual" style="margin-top:14px;">
+                            <div id="qrLoading" class="qr-loading" aria-live="polite">
+                                <i class="fas fa-spinner"></i>
+                                <span>Gerando QR Code...</span>
+                            </div>
+                            <img id="qrCode" class="qr-image" src="" alt="QR Code">
+                        </div>
+                        <div class="current-session" style="margin-top:14px;">
+                            <h4 style="margin:0 0 4px;">Sessão</h4>
+                            <div id="sessionInfo" class="session-details muted">Aguardando leitura do QR Code...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="connectionPanel" style="display:none;">
+                <h2 id="rightTitle"><i class="fas fa-plug"></i> Sua Conexão</h2>
+                <p id="rightHint">Acompanhe o status do seu WhatsApp. Seus dados não se misturam com outros usuários.</p>
+
+                <div id="sessionsContainer" class="sessions-list">
+                    <div class="no-session">
+                        <i class="fas fa-plug" style="font-size: 3rem; color: #ddd; margin-bottom: 20px;"></i>
+                        <p>Faça login para ver sua conexão</p>
+                    </div>
+                </div>
+
+                <button id="refreshSessionsBtn" class="btn btn-secondary" style="margin-top: 20px;">
+                    <i class="fas fa-sync-alt"></i> Atualizar Lista
+                </button>
+
+                <div id="adminPanel" style="display:none;">
+                    <div class="admin-toolbar">
+                        <div class="admin-toolbar__info">
+                            <div class="admin-toolbar__title"><i class="fas fa-users-gear"></i> Usuários cadastrados</div>
+                            <div class="admin-toolbar__sub">Acompanhe conexões, histórico e IPs em tempo real.</div>
+                        </div>
+                        <div class="admin-toolbar__meta">
+                            <div class="admin-ipbox" id="adminRealIpBox" title="Seu IP público real (esta máquina)">
+                                <i class="fas fa-location-crosshairs"></i>
+                                <div>
+                                    <span class="admin-ipbox__label">Meu IP real</span>
+                                    <strong id="adminRealIp">detectando...</strong>
+                                </div>
+                            </div>
+                            <button id="adminMyWhatsBtn" class="btn admin-mywa-btn" type="button" aria-expanded="false" aria-controls="adminMyWhatsPanel">
+                                <i class="fab fa-whatsapp"></i> <span>Meu WhatsApp</span>
+                            </button>
+                            <button id="adminProxysBtn" class="btn admin-mywa-btn" type="button" style="background: linear-gradient(135deg,#4338ca 0%, #6366f1 100%); box-shadow: 0 10px 22px -12px rgba(67,56,202,0.7);">
+                                <i class="fas fa-network-wired"></i> <span>Proxys</span>
+                            </button>
+                            <button id="refreshAdminBtn" class="btn btn-secondary admin-refresh-btn">
+                                <i class="fas fa-rotate"></i> <span>Atualizar</span>
+                            </button>
+                        </div>
+                    </div>
+                    <section id="adminMyWhatsPanel" class="admin-mywa" hidden aria-hidden="true">
+                        <div class="admin-mywa__head">
+                            <div class="admin-mywa__title">
+                                <div class="admin-mywa__icon"><i class="fab fa-whatsapp"></i></div>
+                                <div>
+                                    <strong>Meu WhatsApp (Administrador)</strong>
+                                    <span>Conexão exclusiva do admin — usa o <b>IP real desta máquina</b>, sem proxy.</span>
+                                </div>
+                            </div>
+                            <button type="button" id="adminMyWhatsClose" class="admin-mywa__close" aria-label="Fechar">
+                                <i class="fas fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="admin-mywa__grid">
+                            <div class="admin-mywa__info">
+                                <div class="admin-mywa__badge">
+                                    <i class="fas fa-location-crosshairs"></i>
+                                    <div>
+                                        <span>IP real da máquina</span>
+                                        <strong id="adminMyWhatsIp">detectando...</strong>
+                                    </div>
+                                </div>
+                                <ul class="admin-mywa__notes">
+                                    <li><i class="fas fa-shield-halved"></i> Somente o admin utiliza IP real; usuários seguem por proxy.</li>
+                                    <li><i class="fas fa-clock-rotate-left"></i> Histórico de conversas é preservado por número.</li>
+                                    <li><i class="fas fa-mobile-screen"></i> WhatsApp → Aparelhos conectados → Conectar aparelho.</li>
+                                </ul>
+                                <div class="admin-mywa__actions">
+                                    <button id="adminGenerateQrBtn" class="btn btn-whatsapp">
+                                        <i class="fas fa-qrcode"></i> Gerar QR Code
+                                    </button>
+                                    <a id="adminOpenCrmBtn" class="btn btn-dark" style="display:none;" href="/crm.html">
+                                        <i class="fas fa-columns"></i> Abrir meu painel
+                                    </a>
+                                    <button id="adminDisconnectMyBtn" class="btn btn-secondary" style="display:none;">
+                                        <i class="fas fa-power-off"></i> Desconectar
+                                    </button>
+                                </div>
+                                <div id="adminMyWhatsMsg" class="admin-mywa__msg" style="display:none;"></div>
+                            </div>
+                            <div class="admin-mywa__qr" id="adminMyWhatsQrBox">
+                                <div class="admin-mywa__qr-empty" id="adminMyWhatsQrEmpty">
+                                    <i class="fab fa-whatsapp"></i>
+                                    <p>Clique em <b>Gerar QR Code</b> para conectar seu número.</p>
+                                </div>
+                                <div class="admin-mywa__qr-loaded" id="adminMyWhatsQrLoaded" style="display:none;">
+                                    <img id="adminMyWhatsQrImg" src="" alt="QR Code" />
+                                    <span class="admin-mywa__qr-hint">Escaneie em até <b id="adminMyWhatsCountdown">45</b>s</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <div class="admin-summary" id="adminSummary"></div>
+                    <div id="adminUsersGrid" class="admin-grid"></div>
+                    <!-- Compat hidden table body (kept for legacy code paths) -->
+                    <table style="display:none;"><tbody id="adminUsersTbody"></tbody></table>
+                </div>
+            </div>
+        </div>
+
+        <footer style="text-align:center; padding:24px 0; color:var(--muted); font-size:0.85rem;">
+            © ZAPMRO · <a href="/politica.html">Privacidade</a> · <a href="/termos.html">Termos</a>
+        </footer>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        document.write('<script src="' + window.ZAPMRO_CONFIG.socketIoScriptUrl + '"><\/script>');
+    </script>
+    <script src="app.js?v=11"></script>
+    <!-- Confirmation modal (internal, replaces native confirm) -->
+    <div id="zapmroConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:99999; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:#fff; width:100%; max-width:440px; border-radius:18px; padding:24px; box-shadow:0 30px 70px -25px rgba(15,23,42,0.5); font-family:'DM Sans',sans-serif; animation: zcmIn .18s ease-out;">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
+          <div id="zapmroConfirmIconWrap" style="width:46px; height:46px; border-radius:14px; background:#fee2e2; color:#b91c1c; display:grid; place-items:center; font-size:1.2rem; flex-shrink:0;"><i id="zapmroConfirmIcon" class="fas fa-triangle-exclamation"></i></div>
+          <div style="min-width:0;">
+            <h3 id="zapmroConfirmTitle" style="margin:0; color:#0f172a; font-size:1.1rem; font-weight:800; font-family:'Space Grotesk',sans-serif;">Confirmar ação</h3>
+            <p id="zapmroConfirmSub" style="margin:3px 0 0; color:#64748b; font-size:0.82rem;"></p>
+          </div>
+        </div>
+        <p id="zapmroConfirmMsg" style="margin:6px 0 20px; color:#475569; font-size:0.94rem; line-height:1.5;">Tem certeza?</p>
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+          <button id="zapmroConfirmCancel" type="button" style="background:#fff; color:#111827; border:1.5px solid #d1d5db; padding:10px 20px; border-radius:12px; font-weight:600; cursor:pointer; font-family:inherit;">Cancelar</button>
+          <button id="zapmroConfirmOk" type="button" style="background:linear-gradient(135deg,#b91c1c,#ef4444); color:#fff; border:none; padding:10px 22px; border-radius:12px; font-weight:700; cursor:pointer; box-shadow:0 10px 22px -10px rgba(185,28,28,0.55); display:inline-flex; align-items:center; gap:8px; font-family:inherit;"><i id="zapmroConfirmOkIcon" class="fas fa-check"></i> <span id="zapmroConfirmOkLabel">Confirmar</span></button>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes zcmIn { from { opacity:0; transform: translateY(8px) scale(.97); } to { opacity:1; transform:none; } }
+    </style>
+    <!-- Historic WhatsApp connection choice modal -->
+    <div id="zapmroHistoryModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:100000; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:#fff; width:100%; max-width:520px; border-radius:20px; padding:26px; box-shadow:0 30px 70px -25px rgba(15,23,42,0.55); font-family:'DM Sans',sans-serif; animation: zcmIn .18s ease-out;">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:16px;">
+          <div style="width:48px; height:48px; border-radius:14px; background:#dcfce7; color:#047857; display:grid; place-items:center; font-size:1.3rem; flex-shrink:0;"><i class="fab fa-whatsapp"></i></div>
+          <div style="min-width:0;">
+            <h3 style="margin:0; color:#0f172a; font-size:1.15rem; font-weight:800; font-family:'Space Grotesk',sans-serif;">Histórico encontrado</h3>
+            <p style="margin:3px 0 0; color:#64748b; font-size:0.85rem;">Detectamos uma conexão anterior no seu dispositivo</p>
+          </div>
+        </div>
+        <p id="zapmroHistoryMsg" style="margin:6px 0 8px; color:#334155; font-size:0.95rem; line-height:1.55;">
+          Você já esteve conectado com o número <b id="zapmroHistoryNumber">—</b>. Deseja manter o histórico de conversas ao reconectar essa mesma conta ou conectar um novo número?
+        </p>
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; margin:12px 0 18px; color:#475569; font-size:0.82rem; line-height:1.5;">
+          <b style="color:#0f172a;">Importante:</b> se você escanear o QR com <u>o mesmo número</u>, o histórico é mantido. Se escanear com <u>outro número</u>, será uma nova conexão e o histórico anterior <b>não</b> será carregado (permanece salvo apenas se você reconectar a conta original mais tarde).
+        </div>
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+          <button id="zapmroHistoryCancel" type="button" style="background:#fff; color:#111827; border:1.5px solid #d1d5db; padding:10px 18px; border-radius:12px; font-weight:600; cursor:pointer; font-family:inherit;">Cancelar</button>
+          <button id="zapmroHistoryNew" type="button" style="background:#fff; color:#b45309; border:1.5px solid #fcd34d; padding:10px 18px; border-radius:12px; font-weight:700; cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-mobile-screen"></i> Conectar novo número</button>
+          <button id="zapmroHistoryKeep" type="button" style="background:linear-gradient(135deg,#047857,#10b981); color:#fff; border:none; padding:10px 20px; border-radius:12px; font-weight:700; cursor:pointer; box-shadow:0 10px 22px -10px rgba(4,120,87,0.55); font-family:inherit; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-clock-rotate-left"></i> Manter histórico</button>
+        </div>
+      </div>
+    </div>
+    <!-- Info toast/modal shown after connect completes with a new number -->
+    <div id="zapmroHistoryInfoModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.6); z-index:100000; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:#fff; width:100%; max-width:460px; border-radius:20px; padding:24px; box-shadow:0 30px 70px -25px rgba(15,23,42,0.55); font-family:'DM Sans',sans-serif; animation: zcmIn .18s ease-out;">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
+          <div id="zapmroHistoryInfoIconWrap" style="width:46px; height:46px; border-radius:14px; background:#dbeafe; color:#1d4ed8; display:grid; place-items:center; font-size:1.2rem; flex-shrink:0;"><i id="zapmroHistoryInfoIcon" class="fas fa-circle-info"></i></div>
+          <div style="min-width:0;">
+            <h3 id="zapmroHistoryInfoTitle" style="margin:0; color:#0f172a; font-size:1.1rem; font-weight:800; font-family:'Space Grotesk',sans-serif;">Conexão realizada</h3>
+          </div>
+        </div>
+        <p id="zapmroHistoryInfoMsg" style="margin:6px 0 20px; color:#475569; font-size:0.94rem; line-height:1.5;"></p>
+        <div style="display:flex; justify-content:flex-end;">
+          <button id="zapmroHistoryInfoOk" type="button" style="background:linear-gradient(135deg,#047857,#10b981); color:#fff; border:none; padding:10px 22px; border-radius:12px; font-weight:700; cursor:pointer; font-family:inherit;">Entendi</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      window.zapmroHistoryChoice = function (opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+          var modal  = document.getElementById('zapmroHistoryModal');
+          var numEl  = document.getElementById('zapmroHistoryNumber');
+          var keep   = document.getElementById('zapmroHistoryKeep');
+          var newer  = document.getElementById('zapmroHistoryNew');
+          var cancel = document.getElementById('zapmroHistoryCancel');
+          numEl.textContent = opts.phoneNumber || '—';
+          function close(v){ modal.style.display='none'; keep.onclick=newer.onclick=cancel.onclick=null; modal.onclick=null; document.removeEventListener('keydown', onKey); resolve(v); }
+          function onKey(e){ if(e.key==='Escape') close(null); }
+          keep.onclick   = function(){ close('keep'); };
+          newer.onclick  = function(){ close('new'); };
+          cancel.onclick = function(){ close(null); };
+          modal.onclick  = function(e){ if(e.target===modal) close(null); };
+          document.addEventListener('keydown', onKey);
+          modal.style.display='flex';
+          setTimeout(function(){ keep.focus(); }, 30);
+        });
+      };
+      window.zapmroHistoryInfo = function (opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+          var modal = document.getElementById('zapmroHistoryInfoModal');
+          var t = document.getElementById('zapmroHistoryInfoTitle');
+          var m = document.getElementById('zapmroHistoryInfoMsg');
+          var ok = document.getElementById('zapmroHistoryInfoOk');
+          var iw = document.getElementById('zapmroHistoryInfoIconWrap');
+          var ic = document.getElementById('zapmroHistoryInfoIcon');
+          t.textContent = opts.title || 'Conexão realizada';
+          m.innerHTML = opts.message || '';
+          var tone = opts.tone || 'info';
+          if (tone === 'warning') {
+            iw.style.background='#fef3c7'; iw.style.color='#b45309';
+            ic.className='fas fa-triangle-exclamation';
+            ok.style.background='linear-gradient(135deg,#b45309,#f59e0b)';
+          } else if (tone === 'success') {
+            iw.style.background='#dcfce7'; iw.style.color='#047857';
+            ic.className='fas fa-circle-check';
+            ok.style.background='linear-gradient(135deg,#047857,#10b981)';
+          } else {
+            iw.style.background='#dbeafe'; iw.style.color='#1d4ed8';
+            ic.className='fas fa-circle-info';
+            ok.style.background='linear-gradient(135deg,#1d4ed8,#3b82f6)';
+          }
+          function close(){ modal.style.display='none'; ok.onclick=null; modal.onclick=null; document.removeEventListener('keydown', onKey); resolve(true); }
+          function onKey(e){ if(e.key==='Escape'||e.key==='Enter') close(); }
+          ok.onclick = close;
+          modal.onclick = function(e){ if(e.target===modal) close(); };
+          document.addEventListener('keydown', onKey);
+          modal.style.display='flex';
+          setTimeout(function(){ ok.focus(); }, 30);
+        });
+      };
+    </script>
+    <script>
+      window.zapmroConfirm = function (opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+          var modal   = document.getElementById('zapmroConfirmModal');
+          var titleEl = document.getElementById('zapmroConfirmTitle');
+          var subEl   = document.getElementById('zapmroConfirmSub');
+          var msgEl   = document.getElementById('zapmroConfirmMsg');
+          var iconEl  = document.getElementById('zapmroConfirmIcon');
+          var iconWr  = document.getElementById('zapmroConfirmIconWrap');
+          var okBtn   = document.getElementById('zapmroConfirmOk');
+          var okLbl   = document.getElementById('zapmroConfirmOkLabel');
+          var okIcon  = document.getElementById('zapmroConfirmOkIcon');
+          var cancel  = document.getElementById('zapmroConfirmCancel');
+
+          titleEl.textContent = opts.title || 'Confirmar ação';
+          subEl.textContent   = opts.subtitle || '';
+          subEl.style.display = opts.subtitle ? '' : 'none';
+          msgEl.textContent   = opts.message || 'Tem certeza?';
+          okLbl.textContent   = opts.okText || 'Confirmar';
+          cancel.textContent  = opts.cancelText || 'Cancelar';
+          iconEl.className    = 'fas ' + (opts.icon || 'fa-triangle-exclamation');
+          okIcon.className    = 'fas ' + (opts.okIcon || 'fa-check');
+
+          // Tone: 'danger' (default) | 'warning' | 'info'
+          var tone = opts.tone || 'danger';
+          if (tone === 'warning') {
+            iconWr.style.background = '#fef3c7'; iconWr.style.color = '#b45309';
+            okBtn.style.background  = 'linear-gradient(135deg,#b45309,#f59e0b)';
+            okBtn.style.boxShadow   = '0 10px 22px -10px rgba(180,83,9,0.55)';
+          } else if (tone === 'info') {
+            iconWr.style.background = '#dcfce7'; iconWr.style.color = '#047857';
+            okBtn.style.background  = 'linear-gradient(135deg,#047857,#10b981)';
+            okBtn.style.boxShadow   = '0 10px 22px -10px rgba(4,120,87,0.55)';
+          } else {
+            iconWr.style.background = '#fee2e2'; iconWr.style.color = '#b91c1c';
+            okBtn.style.background  = 'linear-gradient(135deg,#b91c1c,#ef4444)';
+            okBtn.style.boxShadow   = '0 10px 22px -10px rgba(185,28,28,0.55)';
+          }
+
+          function close(result) {
+            modal.style.display = 'none';
+            okBtn.onclick = null; cancel.onclick = null;
+            modal.onclick = null; document.removeEventListener('keydown', onKey);
+            resolve(result);
+          }
+          function onKey(e) {
+            if (e.key === 'Escape') close(false);
+            if (e.key === 'Enter')  close(true);
+          }
+          okBtn.onclick   = function () { close(true);  };
+          cancel.onclick  = function () { close(false); };
+          modal.onclick   = function (e) { if (e.target === modal) close(false); };
+          document.addEventListener('keydown', onKey);
+          modal.style.display = 'flex';
+          setTimeout(function(){ okBtn.focus(); }, 30);
+        });
+      };
+    </script>
+    <script>
+        // Hash router: #login | #register | #admin
+        (function () {
+            function applyHash() {
+                var h = (location.hash || '').replace('#', '').toLowerCase();
+                if (!h) return;
+                if (h === 'admin') {
+                    var t = document.getElementById('adminTabBtn');
+                    if (t) t.removeAttribute('hidden');
+                }
+                var btn = document.querySelector('.tab[data-tab="' + h + '"]');
+                if (btn) btn.click();
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', applyHash);
+            } else {
+                applyHash();
+            }
+            window.addEventListener('hashchange', applyHash);
+        })();
+    </script>
+</body>
+</html>

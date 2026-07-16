@@ -3,513 +3,662 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZAPMRO Cloud API</title>
+    <title>ZAPMRO — A plataforma completa de WhatsApp para o seu negócio</title>
+    <meta name="description" content="ZAPMRO conecta seu WhatsApp a um CRM Kanban com IA, agendamento, campanhas de reengajamento e proxy anti-bloqueio. Tudo em um só lugar.">
+    <meta property="og:title" content="ZAPMRO — WhatsApp + CRM + IA em uma só plataforma">
+    <meta property="og:description" content="Multi-conexão, Kanban, IA, agendamento, WinBack e proxy dedicado. Feito para vendas e atendimento em escala.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="theme.css?v=2">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        /* ===== Landing-specific styles ===== */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            padding: 0 !important;
+            background: var(--bg) !important;
         }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
+        .container { max-width: 1200px !important; padding: 0 24px; }
+
+        /* Nav */
+        .nav {
+            position: sticky; top: 0; z-index: 40;
+            backdrop-filter: saturate(180%) blur(14px);
+            -webkit-backdrop-filter: saturate(180%) blur(14px);
+            background: rgba(246, 248, 245, 0.85);
+            border-bottom: 1px solid var(--border);
         }
-        
-        header {
+        .nav-inner {
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            padding: 14px 0;
+        }
+        .nav-brand { display:flex; align-items:center; gap:10px; }
+        .nav-brand img { height: 34px; }
+        .nav-links { display:flex; gap: 28px; align-items:center; }
+        .nav-links a { color: var(--ink-soft); font-weight: 600; font-size: 0.92rem; }
+        .nav-links a:hover { color: var(--emerald-900); }
+        .nav-cta { display: flex; gap: 10px; align-items:center; }
+        @media (max-width: 860px) {
+            .nav-links { display: none; }
+        }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            padding: 88px 0 96px;
+            overflow: hidden;
+        }
+        .hero::before {
+            content:""; position:absolute; inset:0; z-index:0;
+            background:
+                radial-gradient(600px 400px at 90% 10%, rgba(201,168,76,0.14), transparent 60%),
+                radial-gradient(700px 500px at 10% 100%, rgba(13,122,95,0.14), transparent 60%);
+            pointer-events:none;
+        }
+        .hero-grid {
+            position: relative; z-index: 1;
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            gap: 56px;
+            align-items: center;
+        }
+        @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
+
+        .eyebrow {
+            display:inline-flex; align-items:center; gap:8px;
+            background: rgba(13,122,95,0.08);
+            color: var(--emerald-900);
+            padding: 6px 12px; border-radius: 999px;
+            font-family: var(--font-display); font-weight: 600; font-size: 0.78rem;
+            letter-spacing: 0.06em; text-transform: uppercase;
+            border: 1px solid rgba(13,122,95,0.15);
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2.2rem, 5vw, 3.6rem);
+            line-height: 1.05; letter-spacing: -0.03em;
+            margin: 18px 0 18px; color: var(--ink);
+            font-weight: 700;
+        }
+        .hero h1 .accent {
+            background: linear-gradient(120deg, var(--emerald-900) 0%, var(--emerald-700) 50%, var(--gold-500) 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .hero p.lede {
+            font-size: 1.15rem; color: var(--ink-soft); line-height: 1.55; max-width: 560px;
+            margin: 0 0 26px;
+        }
+        .hero-actions { display:flex; gap:12px; flex-wrap:wrap; }
+        .hero-actions .btn { padding: 14px 22px !important; font-size: 0.98rem !important; }
+        .hero-trust {
+            margin-top: 26px; display:flex; gap:20px; flex-wrap:wrap;
+            color: var(--muted); font-size: 0.88rem;
+        }
+        .hero-trust span { display:inline-flex; align-items:center; gap:6px; }
+        .hero-trust i { color: var(--emerald-700); }
+
+        /* Hero visual — mock dashboard */
+        .mock {
+            position: relative;
+            border-radius: var(--radius-xl);
+            background: linear-gradient(160deg, var(--emerald-950) 0%, var(--emerald-900) 60%, #063a2c 100%);
+            padding: 22px;
+            box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255,255,255,0.05) inset;
+            color: var(--cream-50);
+            overflow: hidden;
+        }
+        .mock::after {
+            content:""; position:absolute; inset:-1px;
+            background: radial-gradient(400px 200px at 100% 0, rgba(201,168,76,0.28), transparent 60%);
+            pointer-events:none;
+        }
+        .mock-head { display:flex; align-items:center; gap:8px; margin-bottom: 14px; opacity: 0.85; }
+        .mock-dot { width:10px; height:10px; border-radius:50%; background: rgba(255,255,255,0.25); }
+        .mock-body {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            display: grid; gap: 14px;
+        }
+        .mock-row {
+            display:flex; align-items:center; justify-content:space-between; gap:12px;
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.04);
+            border-radius: var(--radius-sm);
+            border-left: 3px solid var(--gold-500);
+            font-family: var(--font-body); font-size: 0.88rem;
+        }
+        .mock-row .r-left { display:flex; align-items:center; gap:10px; }
+        .mock-row .r-avatar {
+            width:32px; height:32px; border-radius:50%;
+            background: linear-gradient(135deg, var(--emerald-500), var(--emerald-700));
+            display:grid; place-items:center; font-weight:700; color:#052e26;
+        }
+        .mock-row .r-pill {
+            font-size: 0.7rem; padding: 3px 8px; border-radius: 999px;
+            background: rgba(45,212,168,0.18); color: var(--emerald-500);
+            border: 1px solid rgba(45,212,168,0.3);
+        }
+        .mock-row .r-pill.gold { background: rgba(201,168,76,0.15); color: var(--gold-200); border-color: rgba(201,168,76,0.4); }
+        .mock-stats { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .mock-stat {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            padding: 12px;
+        }
+        .mock-stat .v { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--cream-50); }
+        .mock-stat .l { font-size: 0.72rem; color: rgba(245,240,224,0.7); text-transform: uppercase; letter-spacing:0.06em; margin-top:2px; }
+
+        /* Sections */
+        section { padding: 84px 0; }
+        .section-head { text-align:center; max-width: 720px; margin: 0 auto 48px; }
+        .section-head .eyebrow { margin-bottom: 14px; }
+        .section-head h2 {
+            font-size: clamp(1.8rem, 3vw, 2.4rem);
+            letter-spacing: -0.02em; margin: 0 0 12px; font-weight: 700;
+        }
+        .section-head p { color: var(--ink-soft); font-size: 1.05rem; margin: 0; }
+
+        /* Feature grid */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+        }
+        @media (max-width: 960px) { .features { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 640px) { .features { grid-template-columns: 1fr; } }
+        .feature {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+            position: relative;
+        }
+        .feature:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(13,122,95,0.25);
+        }
+        .feature .ic {
+            width: 46px; height: 46px; border-radius: 12px;
+            display:grid; place-items:center;
+            background: linear-gradient(135deg, rgba(13,122,95,0.12), rgba(201,168,76,0.14));
+            color: var(--emerald-900);
+            font-size: 1.15rem;
+            margin-bottom: 16px;
+            border: 1px solid rgba(13,122,95,0.15);
+        }
+        .feature h3 { font-size: 1.1rem; margin: 0 0 8px; letter-spacing: -0.01em; }
+        .feature p { color: var(--ink-soft); font-size: 0.94rem; line-height: 1.55; margin: 0; }
+
+        /* Section alt bg */
+        .bg-alt {
+            background:
+                radial-gradient(600px 300px at 50% 0, rgba(13,122,95,0.05), transparent 70%),
+                var(--surface-2);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Steps */
+        .steps {
+            display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+            counter-reset: step;
+        }
+        @media (max-width: 860px) { .steps { grid-template-columns: 1fr; } }
+        .step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            position: relative;
+        }
+        .step::before {
+            counter-increment: step;
+            content: "0" counter(step);
+            position:absolute; top: 18px; right: 22px;
+            font-family: var(--font-display); font-size: 1.6rem; font-weight: 700;
+            background: var(--gradient-gold);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .step h3 { margin: 0 0 8px; font-size: 1.1rem; }
+        .step p { color: var(--ink-soft); font-size: 0.94rem; margin: 0; line-height: 1.5; }
+
+        /* Highlight banner */
+        .highlight {
+            background: var(--gradient-hero);
+            border-radius: var(--radius-xl);
+            padding: 56px;
+            color: var(--cream-50);
+            display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center;
+            box-shadow: var(--shadow-lg);
+            position: relative; overflow: hidden;
+        }
+        @media (max-width: 860px) { .highlight { grid-template-columns: 1fr; padding: 36px; } }
+        .highlight h2 { color: var(--cream-50); font-size: clamp(1.6rem, 2.6vw, 2.2rem); margin: 0 0 14px; letter-spacing:-0.02em; }
+        .highlight p { color: rgba(245,240,224,0.85); font-size: 1.05rem; margin: 0 0 22px; line-height: 1.55; }
+        .highlight .chips { display:flex; gap:8px; flex-wrap:wrap; }
+        .highlight .chip {
+            padding: 6px 12px; border-radius: 999px;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+            font-size: 0.82rem; color: var(--cream-50);
+        }
+        .highlight .visual {
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            display:grid; gap: 12px;
+        }
+        .kanban-col { background: rgba(255,255,255,0.05); border-radius: var(--radius); padding: 12px; }
+        .kanban-col h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing:0.08em; margin:0 0 10px; color: var(--gold-200); font-family: var(--font-display); }
+        .kanban-card {
+            background: rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px;
+            font-size: 0.85rem; margin-bottom: 8px; border-left: 3px solid var(--emerald-500);
+        }
+        .kanban-card:last-child { margin-bottom: 0; }
+        .kanban-row { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+        /* FAQ */
+        .faq { display: grid; gap: 12px; max-width: 820px; margin: 0 auto; }
+        .faq details {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 18px 22px;
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .faq details[open] { border-color: rgba(13,122,95,0.35); box-shadow: var(--shadow); }
+        .faq summary {
+            cursor:pointer; font-weight: 600; color: var(--ink); font-family: var(--font-display);
+            font-size: 1rem; list-style: none;
+            display:flex; justify-content:space-between; align-items:center; gap: 12px;
+        }
+        .faq summary::-webkit-details-marker { display:none; }
+        .faq summary::after {
+            content: "+"; font-size: 1.4rem; color: var(--emerald-700); transition: transform .2s ease;
+        }
+        .faq details[open] summary::after { content: "−"; }
+        .faq details p { color: var(--ink-soft); font-size: 0.95rem; line-height: 1.55; margin: 12px 0 0; }
+
+        /* Final CTA */
+        .cta-final {
             text-align: center;
-            color: white;
-            margin-bottom: 40px;
+            padding: 96px 24px;
+            background: linear-gradient(180deg, transparent, rgba(13,122,95,0.06));
         }
-        
-        header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-        
-        header p {
-            font-size: 1.2rem;
-            opacity: 0.9;
-        }
+        .cta-final h2 { font-size: clamp(2rem, 3.4vw, 2.8rem); letter-spacing: -0.02em; margin: 0 0 14px; }
+        .cta-final p { color: var(--ink-soft); font-size: 1.1rem; margin: 0 0 28px; }
 
-        .brand {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            border-radius: 14px;
-            background: rgba(0,0,0,0.18);
-            border: 1px solid rgba(255,255,255,0.18);
-            backdrop-filter: blur(8px);
-            flex-direction: column;
-            justify-content: center;
+        /* Footer */
+        footer.site {
+            background: #06231b;
+            color: rgba(245,240,224,0.7);
+            padding: 56px 0 24px;
         }
-
-        .brand .title {
-            font-weight: 900;
-            letter-spacing: 0.5px;
+        footer.site .foot-grid {
+            display:grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 40px;
+            padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,0.08);
         }
-
-        .brand .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85rem;
-            font-weight: 800;
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.14);
-            border: 1px solid rgba(255,255,255,0.16);
+        @media (max-width: 860px) { footer.site .foot-grid { grid-template-columns: 1fr 1fr; } }
+        footer.site h5 {
+            color: var(--cream-50); font-family: var(--font-display); font-weight: 600;
+            font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em;
+            margin: 0 0 14px;
         }
-
-        .brand-logo {
-            width: min(180px, 56vw);
-            height: auto;
-            display: block;
-        }
-
-        .top-actions {
-            margin-top: 14px;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
+        footer.site ul { list-style:none; padding:0; margin:0; display:grid; gap: 8px; }
+        footer.site a { color: rgba(245,240,224,0.7); font-size: 0.9rem; }
+        footer.site a:hover { color: var(--cream-50); }
+        footer.site .foot-brand { display:flex; align-items:center; gap: 10px; margin-bottom: 14px; }
+        footer.site .foot-brand img { height: 34px; }
+        footer.site .foot-bottom {
+            display:flex; justify-content:space-between; align-items:center; gap: 12px;
+            padding-top: 22px; font-size: 0.82rem;
             flex-wrap: wrap;
         }
-        
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+        footer.site .admin-link {
+            color: rgba(245,240,224,0.4);
+            font-size: 0.72rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-family: var(--font-display);
         }
-        
-        .panel {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        
-        .panel h2 {
-            color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #667eea;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin: 10px 0 18px;
-        }
-
-        .tab {
-            flex: 1;
-            min-width: 120px;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid #e5e7eb;
-            background: #f8fafc;
-            cursor: pointer;
-            font-weight: 800;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            color: #0f172a;
-        }
-
-        .tab.active {
-            background: #111827;
-            color: #fff;
-            border-color: #111827;
-        }
-
-        .field {
-            display: grid;
-            gap: 6px;
-            margin-bottom: 12px;
-        }
-
-        .field label {
-            font-size: 0.9rem;
-            color: #111827;
-            font-weight: 800;
-        }
-
-        .field input {
-            width: 100%;
-            padding: 12px 12px;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-            outline: none;
-            font-size: 1rem;
-        }
-
-        .field input:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
-        }
-
-        .hint {
-            font-size: 0.92rem;
-            color: #475569;
-            line-height: 1.35;
-        }
-
-        .muted {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-
-        .success {
-            color: #166534;
-            background: #dcfce7;
-            border: 1px solid #bbf7d0;
-            padding: 10px 12px;
-            border-radius: 12px;
-            font-weight: 800;
-            margin-top: 14px;
-            display: none;
-        }
-
-        .error {
-            color: #991b1b;
-            background: #fee2e2;
-            border: 1px solid #fecaca;
-            padding: 10px 12px;
-            border-radius: 12px;
-            font-weight: 800;
-            margin-top: 14px;
-            display: none;
-        }
-        
-        .btn {
-            background: linear-gradient(to right, #667eea, #764ba2);
-            color: white;
-            border: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-secondary {
-            background: #6c757d;
-        }
-        
-        .btn-danger {
-            background: #dc3545;
-        }
-
-        .btn-whatsapp {
-            background: #25D366;
-        }
-
-        .btn-dark {
-            background: #111827;
-        }
-        
-        .sessions-list {
-            margin-top: 20px;
-        }
-        
-        .session-card {
-            background: #f8f9fa;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .session-info h4 {
-            color: #333;
-            margin-bottom: 5px;
-        }
-        
-        .session-info p {
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .status {
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-        
-        .status.connected {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status.pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .status.disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        #qrContainer {
-            text-align: center;
-            padding: 20px;
-        }
-        
-        #qrCode {
-            max-width: 300px;
-            margin: 20px auto;
-            border: 10px solid white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .current-session {
-            background: #e3f2fd;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        
-        .session-details {
-            margin-top: 10px;
-            padding: 10px;
-            background: white;
-            border-radius: 5px;
-        }
-        
-        .no-session {
-            text-align: center;
-            color: #666;
-            padding: 40px 20px;
-        }
-        
-        @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
-
-            /* Responsive Admin Table */
-            .admin-table, .admin-table thead, .admin-table tbody, .admin-table th, .admin-table td, .admin-table tr {
-                display: block;
-            }
-            .admin-table thead tr {
-                position: absolute;
-                top: -9999px;
-                left: -9999px;
-            }
-            .admin-table tr {
-                border: 1px solid #e2e8f0;
-                margin-bottom: 12px;
-                border-radius: 10px;
-                background: #fff;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-                padding: 5px;
-            }
-            .admin-table td {
-                border: none;
-                border-bottom: 1px solid #f1f5f9;
-                position: relative;
-                padding: 12px 10px 12px 45% !important; /* Keep padding-left for label space */
-                text-align: right;
-                display: block; /* Use block to ensure height */
-                min-height: 40px;
-            }
-            .admin-table td:last-child {
-                border-bottom: none;
-            }
-            .admin-table td:before {
-                position: absolute;
-                top: 50%;
-                left: 10px;
-                width: 40%;
-                padding-right: 10px;
-                white-space: nowrap;
-                transform: translateY(-50%);
-                text-align: left;
-                font-weight: 700;
-                color: #64748b;
-                content: attr(data-label);
-            }
-        }
+        footer.site .admin-link:hover { color: var(--gold-200); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="brand">
-                <img class="brand-logo" src="LOGOTRANSPARENTE01.png" alt="ZAPMRO">
-                <div class="tag"><i class="fas fa-flask"></i> EM TESTE</div>
-            </div>
-            <h1 style="margin-top:16px;">A melhor ferramenta do WhatsApp</h1>
-            <p>Fase de teste. Gostaria de testar? <span id="testSlotsAvailable" style="font-weight:bold; color:#111827; background:rgba(255,255,255,0.4); padding:2px 8px; border-radius:12px; font-size:0.9em; display:none;">Vagas: 0/10</span></p>
-            <div class="top-actions">
-                <a class="btn btn-whatsapp" id="waPromoBtn" target="_blank" rel="noopener noreferrer"
-                   href="https://wa.me/5551992036540?text=Ol%C3%A1%21%20Gostaria%20do%20c%C3%B3digo%20promocional%20para%20testar%20o%20sistema.">
-                    <i class="fab fa-whatsapp"></i> Pedir código no WhatsApp
+    <!-- ============ NAV ============ -->
+    <div class="nav">
+        <div class="container nav-inner">
+            <a class="nav-brand" href="#top">
+                <img src="LOGOTRANSPARENTE01.png" alt="ZAPMRO">
+            </a>
+            <nav class="nav-links">
+                <a href="#recursos">Recursos</a>
+                <a href="#como">Como funciona</a>
+                <a href="#crm">CRM & IA</a>
+                <a href="#faq">FAQ</a>
+            </nav>
+            <div class="nav-cta">
+                <a class="btn" href="/app.html#login" style="padding:9px 16px !important;">
+                    <i class="fas fa-right-to-bracket"></i> Entrar
                 </a>
-                <button class="btn btn-dark" id="logoutBtn" style="display:none;">
-                    <i class="fas fa-right-from-bracket"></i> Sair
-                </button>
+                <a class="btn btn-dark" href="/app.html#register" style="padding:9px 18px !important;">
+                    <i class="fas fa-user-plus"></i> Cadastrar
+                </a>
             </div>
-        </header>
-        
-        <div class="main-content">
-            <div class="panel">
-                <h2><i class="fas fa-user-lock"></i> Acesso</h2>
-                <div class="hint">Use seu email e o código de teste que você recebeu no WhatsApp.</div>
-                <div class="tabs">
-                    <button class="tab active" data-tab="register"><i class="fas fa-user-plus"></i> Cadastrar</button>
-                    <button class="tab" data-tab="login"><i class="fas fa-right-to-bracket"></i> Entrar</button>
-                    <button class="tab" data-tab="admin"><i class="fas fa-shield-halved"></i> Admin</button>
+        </div>
+    </div>
+
+    <!-- ============ HERO ============ -->
+    <section id="top" class="hero">
+        <div class="container hero-grid">
+            <div>
+                <span class="eyebrow"><i class="fas fa-bolt"></i> Em teste · Vagas limitadas</span>
+                <h1>WhatsApp, <span class="accent">CRM e IA</span> em uma única plataforma pra vender mais.</h1>
+                <p class="lede">
+                    Conecte seu WhatsApp em minutos, organize conversas em Kanban, agende mensagens,
+                    rode campanhas de reengajamento e deixe a IA responder no seu tom de voz. Tudo com
+                    proxy dedicado pra sua conta não bloquear.
+                </p>
+                <div class="hero-actions">
+                    <a class="btn btn-whatsapp" href="/app.html#register">
+                        <i class="fas fa-rocket"></i> Começar gratuitamente
+                    </a>
+                    <a class="btn btn-secondary" href="#recursos">
+                        <i class="fas fa-play"></i> Ver recursos
+                    </a>
                 </div>
-
-                <div id="authRegister">
-                    <div class="field">
-                        <label for="registerName">Nome</label>
-                        <input id="registerName" type="text" autocomplete="name" placeholder="Seu nome" />
-                    </div>
-                    <div class="field">
-                        <label for="registerEmail">Email</label>
-                        <input id="registerEmail" type="email" autocomplete="email" placeholder="seuemail@gmail.com" />
-                    </div>
-                    <div class="field">
-                        <label for="registerPromo">Código promocional</label>
-                        <input id="registerPromo" type="text" autocomplete="one-time-code" placeholder="ex: xxxxx" />
-                    </div>
-                    <button id="registerBtn" class="btn btn-dark" style="width:100%; justify-content:center;">
-                        <i class="fas fa-user-plus"></i> Cadastrar
-                    </button>
-                    <div class="muted" style="margin-top:10px;">Ao cadastrar, você terá 1 conexão por usuário.</div>
+                <div class="hero-trust">
+                    <span><i class="fas fa-check-circle"></i> Sem cartão de crédito</span>
+                    <span><i class="fas fa-shield-halved"></i> Proxy dedicado incluso</span>
+                    <span><i class="fas fa-bolt"></i> Setup em 5 minutos</span>
                 </div>
+            </div>
 
-                <div id="authLogin" style="display:none;">
-                    <div class="field">
-                        <label for="loginEmail">Email</label>
-                        <input id="loginEmail" type="email" autocomplete="email" placeholder="seuemail@gmail.com" />
-                    </div>
-                    <div class="field">
-                        <label for="loginPromo">Código de teste</label>
-                        <input id="loginPromo" type="text" autocomplete="one-time-code" placeholder="ex: xxxxx" />
-                    </div>
-                    <button id="loginBtn" class="btn btn-dark" style="width:100%; justify-content:center;">
-                        <i class="fas fa-right-to-bracket"></i> Entrar
-                    </button>
+            <div class="mock" aria-hidden="true">
+                <div class="mock-head">
+                    <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+                    <span style="margin-left:8px; font-family: var(--font-display); font-size: 0.82rem;">ZAPMRO · dashboard</span>
                 </div>
-
-                <div id="authAdmin" style="display:none;">
-                    <div class="field">
-                        <label for="adminEmail">Email</label>
-                        <input id="adminEmail" type="email" autocomplete="username" placeholder="( digite seu email )" />
+                <div class="mock-body">
+                    <div class="mock-stats">
+                        <div class="mock-stat"><div class="v">128</div><div class="l">Leads hoje</div></div>
+                        <div class="mock-stat"><div class="v">92%</div><div class="l">Taxa resposta</div></div>
+                        <div class="mock-stat"><div class="v">1.4k</div><div class="l">Msgs / semana</div></div>
                     </div>
-                    <div class="field">
-                        <label for="adminPassword">Senha</label>
-                        <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Senha" />
-                    </div>
-                    <button id="adminLoginBtn" class="btn btn-dark" style="width:100%; justify-content:center;">
-                        <i class="fas fa-shield-halved"></i> Entrar como admin
-                    </button>
-                </div>
-
-                <div id="authSuccess" class="success"></div>
-                <div id="authError" class="error"></div>
-
-                <div id="userConnectPanel" style="display:none; margin-top:18px;">
-                    <h2 style="margin-top:10px;"><i class="fas fa-link"></i> Conectar WhatsApp</h2>
-                    <div class="hint">Você pode conectar apenas 1 aparelho. Se já estiver conectado, é só abrir o painel.</div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
-                        <button id="createSessionBtn" class="btn btn-whatsapp">
-                            <i class="fas fa-qrcode"></i> Gerar QR Code
-                        </button>
-                        <a id="openCrmBtn" class="btn" style="text-decoration:none; display:none;" href="/crm.html">
-                            <i class="fas fa-columns"></i> Abrir dashboard
-                        </a>
-                    </div>
-
-                    <div id="qrContainer" style="display: none;">
-                        <h3 style="margin-top:18px;">Escaneie o QR Code</h3>
-                        <p class="muted" style="margin-top:6px;">WhatsApp → Dispositivos conectados → Conectar um dispositivo</p>
-                        <img id="qrCode" src="" alt="QR Code">
-                        <div class="current-session">
-                            <h4>Sessão:</h4>
-                            <div id="sessionInfo" class="session-details">
-                                Aguardando leitura do QR Code...
+                    <div class="mock-row">
+                        <div class="r-left">
+                            <div class="r-avatar">M</div>
+                            <div>
+                                <div style="font-weight:600;">Marina Silva</div>
+                                <div style="opacity:.7; font-size:.78rem;">Interessada · plano anual</div>
                             </div>
                         </div>
+                        <span class="r-pill">Quente</span>
                     </div>
-                </div>
-            </div>
-            
-            <div class="panel" id="connectionPanel" style="display:none;">
-                <h2 id="rightTitle"><i class="fas fa-plug"></i> Sua Conexão</h2>
-                <p id="rightHint">Acompanhe o status do seu WhatsApp. Seus dados não se misturam com outros usuários.</p>
-                
-                <div id="sessionsContainer" class="sessions-list">
-                    <div class="no-session">
-                        <i class="fas fa-plug" style="font-size: 3rem; color: #ddd; margin-bottom: 20px;"></i>
-                        <p>Faça login para ver sua conexão</p>
+                    <div class="mock-row">
+                        <div class="r-left">
+                            <div class="r-avatar">J</div>
+                            <div>
+                                <div style="font-weight:600;">João Pereira</div>
+                                <div style="opacity:.7; font-size:.78rem;">Aguardando proposta</div>
+                            </div>
+                        </div>
+                        <span class="r-pill gold">Follow-up</span>
                     </div>
-                </div>
-                
-                <button id="refreshSessionsBtn" class="btn btn-secondary" style="margin-top: 20px;">
-                    <i class="fas fa-sync-alt"></i> Atualizar Lista
-                </button>
-
-                <div id="adminPanel" style="display:none;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px;">
-                        <div class="hint" style="margin:0;">Usuários que cadastraram e conectaram o WhatsApp</div>
-                        <button id="refreshAdminBtn" class="btn btn-secondary" style="padding: 8px 12px;">
-                            <i class="fas fa-rotate"></i>
-                        </button>
-                    </div>
-                    <div style="overflow:auto; margin-top:14px;">
-                        <table class="admin-table" style="width:100%; border-collapse:collapse;">
-                            <thead>
-                                <tr style="text-align:left; color:#0f172a;">
-                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Usuário</th>
-                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Email</th>
-                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Status</th>
-                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Proxy</th>
-                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Número</th>
-                                    <th style="padding:10px; border-bottom:1px solid #e5e7eb;">Último QR</th>
-                                </tr>
-                            </thead>
-                            <tbody id="adminUsersTbody"></tbody>
-                        </table>
+                    <div class="mock-row">
+                        <div class="r-left">
+                            <div class="r-avatar">A</div>
+                            <div>
+                                <div style="font-weight:600;">Ana Costa</div>
+                                <div style="opacity:.7; font-size:.78rem;">IA respondendo agora</div>
+                            </div>
+                        </div>
+                        <span class="r-pill">Auto</span>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <script src="config.js"></script>
+    </section>
+
+    <!-- ============ RECURSOS ============ -->
+    <section id="recursos" class="bg-alt">
+        <div class="container">
+            <div class="section-head">
+                <span class="eyebrow"><i class="fas fa-layer-group"></i> Recursos</span>
+                <h2>Tudo que você precisa pra escalar no WhatsApp</h2>
+                <p>Da primeira conexão à campanha de reengajamento — sem depender de várias ferramentas soltas.</p>
+            </div>
+
+            <div class="features">
+                <div class="feature">
+                    <div class="ic"><i class="fab fa-whatsapp"></i></div>
+                    <h3>Multi-conexão WhatsApp</h3>
+                    <p>Conecte vários números com QR Code em segundos. Cada sessão isolada, com dados que não se misturam.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-columns"></i></div>
+                    <h3>CRM Kanban visual</h3>
+                    <p>Arraste contatos entre colunas, marque status, adicione tags e acompanhe todo o funil sem sair do WhatsApp.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-robot"></i></div>
+                    <h3>IA que responde por você</h3>
+                    <p>Configure objetivo, contexto e tom. A IA atende leads 24/7, transcreve áudios e entende imagens.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-calendar-check"></i></div>
+                    <h3>Agendamento inteligente</h3>
+                    <p>Programe mensagens, follow-ups e sequências. Dispare no melhor horário, sem lembrar de nada.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-arrows-rotate"></i></div>
+                    <h3>Campanhas WinBack</h3>
+                    <p>Reative leads frios em lotes seguros. Filtro por coluna do CRM, importação CSV/VCF, controle anti-bloqueio.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-shield-halved"></i></div>
+                    <h3>Proxy dedicado</h3>
+                    <p>Cada conexão roda por proxy residencial próprio. Menos risco de banimento, mais estabilidade.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-diagram-project"></i></div>
+                    <h3>Fluxos automatizados</h3>
+                    <p>Monte respostas em árvore com condicionais, mídia e integrações. Perfeito pra pré-atendimento.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-address-book"></i></div>
+                    <h3>Contatos & Tags</h3>
+                    <p>Base unificada de contatos com tags customizadas, histórico completo e busca instantânea.</p>
+                </div>
+                <div class="feature">
+                    <div class="ic"><i class="fas fa-chart-line"></i></div>
+                    <h3>Métricas em tempo real</h3>
+                    <p>Envios, respostas, conversões e desempenho da IA — tudo atualizando via Socket.IO ao vivo.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ COMO FUNCIONA ============ -->
+    <section id="como">
+        <div class="container">
+            <div class="section-head">
+                <span class="eyebrow"><i class="fas fa-map"></i> Como funciona</span>
+                <h2>Do zero ao primeiro atendimento em 5 minutos</h2>
+                <p>Sem instalação, sem configuração complicada. Tudo roda no navegador.</p>
+            </div>
+
+            <div class="steps">
+                <div class="step">
+                    <h3>Crie sua conta</h3>
+                    <p>Cadastre-se com seu email e o código promocional recebido no WhatsApp. Grátis durante o teste.</p>
+                </div>
+                <div class="step">
+                    <h3>Escaneie o QR Code</h3>
+                    <p>Abra o WhatsApp → Dispositivos conectados → aponte pra tela. Pronto, tá conectado.</p>
+                </div>
+                <div class="step">
+                    <h3>Comece a vender</h3>
+                    <p>Organize leads no Kanban, ative a IA, agende mensagens e acompanhe métricas em tempo real.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ CRM HIGHLIGHT ============ -->
+    <section id="crm" class="bg-alt">
+        <div class="container">
+            <div class="highlight">
+                <div>
+                    <span class="eyebrow" style="background: rgba(201,168,76,0.18); color: var(--gold-200); border-color: rgba(201,168,76,0.3);">
+                        <i class="fas fa-brain"></i> CRM + IA
+                    </span>
+                    <h2 style="margin-top:14px;">Seu funil de vendas em Kanban, com IA no piloto</h2>
+                    <p>
+                        Organize conversas em colunas customizáveis (Novo, Qualificado, Proposta, Fechado).
+                        Deixe a IA responder o primeiro contato, qualificar leads e chamar você só quando
+                        o cliente estiver pronto pra fechar.
+                    </p>
+                    <div class="chips">
+                        <span class="chip">Drag & Drop</span>
+                        <span class="chip">Transcrição de áudio</span>
+                        <span class="chip">OCR de imagens</span>
+                        <span class="chip">Tags customizadas</span>
+                        <span class="chip">Handoff humano</span>
+                    </div>
+                    <div style="margin-top: 26px;">
+                        <a class="btn btn-gold" href="/app.html#register">
+                            <i class="fas fa-rocket"></i> Testar agora
+                        </a>
+                    </div>
+                </div>
+                <div class="visual">
+                    <div class="kanban-row">
+                        <div class="kanban-col">
+                            <h4>Novo</h4>
+                            <div class="kanban-card">Marina · quer preço</div>
+                            <div class="kanban-card">Rafael · qualificado</div>
+                        </div>
+                        <div class="kanban-col">
+                            <h4>Proposta</h4>
+                            <div class="kanban-card">Ana · plano anual</div>
+                        </div>
+                        <div class="kanban-col">
+                            <h4>Fechado</h4>
+                            <div class="kanban-card" style="border-left-color: var(--gold-500);">João · pagou ✓</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section id="faq">
+        <div class="container">
+            <div class="section-head">
+                <span class="eyebrow"><i class="fas fa-circle-question"></i> Dúvidas frequentes</span>
+                <h2>Perguntas comuns</h2>
+            </div>
+
+            <div class="faq">
+                <details>
+                    <summary>Meu número corre risco de ser banido?</summary>
+                    <p>Cada conexão roda por proxy residencial dedicado, com limites automáticos por hora e por dia. Também recomendamos aquecer números novos antes de campanhas grandes.</p>
+                </details>
+                <details>
+                    <summary>Preciso instalar alguma coisa?</summary>
+                    <p>Não. Tudo roda no navegador. Você só precisa do WhatsApp instalado no celular pra escanear o QR Code inicial.</p>
+                </details>
+                <details>
+                    <summary>Como funciona o teste grátis?</summary>
+                    <p>Peça o código promocional no botão do WhatsApp e cadastre-se. Você ganha uma conexão gratuita durante o período de testes, sem cartão.</p>
+                </details>
+                <details>
+                    <summary>Posso ter mais de um número?</summary>
+                    <p>Sim. Cada usuário pode ter múltiplas conexões, cada uma isolada com seu próprio proxy, sessão e histórico.</p>
+                </details>
+                <details>
+                    <summary>A IA responde no meu tom?</summary>
+                    <p>Você define objetivo, contexto e regras. A IA usa isso pra manter o tom da sua marca — e você pode assumir a conversa a qualquer momento.</p>
+                </details>
+                <details>
+                    <summary>Meus dados ficam seguros?</summary>
+                    <p>Sessões são isoladas por usuário, comunicação criptografada e nenhum dado é compartilhado entre contas. Consulte a <a href="/politica.html">política de privacidade</a>.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ CTA FINAL ============ -->
+    <section class="cta-final">
+        <div class="container">
+            <span class="eyebrow"><i class="fas fa-fire"></i> Vagas limitadas no teste</span>
+            <h2 style="margin-top:14px;">Pronto pra transformar seu WhatsApp?</h2>
+            <p>Cadastre-se em 30 segundos e conecte seu primeiro número agora.</p>
+            <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+                <a class="btn btn-whatsapp" href="/app.html#register" style="padding:14px 24px !important;">
+                    <i class="fas fa-rocket"></i> Começar gratuitamente
+                </a>
+                <a class="btn btn-secondary" href="/app.html#login" style="padding:14px 24px !important;">
+                    <i class="fas fa-right-to-bracket"></i> Já tenho conta
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ FOOTER ============ -->
+    <footer class="site">
+        <div class="container">
+            <div class="foot-grid">
+                <div>
+                    <div class="foot-brand">
+                        <img src="LOGOTRANSPARENTE01.png" alt="ZAPMRO">
+                    </div>
+                    <p style="color: rgba(245,240,224,0.6); font-size: 0.9rem; line-height: 1.55; max-width: 320px;">
+                        A plataforma completa de WhatsApp com CRM, IA, agendamento e proxy dedicado.
+                        Feita pra times que vendem em escala.
+                    </p>
+                </div>
+                <div>
+                    <h5>Produto</h5>
+                    <ul>
+                        <li><a href="#recursos">Recursos</a></li>
+                        <li><a href="#como">Como funciona</a></li>
+                        <li><a href="#crm">CRM & IA</a></li>
+                        <li><a href="#faq">FAQ</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h5>Conta</h5>
+                    <ul>
+                        <li><a href="/app.html#login">Entrar</a></li>
+                        <li><a href="/app.html#register">Cadastrar</a></li>
+                        <li><a href="https://wa.me/5551992036540" target="_blank" rel="noopener">Suporte WhatsApp</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h5>Legal</h5>
+                    <ul>
+                        <li><a href="/politica.html">Privacidade</a></li>
+                        <li><a href="/termos.html">Termos de uso</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="foot-bottom">
+                <span>© <span id="fyear"></span> ZAPMRO. Todos os direitos reservados.</span>
+                <a class="admin-link" href="/app.html#admin">Admin</a>
+            </div>
+        </div>
+    </footer>
+
     <script>
-        document.write('<script src="' + window.ZAPMRO_CONFIG.socketIoScriptUrl + '"><\/script>');
+        document.getElementById('fyear').textContent = new Date().getFullYear();
     </script>
-    <script src="app.js"></script>
 </body>
 </html>

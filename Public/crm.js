@@ -40,7 +40,7 @@
         }
         
         switchWbTab('crm');
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
     };
 
     window.switchWbTab = function(tab) {

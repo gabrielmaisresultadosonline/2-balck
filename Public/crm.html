@@ -33,7 +33,8 @@
         }
         
         * { box-sizing: border-box; outline: none; }
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+        body > * { min-width: 0; }
         
         /* Scrollbar */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -42,29 +43,83 @@
         ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.3); }
 
         header {
-            background: white;
-            border-bottom: 1px solid #ddd;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
+            background: linear-gradient(135deg, #064e3b 0%, #0d7a5f 100%);
+            border-bottom: 1px solid rgba(0,0,0,0.15);
+            box-shadow: 0 4px 14px -8px rgba(0,0,0,0.35);
+            padding: 10px 22px;
+            display: grid;
+            grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
             align-items: center;
-            height: 60px;
+            gap: 16px;
+            min-height: 64px;
             z-index: 100;
+            color: #fff;
+        }
+        .header-title { color: #fff; min-width: 0; }
+        .header-title span { color: #fff; }
+        #headerActions { justify-self: end; }
+        #headerActions .back-btn {
+            background: rgba(255,255,255,0.14) !important;
+            border: 1px solid rgba(255,255,255,0.25) !important;
+            color: #fff !important;
+            border-radius: 999px !important;
+            padding: 7px 14px !important;
+            font-weight: 600;
+            transition: background .2s ease, transform .2s ease;
+        }
+        #headerActions .back-btn:hover {
+            background: rgba(255,255,255,0.24) !important;
+            transform: translateY(-1px);
+        }
+        #system-stats-display {
+            color: #fff !important;
+            background: rgba(37,211,102,0.22) !important;
+            border: 1px solid rgba(37,211,102,0.55) !important;
         }
 
-        .nav-tabs { display: flex; gap: 5px; }
-        .nav-tab {
-            padding: 8px 16px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            border-radius: 20px;
-            font-weight: 600;
-            color: #555;
-            transition: all 0.2s;
+        .nav-tabs {
+            display: flex; gap: 4px; align-items: center;
+            padding: 4px; border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.14);
+            backdrop-filter: blur(6px);
+            overflow-x: auto; max-width: 100%;
+            scrollbar-width: none;
         }
-        .nav-tab.active { background: #e7f3ff; color: #1877f2; }
-        .nav-tab:hover:not(.active) { background: #f5f5f5; }
+        .nav-tabs::-webkit-scrollbar { display:none; }
+        .nav-tab {
+            position: relative;
+            padding: 9px 16px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: rgba(255,255,255,0.72);
+            letter-spacing: 0.01em;
+            white-space: nowrap;
+            transition: color .25s ease, background .25s ease, transform .2s ease, box-shadow .25s ease;
+        }
+        .nav-tab:hover:not(.active) {
+            color: #fff;
+            background: rgba(255,255,255,0.10);
+            transform: translateY(-1px);
+        }
+        .nav-tab.active {
+            color: #0b3d2e;
+            background: linear-gradient(180deg, #ffffff 0%, #f4fbf7 100%);
+            box-shadow: 0 6px 18px -8px rgba(0,0,0,0.35), inset 0 -2px 0 rgba(13,122,95,0.15);
+        }
+        .nav-tab.active::after {
+            content: ""; position: absolute; left: 50%; bottom: -6px;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: #25D366; transform: translateX(-50%);
+            box-shadow: 0 0 0 3px rgba(37,211,102,0.25);
+        }
+        @media (max-width: 900px) {
+            .nav-tab { padding: 8px 12px; font-size: 0.8rem; }
+        }
 
         .view-section {
             flex: 1;
@@ -73,7 +128,10 @@
             flex-direction: column;
             width: 100%;
             min-height: 0;
+            min-width: 0;
         }
+        #kanbanView.active { display: flex; }
+        #kanbanView > .kanban-board { min-width: 0; width: 100%; }
 
         /* Kanban Professional Styles */
         .kanban-board {
@@ -87,6 +145,17 @@
             height: 100%;
             background: #f4f5f7; /* Clean background */
             scroll-behavior: smooth;
+            min-height: 0;
+            width: 100%;
+        }
+        .kanban-board::-webkit-scrollbar { height: 10px; }
+        .kanban-board::-webkit-scrollbar-thumb {
+            background: rgba(13,122,95,0.35); border-radius: 6px;
+        }
+        .kanban-board::-webkit-scrollbar-thumb:hover { background: rgba(13,122,95,0.6); }
+
+        .kanban-column {
+            /* base column below */
         }
         
         .kanban-column {
@@ -515,6 +584,12 @@
                 height: auto;
                 max-height: 100%;
             }
+        }
+        @media (min-width: 769px) and (max-width: 1200px) {
+            .kanban-column { min-width: 260px; width: 260px; }
+            .kanban-board { padding: 16px; gap: 14px; }
+        }
+        @media (max-width: 768px) {
 
             /* --- GLOBAL RESPONSIVE FIXES --- */
             .show-mobile-only { display: block !important; }
@@ -735,17 +810,88 @@
         .message-time { font-size: 0.65rem; color: #999; text-align: right; margin-top: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 
         /* Modals */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; position: relative; }
+        .modal { display: none; position: fixed; inset: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.55); backdrop-filter: blur(3px); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+        .modal-content { background: white; padding: 28px; border-radius: 14px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 30px 80px -20px rgba(0,0,0,0.45); margin: auto; }
+        #winbackModal .modal-content { max-width: 640px; }
+        /* WinBack modal — button visibility fix */
+        #winbackModal .modal-actions { border-top: 1px solid #e5e7eb; padding-top: 18px; margin-top: 22px; }
+        #winbackModal .modal-actions .btn-secondary,
+        #winbackModal .btn-secondary {
+            background: #ffffff !important;
+            color: #111827 !important;
+            border: 1.5px solid #d1d5db !important;
+            padding: 10px 20px !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            font-size: 0.92rem !important;
+            cursor: pointer !important;
+            transition: all .15s ease;
+        }
+        #winbackModal .modal-actions .btn-secondary:hover,
+        #winbackModal .btn-secondary:hover { background: #f3f4f6 !important; border-color: #9ca3af !important; }
+        #winbackModal .modal-actions .btn-primary,
+        #winbackModal .btn-primary {
+            background: linear-gradient(135deg, #064e3b 0%, #0d7a5f 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            padding: 10px 22px !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            font-size: 0.92rem !important;
+            cursor: pointer !important;
+            box-shadow: 0 8px 20px -8px rgba(13,122,95,0.55) !important;
+            transition: all .15s ease;
+            display: inline-flex !important;
+            align-items: center;
+            gap: 8px;
+        }
+        #winbackModal .modal-actions .btn-primary:hover,
+        #winbackModal .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 26px -10px rgba(13,122,95,0.7) !important; }
+        #winbackModal .btn-primary i { color: #fff !important; }
+
+        /* Fix visibility of tab buttons inside WinBack modal (white background) */
+        #winbackModal .nav-tabs {
+            display: inline-flex !important;
+            gap: 6px;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 999px;
+            border-bottom: none !important;
+        }
+        #winbackModal .nav-tab {
+            color: #475569 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border-radius: 999px !important;
+            padding: 8px 16px !important;
+            font-weight: 600 !important;
+        }
+        #winbackModal .nav-tab:hover:not(.active) {
+            color: #0b3d2e !important;
+            background: rgba(13,122,95,0.08) !important;
+        }
+        #winbackModal .nav-tab.active {
+            color: #ffffff !important;
+            background: linear-gradient(135deg, #0d7a5f 0%, #0f9d78 100%) !important;
+            box-shadow: 0 6px 16px -8px rgba(13,122,95,0.6) !important;
+        }
+        #winbackModal .nav-tab.active::after { display: none !important; }
         .btn-primary { background: #008069; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: 600; }
         .btn-secondary { background: #ccc; color: #333; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: 600; }
         
         /* Mobile */
         @media (max-width: 768px) {
-            header { padding: 10px; flex-wrap: wrap; gap: 10px; height: auto; }
-            .header-title { width: 100%; justify-content: center; }
-            .nav-tabs { width: 100%; overflow-x: auto; justify-content: center; padding-bottom: 5px; }
-            .nav-tab { flex: 0 0 auto; }
+            header {
+                grid-template-columns: 1fr auto;
+                grid-template-areas: "title actions" "nav nav";
+                padding: 10px 14px;
+                gap: 10px;
+                min-height: 0;
+            }
+            .header-title { grid-area: title; justify-self: start; }
+            #headerActions { grid-area: actions; justify-self: end; }
+            .nav-tabs { grid-area: nav; width: 100%; overflow-x: auto; justify-content: flex-start; padding: 4px 6px; }
+            .nav-tab { flex: 0 0 auto; padding: 8px 12px; font-size: 0.8rem; }
             
             #whatsappView {
                 position: relative;
@@ -835,37 +981,7 @@
             .wa-main.active { display: flex !important; }
             .wa-back-btn { display: block !important; margin-right: 10px; }
 
-            /* Enhanced Mobile Header */
-            header {
-                flex-direction: column;
-                height: auto;
-                padding: 10px;
-                gap: 10px;
-            }
-            .header-title {
-                width: 100%;
-                justify-content: center;
-                margin-bottom: 5px;
-            }
-            .nav-tabs {
-                width: 100%;
-                overflow-x: auto;
-                justify-content: flex-start;
-                padding-bottom: 5px;
-                -webkit-overflow-scrolling: touch;
-                gap: 8px;
-            }
-            .nav-tab {
-                flex: 0 0 auto;
-                white-space: nowrap;
-                padding: 6px 12px;
-                font-size: 0.9rem;
-            }
-            #headerActions {
-                width: 100%;
-                justify-content: space-between;
-                margin-top: 5px;
-            }
+            /* Mobile header handled in primary media query above */
             
             /* Chat Panel Mobile */
             .chat-panel {
@@ -903,8 +1019,91 @@
             height: 100%;
             transition: transform 0.3s ease;
         }
+
+        /* Agenda pro topbar + chips */
+        .agenda-topbar {
+            display:flex; justify-content:space-between; align-items:center; gap:14px;
+            padding: 14px 18px; border-bottom:1px solid #eef2f7;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            flex-wrap: wrap;
+        }
+        .agenda-topbar__title { display:flex; align-items:center; gap:12px; min-width:0; }
+        .agenda-topbar__icon {
+            width:42px; height:42px; border-radius:12px;
+            background: linear-gradient(135deg, #0b3d2e, #10a37f);
+            color:#fff; display:grid; place-items:center; font-size:1.05rem;
+            box-shadow: 0 10px 20px -10px rgba(6,78,59,0.55);
+        }
+        .agenda-topbar__title h2 { margin:0; font-size:1.25rem; color:#0f172a; }
+        .agenda-topbar__title span { display:block; font-size:0.82rem; color:#64748b; margin-top:2px; }
+        .agenda-topbar__actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        .agenda-chip {
+            display:inline-flex; align-items:center; gap:7px;
+            padding: 8px 14px; border-radius: 999px;
+            border:1px solid #e2e8f0; background:#fff; color:#475569;
+            font-weight:700; font-size:0.85rem; cursor:pointer;
+            transition: all .2s ease;
+        }
+        .agenda-chip:hover { border-color:#a7f3d0; color:#0b3d2e; transform: translateY(-1px); }
+        .agenda-chip.is-active {
+            background: linear-gradient(135deg, #dcfce7, #ffffff);
+            border-color:#10a37f; color:#0b3d2e;
+            box-shadow: 0 4px 12px -8px rgba(16,163,127,0.6);
+        }
+        .agenda-chip--primary, .agenda-chip--primary.is-active {
+            background: linear-gradient(135deg, #0b3d2e, #10a37f) !important;
+            color:#fff !important; border-color: transparent !important;
+            box-shadow: 0 12px 22px -12px rgba(6,78,59,0.6) !important;
+        }
+        .agenda-chip--primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+        /* Calendar shell */
+        .agenda-calendar-wrap {
+            flex: 2; padding: 20px; border-right: 1px solid #eef2f7;
+            overflow-y: auto; display:flex; flex-direction:column; min-width:0;
+            background: #ffffff;
+        }
+        .agenda-weekhead {
+            display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px;
+            font-weight:800; text-align:center; margin-bottom:8px;
+            color:#0b3d2e; font-size:0.78rem; letter-spacing:0.06em; text-transform:uppercase;
+        }
+        .agenda-grid {
+            display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px;
+            flex:1; grid-auto-rows: minmax(84px, 1fr);
+        }
+        .agenda-grid .calendar-day {
+            border:1px solid #eef2f7 !important; border-radius: 10px !important;
+            padding: 6px 6px !important; background:#fff !important;
+            position:relative; overflow:hidden; cursor:pointer;
+            transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+            min-height: 84px;
+        }
+        .agenda-grid .calendar-day:hover {
+            transform: translateY(-2px);
+            border-color:#a7f3d0 !important;
+            box-shadow: 0 10px 20px -14px rgba(6,78,59,0.35);
+        }
+        .agenda-grid .calendar-day.is-today {
+            background: linear-gradient(135deg, #dcfce7, #ffffff) !important;
+            border-color:#10a37f !important;
+        }
+        .agenda-grid .calendar-day.is-today > div:first-child { color:#065f46; }
+        .agenda-hint {
+            margin-top: 10px; text-align:center; color:#64748b;
+            font-size:0.8rem; display:flex; align-items:center; justify-content:center; gap:8px;
+        }
+        .agenda-hint i { color:#10a37f; }
+
+        /* Panel toggle collapsed state */
+        #agendaContactsSidebar.is-collapsed,
+        #agendaScheduledSidebar.is-collapsed { display: none !important; }
+        #agendaCalendarWrap.is-collapsed { display: none !important; }
         
         @media (max-width: 768px) {
+            .agenda-topbar { padding: 10px 12px; }
+            .agenda-topbar__actions { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
+            .agenda-chip { flex-shrink: 0; }
             #agendaView > div:nth-child(2) {
                 flex-direction: column;
                 overflow-y: auto !important;
@@ -929,6 +1128,213 @@
             #calendarGrid {
                 min-height: 300px;
             }
+            .agenda-grid { grid-auto-rows: minmax(68px, 1fr); gap: 4px; }
+            .agenda-grid .calendar-day { min-height: 64px; padding: 4px !important; font-size: 0.85rem; }
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="theme.css?v=3">
+    <style>
+        /* ============ Flow Builder Canvas (UI builder look) ============ */
+        #flowStepsList.flow-canvas {
+            background:
+                radial-gradient(circle, rgba(15,23,42,0.10) 1px, transparent 1.2px) 0 0/22px 22px,
+                linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%) !important;
+            padding: 24px 20px 60px !important;
+            display: block !important;
+            position: relative;
+            min-height: 640px;
+            overflow: auto;
+        }
+        #flowStepsList.flow-canvas::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0;
+            width: 2600px; height: 1600px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        #flowStepsList.flow-canvas.is-panning { cursor: grabbing !important; user-select: none; }
+        #flowStepsList.flow-canvas.is-panning * { pointer-events: none !important; }
+        .flow-canvas .flow-node-wrap {
+            position: absolute;
+            width: 230px;
+            z-index: 2;
+        }
+        #flowStepsList .flow-svg {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        #flowStepsList .flow-svg path.flow-edge {
+            fill: none; stroke: #10b981; stroke-width: 2.5;
+            pointer-events: stroke; cursor: pointer;
+            transition: stroke .15s ease, stroke-width .15s ease;
+        }
+        #flowStepsList .flow-svg path.flow-edge:hover { stroke: #dc2626; stroke-width: 3.5; }
+        #flowStepsList .flow-svg path.flow-edge-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+        #flowStepsList .flow-svg path.flow-edge-temp { fill:none; stroke: #10b981; stroke-width: 2.5; stroke-dasharray: 6 4; opacity: 0.85; }
+        /* Scissors button that appears at edge midpoint on hover */
+        #flowStepsList .flow-edge-cut {
+            position: absolute; width: 26px; height: 26px; border-radius: 50%;
+            background: #ef4444; color: #fff; border: 2px solid #fff;
+            display: none; align-items: center; justify-content: center;
+            box-shadow: 0 6px 14px -4px rgba(239,68,68,0.6);
+            cursor: pointer; z-index: 3; transform: translate(-50%, -50%);
+            font-size: 0.72rem; padding: 0; line-height: 1;
+            transition: transform .15s ease, background .15s ease;
+        }
+        #flowStepsList .flow-edge-cut:hover { background: #dc2626; transform: translate(-50%, -50%) scale(1.15); }
+        #flowStepsList .flow-edge-cut.is-visible { display: inline-flex; }
+        .flow-canvas .flow-node {
+            width: 100%;
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid rgba(15,23,42,0.08);
+            box-shadow: 0 6px 16px -12px rgba(15,23,42,0.35), 0 1px 2px rgba(15,23,42,0.04);
+            overflow: visible;
+            transition: transform .18s ease, box-shadow .25s ease, border-color .25s ease;
+            cursor: grab;
+            position: relative;
+        }
+        .flow-node__head { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+        /* Connection ports (pins) */
+        .flow-node__port {
+            position: absolute;
+            top: 50%; transform: translateY(-50%);
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #ffffff;
+            border: 2.5px solid var(--node-color, #10b981);
+            box-shadow: 0 2px 6px rgba(15,23,42,0.18), inset 0 0 0 2px #fff;
+            cursor: crosshair;
+            z-index: 3;
+            transition: transform .15s ease, box-shadow .2s ease;
+        }
+        .flow-node__port:hover { transform: translateY(-50%) scale(1.35); box-shadow: 0 4px 10px rgba(15,23,42,0.28); }
+        .flow-node__port--in  { left: -9px; }
+        .flow-node__port--out { right: -9px; }
+        .flow-node__port.is-connected { background: var(--node-color, #10b981); }
+        .flow-canvas .flow-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 22px 40px -22px rgba(15,23,42,0.45), 0 4px 8px rgba(15,23,42,0.06);
+            border-color: color-mix(in oklab, var(--node-color) 40%, transparent);
+        }
+        .flow-canvas .flow-node:active { cursor: grabbing; }
+        .flow-node__head {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, var(--node-color) 0%, color-mix(in oklab, var(--node-color) 78%, #000 22%) 100%);
+            color: #fff;
+        }
+        .flow-node__badge {
+            width: 22px; height: 22px; border-radius: 6px;
+            display: grid; place-items: center;
+            background: rgba(255,255,255,0.22);
+            font-size: 0.75rem;
+        }
+        .flow-node__title {
+            flex: 1; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.01em;
+            text-transform: uppercase;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .flow-node__step {
+            font-size: 0.65rem; font-weight: 800; opacity: 0.9;
+            padding: 2px 7px; border-radius: 999px;
+            background: rgba(0,0,0,0.18);
+        }
+        .flow-node__body {
+            padding: 10px 12px;
+            font-size: 0.82rem; color: #1f2937;
+            line-height: 1.35;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; word-break: break-word;
+            min-height: 44px;
+        }
+        .flow-node__actions {
+            display: flex; gap: 6px; justify-content: flex-end;
+            padding: 6px 10px 8px;
+            border-top: 1px dashed rgba(15,23,42,0.08);
+            background: #fafbfc;
+        }
+        .flow-node__btn {
+            width: 28px; height: 28px; border-radius: 7px;
+            border: 1px solid rgba(15,23,42,0.10);
+            background: #fff; color: #475569; cursor: pointer;
+            display: grid; place-items: center;
+            transition: all .15s ease;
+            font-size: 0.8rem;
+        }
+        .flow-node__btn:hover { background: #f1f5f9; color: #0f172a; transform: translateY(-1px); }
+        .flow-node__btn--danger:hover { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+        .flow-node__link {
+            display: none;
+        }
+
+        /* Professional Step Edit Modal */
+        #textStepModal.modal { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.55); z-index: 10000; align-items: center; justify-content: center; padding: 16px; }
+        #textStepModal .modal-content {
+            background: #ffffff !important; color: #0f172a !important;
+            width: 100% !important; max-width: 560px !important;
+            max-height: 90vh; overflow-y: auto;
+            border-radius: 16px !important;
+            padding: 24px !important;
+            box-shadow: 0 24px 60px -20px rgba(15,23,42,0.4) !important;
+        }
+        #textStepModal h3 {
+            margin: 0 0 18px; color: #064e3b;
+            font-size: 1.15rem; font-weight: 800;
+            padding-bottom: 12px; border-bottom: 2px solid #ecfdf5;
+            display: flex; align-items: center; gap: 10px;
+        }
+        #textStepModal label {
+            display: block; color: #374151; font-weight: 600;
+            font-size: 0.85rem; margin-bottom: 6px;
+        }
+        #textStepModal input, #textStepModal textarea, #textStepModal select {
+            width: 100%; padding: 10px 12px !important;
+            border: 1px solid #e5e7eb !important; border-radius: 10px !important;
+            font-size: 0.92rem; color: #0f172a !important; background: #fff !important;
+            font-family: inherit;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        #textStepModal input:focus, #textStepModal textarea:focus, #textStepModal select:focus {
+            outline: none; border-color: #0d7a5f !important;
+            box-shadow: 0 0 0 3px rgba(13,122,95,0.15);
+        }
+        #textStepModal .modal-actions button {
+            padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer;
+            border: none; font-size: 0.9rem;
+        }
+        #textStepModal .btn-secondary { background: #f3f4f6 !important; color: #374151 !important; border: 1px solid #e5e7eb !important; }
+        #textStepModal .btn-primary { background: linear-gradient(135deg,#064e3b,#0d7a5f) !important; color: #fff !important; box-shadow: 0 6px 16px -8px rgba(13,122,95,0.5); }
+        @media (max-width: 600px) {
+            #textStepModal .modal-content { padding: 18px !important; border-radius: 14px !important; }
+        }
+        .flow-empty {
+            margin: 40px auto; max-width: 420px; text-align: center;
+            padding: 32px 20px; border-radius: 16px;
+            background: rgba(255,255,255,0.7);
+            border: 1.5px dashed rgba(15,23,42,0.15);
+            color: #64748b;
+        }
+        .flow-empty i { font-size: 2.2rem; color: #94a3b8; margin-bottom: 10px; display: block; }
+        .flow-empty h4 { margin: 6px 0; color: #0f172a; font-size: 1.05rem; }
+        .flow-empty p { margin: 0; font-size: 0.9rem; }
+
+        /* WinBack polish */
+        #winbackView { background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%); }
+        #winbackView .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+            box-shadow: 0 8px 20px -10px rgba(37,99,235,0.55) !important;
+            transition: transform .18s ease, box-shadow .25s ease;
+        }
+        #winbackView .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 28px -12px rgba(37,99,235,0.6) !important; }
+        @media (max-width: 720px) {
+            #winbackView > div > div:first-child > div:nth-child(2) { grid-template-columns: 1fr !important; }
+            #winbackView > div { padding: 12px !important; }
         }
     </style>
 </head>
@@ -962,10 +1368,10 @@
                 <span id="system-stats-text">Conectando...</span>
             </div>
             
-            <button id="newChatBtn" class="back-btn action-btn" style="border:none; background:none; cursor:pointer;" title="Nova Conversa">
-                <i class="fas fa-plus"></i>
+            <button id="newChatBtn" onclick="openNewChatModal()" class="back-btn action-btn" style="border:1px solid #e5e7eb; background:white; padding:6px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#111827; font-weight:600;" title="Nova Conversa">
+                <i class="fas fa-comment-medical"></i> Nova conversa
             </button>
-            <button onclick="confirmExit()" class="back-btn" style="border: 1px solid #ccc; background: white; padding: 5px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #555;">
+            <button onclick="backToConnections()" class="back-btn" style="border: 1px solid #ccc; background: white; padding: 5px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #555;">
                 <i class="fas fa-arrow-left"></i> Voltar
             </button>
         </div>
@@ -979,10 +1385,50 @@
         </div>
         <div class="kanban-board" id="kanbanBoard"></div>
     </div>
+    <script>
+        // Enable click-and-drag horizontal scroll on Kanban board (desktop/tablet)
+        (function() {
+            const board = document.getElementById('kanbanBoard');
+            if (!board) return;
+            let isDown = false, startX = 0, scrollLeft = 0, moved = false;
+            board.addEventListener('mousedown', (e) => {
+                // Don't hijack drags that start on cards/buttons/inputs
+                if (e.target.closest('.kanban-card, button, input, textarea, select, a, [draggable="true"]')) return;
+                isDown = true;
+                moved = false;
+                board.classList.add('is-dragging');
+                startX = e.pageX - board.offsetLeft;
+                scrollLeft = board.scrollLeft;
+            });
+            const stop = () => { isDown = false; board.classList.remove('is-dragging'); };
+            board.addEventListener('mouseleave', stop);
+            board.addEventListener('mouseup', stop);
+            board.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - board.offsetLeft;
+                const walk = (x - startX);
+                if (Math.abs(walk) > 3) moved = true;
+                board.scrollLeft = scrollLeft - walk;
+            });
+            // Shift+wheel or plain wheel -> horizontal scroll for convenience
+            board.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0 && e.shiftKey) {
+                    board.scrollLeft += e.deltaY;
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        })();
+    </script>
+    <style>
+        .kanban-board { cursor: grab; }
+        .kanban-board.is-dragging { cursor: grabbing; user-select: none; }
+        .kanban-board.is-dragging * { pointer-events: none; }
+    </style>
 
     <!-- WhatsApp View -->
     <div id="whatsappView" class="view-section" style="display: none; flex: 1; min-height: 0; overflow: hidden;">
-        <div class="wa-sidebar" style="border-right: 1px solid #ddd; background: white; display: flex; flex-direction: column;">
+        <div class="wa-sidebar" id="waSidebar" style="border-right: 1px solid #ddd; background: white; display: flex; flex-direction: column; width: 30%; min-width: 260px; max-width: 70%; flex: 0 0 auto;">
             <div class="wa-header" style="padding: 10px; background: #f0f2f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between;">
                 <div class="user-avatar" style="width: 40px; height: 40px; background: #ddd; border-radius: 50%;"></div>
                 <div class="wa-actions">
@@ -1007,8 +1453,10 @@
             </div>
             <div class="wa-chat-list" id="waChatList" style="flex: 1; overflow-y: auto;"></div>
         </div>
-        
-        <div class="wa-main" style="flex: 1; background: #efeae2; display: flex; flex-direction: column; position: relative; min-height: 0;">
+
+        <div id="waResizer" title="Arraste para expandir o chat" style="width:6px; cursor: col-resize; background: linear-gradient(90deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08), rgba(0,0,0,0.04)); position:relative; flex: 0 0 6px; user-select:none; transition: background 0.15s;"></div>
+
+        <div class="wa-main" id="waMain" style="flex: 1 1 0%; min-width: 200px; background: #efeae2; display: flex; flex-direction: column; position: relative; min-height: 0;">
             <div class="wa-chat-header" id="waChatHeader" style="padding: 10px 15px; background: #f0f2f5; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <button class="wa-back-btn" onclick="closeWaChatMobile()"><i class="fas fa-arrow-left"></i></button>
@@ -1229,16 +1677,19 @@
     
     <!-- Flows View -->
     <div id="flowsView" class="view-section" style="display:none; height: 100%; overflow: hidden;">
-        <div style="display: flex; height: 100%; position: relative;">
+        <div style="display: flex; height: 100%; position: relative; width: 100%;">
             <!-- Sidebar -->
-            <div id="flowsSidebar" style="width: 320px; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; background: #f9fafb; z-index: 10; height: 100%;">
-                <div style="padding: 16px; border-bottom: 1px solid #e5e7eb; background: white; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                    <h3 style="margin: 0; font-size: 1.1rem; color: #111827;">Fluxos</h3>
-                    <button onclick="createNewFlow()" class="btn-primary" style="padding: 6px 12px; font-size: 0.85rem;"><i class="fas fa-plus"></i> Novo</button>
+            <div id="flowsSidebar" style="width: 100%; border-right: none; display: flex; flex-direction: column; background: #f9fafb; z-index: 10; height: 100%;">
+                <div style="padding: 18px 24px; border-bottom: 1px solid #e5e7eb; background: linear-gradient(180deg,#ffffff,#f9fafb); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); gap: 12px; flex-wrap: wrap;">
+                    <div style="min-width: 0;">
+                        <h3 style="margin: 0; font-size: 1.25rem; color: #0b3d2e; font-weight: 800;">Fluxos Conversacionais</h3>
+                        <p style="margin: 4px 0 0; color: #6b7280; font-size: 0.85rem;">Automatize o atendimento com jornadas inteligentes.</p>
+                    </div>
+                    <button onclick="createNewFlow()" class="btn-primary" style="padding: 10px 18px; font-size: 0.9rem; border-radius: 999px; background: linear-gradient(135deg,#064e3b,#0d7a5f); box-shadow: 0 8px 20px -10px rgba(13,122,95,0.6);"><i class="fas fa-plus"></i> Novo Fluxo</button>
                 </div>
                 
-                <div id="flowsListPanel" style="flex: 1; overflow-y: auto; padding: 10px;">
-                    <div id="flowsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                <div id="flowsListPanel" style="flex: 1; overflow-y: auto; padding: 24px;">
+                    <div id="flowsList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;"></div>
                 </div>
 
                 <div id="mediaGalleryPanel" style="display: none; flex: 1; flex-direction: column; background: white;">
@@ -1255,21 +1706,16 @@
             </div>
 
             <!-- Main Content -->
-            <div id="flowsMain" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; position: relative; height: 100%;">
-                
-                <!-- Welcome Screen -->
-                <div id="flowWelcome" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9ca3af; padding: 20px; text-align: center;">
-                    <div style="background: #f3f4f6; padding: 30px; border-radius: 50%; margin-bottom: 20px;">
-                        <i class="fas fa-project-diagram" style="font-size: 3rem; color: #d1d5db;"></i>
-                    </div>
-                    <h3 style="color: #374151; margin-bottom: 10px;">Gerenciador de Fluxos</h3>
-                    <p style="max-width: 400px;">Selecione um fluxo na lista ao lado para editar ou crie um novo fluxo para automatizar suas conversas.</p>
-                </div>
+            <div id="flowsMain" style="flex: 1; display: none; flex-direction: column; overflow: hidden; background: #fff; position: relative; height: 100%;">
+                <div id="flowWelcome" style="display:none;"></div>
 
                 <!-- Editor -->
                 <div id="flowEditor" style="display: none; flex: 1; flex-direction: column; height: 100%;">
                     <!-- Editor Header -->
                     <div style="padding: 15px 20px; border-bottom: 1px solid #e5e7eb; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); z-index: 5;">
+                        <div style="margin-bottom: 12px;">
+                            <button onclick="backToFlowsList()" class="btn-secondary" style="border-radius: 999px; padding: 6px 14px; font-size: 0.85rem;"><i class="fas fa-arrow-left"></i> Voltar para todos os fluxos</button>
+                        </div>
                         <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
                             <div style="flex: 1; min-width: 200px;">
                                 <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 4px; text-transform: uppercase;">Nome do Fluxo</label>
@@ -1299,7 +1745,6 @@
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'kanban_move')" onclick="addFlowStep('kanban_move')" class="btn-secondary" title="Mover Kanban"><i class="fas fa-columns"></i> <span class="hide-mobile">Kanban</span></button>
                             </div>
                              <div style="display: flex; gap: 10px;">
-                                 <button onclick="closeFlowEditorMobile()" class="btn-secondary show-mobile-only" style="display:none;"><i class="fas fa-arrow-left"></i> Voltar</button>
                                  <button onclick="saveFlow()" class="btn-primary"><i class="fas fa-save"></i> Salvar</button>
                              </div>
                         </div>
@@ -1443,15 +1888,45 @@
         const buildApiUrl = appConfig.buildApiUrl || ((path) => path);
         const socketUrl = appConfig.socketUrl || window.location.origin;
         const authToken = localStorage.getItem('zapmro_token') || '';
-        window.socket = io(socketUrl, {
+        const urlParams = new URLSearchParams(window.location.search);
+        window.sessionId = urlParams.get('sessionId') || localStorage.getItem('lastSessionId') || '';
+        if(window.sessionId) localStorage.setItem('lastSessionId', window.sessionId);
+        window.isDemoCrmSession = false;
+
+        function createDemoSocket() {
+            return {
+                id: 'demo-socket-zapmro',
+                connected: true,
+                handlers: {},
+                on(eventName, handler) {
+                    if (!this.handlers[eventName]) this.handlers[eventName] = [];
+                    this.handlers[eventName].push(handler);
+                    return this;
+                },
+                emit(eventName, ...args) {
+                    if (window.__zapmroHandleDemoEmit) {
+                        return window.__zapmroHandleDemoEmit(eventName, args, this);
+                    }
+                    const callback = args.find(arg => typeof arg === 'function');
+                    if (callback) callback({ ok: true, success: true });
+                    return this;
+                },
+                trigger(eventName, payload) {
+                    (this.handlers[eventName] || []).forEach(handler => handler(payload));
+                    return this;
+                },
+                disconnect() {
+                    this.connected = false;
+                    return this;
+                }
+            };
+        }
+
+        window.socket = window.isDemoCrmSession ? createDemoSocket() : io(socketUrl, {
             auth: {
                 token: authToken
             }
         });
-        
-        const urlParams = new URLSearchParams(window.location.search);
-        window.sessionId = urlParams.get('sessionId') || localStorage.getItem('lastSessionId') || '';
-        if(window.sessionId) localStorage.setItem('lastSessionId', window.sessionId);
 
         // Global State
         window.allChatsData = {};
@@ -1681,22 +2156,30 @@
             
             list.innerHTML = '';
             if (window.allFlows.length === 0) {
-                list.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">Nenhum fluxo criado.</div>';
+                list.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align:center; padding: 60px 20px; color:#6b7280; background:white; border-radius: 16px; border: 2px dashed #e5e7eb;">
+                        <div style="width:72px; height:72px; margin:0 auto 16px; border-radius:50%; background:#ecfdf5; display:flex; align-items:center; justify-content:center;">
+                            <i class="fas fa-project-diagram" style="font-size:1.8rem; color:#0d7a5f;"></i>
+                        </div>
+                        <h4 style="margin:0 0 6px; color:#0b3d2e;">Nenhum fluxo criado ainda</h4>
+                        <p style="margin:0 0 18px; font-size:0.9rem;">Comece criando um fluxo conversacional para automatizar seu atendimento.</p>
+                        <button onclick="createNewFlow()" class="btn-primary" style="padding:10px 20px; border-radius:999px; background:linear-gradient(135deg,#064e3b,#0d7a5f);"><i class="fas fa-plus"></i> Criar primeiro fluxo</button>
+                    </div>`;
                 return;
             }
 
             window.allFlows.forEach(flow => {
                 const div = document.createElement('div');
                 div.className = 'flow-item';
-                div.style.padding = '15px';
-                div.style.background = 'white';
-                div.style.marginBottom = '10px';
-                div.style.borderRadius = '8px';
-                div.style.border = '1px solid #eee';
-                div.style.display = 'flex';
-                div.style.justifyContent = 'space-between';
-                div.style.alignItems = 'center';
-                div.style.cursor = 'pointer';
+                div.style.cssText = `
+                    padding: 18px; background: white; border-radius: 14px;
+                    border: 1px solid #e5e7eb; cursor: pointer;
+                    display: flex; flex-direction: column; gap: 12px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+                `;
+                div.onmouseenter = () => { div.style.transform='translateY(-3px)'; div.style.boxShadow='0 14px 28px -18px rgba(13,122,95,0.35)'; div.style.borderColor='#0d7a5f'; };
+                div.onmouseleave = () => { div.style.transform=''; div.style.boxShadow='0 1px 3px rgba(0,0,0,0.04)'; div.style.borderColor='#e5e7eb'; };
                 div.onclick = (e) => {
                     if(!e.target.closest('button')) editFlow(flow.id);
                 };
@@ -1704,15 +2187,24 @@
                 const triggerText = flow.triggerType === 'keyword' 
                     ? 'Palavra-chave: ' + (flow.triggerKeyword || '<span style="color:red">Não definida</span>')
                     : 'Gatilho: ' + (flow.triggerType === 'first_message' ? 'Primeira Mensagem' : 'Manual/Outro');
+                const stepCount = (flow.steps && flow.steps.length) || 0;
 
                 div.innerHTML = `
-                    <div>
-                        <strong>${flow.name}</strong>
-                        <div style="font-size:0.8rem; color:#666;">${triggerText}</div>
+                    <div style="display:flex; align-items:flex-start; gap:12px;">
+                        <div style="width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#064e3b,#0d7a5f); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 6px 14px -8px rgba(13,122,95,0.5);">
+                            <i class="fas fa-comments" style="color:#fff;"></i>
+                        </div>
+                        <div style="min-width:0; flex:1;">
+                            <div style="font-weight:800; color:#0b3d2e; font-size:1rem; word-break:break-word;">${flow.name || 'Sem nome'}</div>
+                            <div style="font-size:0.78rem; color:#6b7280; margin-top:2px;">${triggerText}</div>
+                        </div>
                     </div>
-                    <div>
-                        <button onclick="editFlow('${flow.id}')" class="btn-secondary"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteFlow('${flow.id}')" class="btn-secondary" style="color:#ef4444;"><i class="fas fa-trash"></i></button>
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding-top:10px; border-top:1px dashed #e5e7eb;">
+                        <span style="font-size:0.75rem; color:#0d7a5f; background:#ecfdf5; padding:4px 10px; border-radius:999px; font-weight:700;"><i class="fas fa-list-ol"></i> ${stepCount} passo${stepCount===1?'':'s'}</span>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="editFlow('${flow.id}')" class="btn-secondary" style="padding:6px 10px; border-radius:8px;" title="Editar"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteFlow('${flow.id}')" class="btn-secondary" style="padding:6px 10px; border-radius:8px; color:#ef4444;" title="Excluir"><i class="fas fa-trash"></i></button>
+                        </div>
                     </div>
                 `;
                 list.appendChild(div);
@@ -1986,6 +2478,7 @@
 
         window.socket.on('google-contacts-list', (contacts) => {
             console.log('Received google-contacts-list:', contacts ? contacts.length : 0);
+            window.cachedGoogleContacts = Array.isArray(contacts) ? contacts : [];
             renderGoogleContacts(contacts);
         });
 
@@ -2238,9 +2731,13 @@
         }
 
         window.openExportContacts = function() {
-             if(confirm('Deseja exportar todos os contatos para CSV?')) {
-                 window.socket.emit('export-contacts', { sessionId: window.sessionId });
-             }
+             const modal = document.getElementById('exportContactsModal');
+             if (modal) modal.style.display = 'flex';
+         };
+         window.confirmExportContacts = function() {
+             window.socket.emit('export-contacts', { sessionId: window.sessionId });
+             const modal = document.getElementById('exportContactsModal');
+             if (modal) modal.style.display = 'none';
         };
         
         window.socket.on('contacts-exported', ({ filename, url }) => {
@@ -2331,6 +2828,9 @@
         // ==========================================
         
         let currentFlow = null;
+        // Per-edit-session flag: when true, skip the "remover etapa?" modal.
+        // Resets when entering/leaving the flow editor.
+        let flowEditSkipDelete = false;
         let currentStepIndex = -1;
 
         window.createNewFlow = function() {
@@ -2352,28 +2852,29 @@
         };
 
         function showFlowEditor() {
+            document.getElementById('flowsSidebar').style.display = 'none';
+            const main = document.getElementById('flowsMain');
+            main.style.display = 'flex';
             document.getElementById('flowWelcome').style.display = 'none';
             document.getElementById('flowEditor').style.display = 'flex';
-            
+
+            // Reset the "don't ask again" preference every time the editor opens
+            flowEditSkipDelete = false;
+
             document.getElementById('flowName').value = currentFlow.name;
             document.getElementById('flowTriggerType').value = currentFlow.triggerType || 'keyword';
             document.getElementById('flowTrigger').value = currentFlow.triggerKeyword || '';
-            
             toggleTriggerInput();
             renderFlowSteps();
-            
-            if(window.innerWidth <= 768) {
-                document.getElementById('flowsSidebar').style.display = 'none';
-                document.getElementById('flowsMain').style.display = 'flex';
-                const backBtn = document.querySelector('.show-mobile-only');
-                if(backBtn) backBtn.style.display = 'block';
-            }
         }
 
-        window.closeFlowEditorMobile = function() {
-            document.getElementById('flowsSidebar').style.display = 'flex';
+        window.backToFlowsList = function() {
+            document.getElementById('flowEditor').style.display = 'none';
             document.getElementById('flowsMain').style.display = 'none';
-        }
+            document.getElementById('flowsSidebar').style.display = 'flex';
+            currentFlow = null;
+        };
+        window.closeFlowEditorMobile = window.backToFlowsList;
 
         window.toggleTriggerInput = function() {
             const type = document.getElementById('flowTriggerType').value;
@@ -2381,7 +2882,7 @@
             if(container) container.style.display = type === 'keyword' ? 'block' : 'none';
         };
 
-        window.addFlowStep = function(type, insertIndex) {
+        window.addFlowStep = function(type, insertIndex, pos) {
             if(!currentFlow) return;
             if(!currentFlow.steps) currentFlow.steps = [];
             
@@ -2389,13 +2890,18 @@
                 id: Date.now().toString(),
                 type: type,
                 content: '',
-                meta: {}
+                meta: {},
+                next: null
             };
             
             if(type === 'text') newStep.content = 'Olá!';
             if(type === 'delay') newStep.content = '1000';
             if(type === 'wait_response') newStep.content = 'true';
-            
+
+            if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+                newStep.x = pos.x; newStep.y = pos.y;
+            }
+
             if (typeof insertIndex === 'number') {
                 currentFlow.steps.splice(insertIndex, 0, newStep);
             } else {
@@ -2409,90 +2915,260 @@
             editFlowStep(editIndex);
         };
 
+        function escapeSummary(s) {
+            const str = (s == null ? '' : String(s));
+            return str.replace(/[&<>"']/g, ch => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+            }[ch]));
+        }
+
         window.renderFlowSteps = function() {
             const list = document.getElementById('flowStepsList');
             if(!list) return;
             list.innerHTML = '';
-            
+            list.classList.add('flow-canvas');
+
+            const meta = {
+                text:          { icon:'fa-comment-dots',    title:'Mensagem de Texto', color:'#3b82f6' },
+                image:         { icon:'fa-image',           title:'Imagem',            color:'#0ea5e9' },
+                audio:         { icon:'fa-microphone',      title:'Áudio',             color:'#8b5cf6' },
+                video:         { icon:'fa-video',           title:'Vídeo',             color:'#ec4899' },
+                file:          { icon:'fa-paperclip',       title:'Arquivo',           color:'#64748b' },
+                delay:         { icon:'fa-hourglass-half',  title:'Aguardar',          color:'#f59e0b' },
+                wait_response: { icon:'fa-headset',         title:'Aguardar Resposta', color:'#2563eb' },
+                kanban_move:   { icon:'fa-columns',         title:'Ação CRM',          color:'#10b981' },
+            };
+
+            // Palette drop-to-canvas (always active, even when empty)
+            const NODE_W = 230, NODE_H = 140, GAP_X = 60, GAP_Y = 40;
+            list.ondragover = (e) => { e.preventDefault(); };
+            list.ondrop = (e) => {
+                const type = e.dataTransfer.getData('type');
+                if (!type) return;
+                e.preventDefault();
+                const rect = list.getBoundingClientRect();
+                const x = e.clientX - rect.left + list.scrollLeft - NODE_W/2;
+                const y = e.clientY - rect.top  + list.scrollTop  - 30;
+                addFlowStep(type, undefined, { x: Math.max(0,x), y: Math.max(0,y) });
+            };
+
             if(!currentFlow.steps || currentFlow.steps.length === 0) {
-                list.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Nenhuma etapa adicionada. Arraste ou clique nos botões acima.</div>';
+                const empty = document.createElement('div');
+                empty.className = 'flow-empty';
+                empty.innerHTML = '<i class="fas fa-project-diagram"></i><h4>Arraste um bloco para começar</h4><p>Solte no canvas para posicionar. Depois ligue os nós arrastando dos pontos verdes.</p>';
+                list.appendChild(empty);
                 return;
             }
-            
-            currentFlow.steps.forEach((step, index) => {
-                const div = document.createElement('div');
-                div.className = 'flow-step-item';
-                div.draggable = true;
-                div.dataset.index = index;
-                div.style.background = 'white';
-                div.style.border = '1px solid #ddd';
-                div.style.borderRadius = '8px';
-                div.style.padding = '10px';
-                div.style.marginBottom = '10px';
-                div.style.display = 'flex';
-                div.style.alignItems = 'center';
-                div.style.gap = '10px';
-                div.style.cursor = 'move';
-                
-                let icon = 'fa-cube';
-                let title = 'Etapa';
-                let summary = '';
-                
-                switch(step.type) {
-                    case 'text': icon = 'fa-font'; title = 'Texto'; summary = step.content; break;
-                    case 'image': icon = 'fa-image'; title = 'Imagem'; summary = 'Mídia'; break;
-                    case 'audio': icon = 'fa-microphone'; title = 'Áudio'; summary = 'Mídia'; break;
-                    case 'video': icon = 'fa-video'; title = 'Vídeo'; summary = 'Mídia'; break;
-                    case 'file': icon = 'fa-file'; title = 'Arquivo'; summary = 'Mídia'; break;
-                    case 'delay': icon = 'fa-clock'; title = 'Delay'; summary = step.content + 'ms'; break;
-                    case 'wait_response': icon = 'fa-hourglass-half'; title = 'Aguardar Resposta'; summary = 'Usuário responder'; break;
-                    case 'kanban_move': icon = 'fa-columns'; title = 'Mover Kanban'; summary = 'Mover card'; break;
+
+            // Ensure every step has id, x, y (auto-migrate old flows)
+            currentFlow.steps.forEach((step, i) => {
+                if (!step.id) step.id = 'n_' + Date.now() + '_' + i;
+                if (typeof step.x !== 'number' || typeof step.y !== 'number') {
+                    const col = i % 3, row = Math.floor(i / 3);
+                    step.x = 30 + col * (NODE_W + GAP_X);
+                    step.y = 30 + row * (NODE_H + GAP_Y);
                 }
-                
+            });
+            // Initialize linear next chain if none exists
+            const anyNext = currentFlow.steps.some(s => s.next);
+            if (!anyNext && currentFlow.steps.length > 1) {
+                currentFlow.steps.forEach((s, i) => {
+                    s.next = (i < currentFlow.steps.length - 1) ? currentFlow.steps[i+1].id : null;
+                });
+            }
+
+            // SVG overlay for edges
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('class', 'flow-svg');
+            list.appendChild(svg);
+
+            function getPortPoint(step, side) {
+                const wrap = list.querySelector('.flow-node-wrap[data-id="' + step.id + '"]');
+                const w = wrap ? wrap.offsetWidth  : NODE_W;
+                const h = wrap ? wrap.offsetHeight : NODE_H;
+                const y = step.y + h / 2;
+                return side === 'out' ? { x: step.x + w, y } : { x: step.x, y };
+            }
+            function bezierPath(x1, y1, x2, y2) {
+                const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
+                return 'M ' + x1 + ' ' + y1 + ' C ' + (x1+dx) + ' ' + y1 + ', ' + (x2-dx) + ' ' + y2 + ', ' + x2 + ' ' + y2;
+            }
+            function redrawEdges() {
+                svg.querySelectorAll('path.flow-edge, path.flow-edge-hit').forEach(p => p.remove());
+                list.querySelectorAll('.flow-edge-cut').forEach(b => b.remove());
+                const rect = list.getBoundingClientRect();
+                svg.setAttribute('width',  Math.max(list.scrollWidth,  rect.width));
+                svg.setAttribute('height', Math.max(list.scrollHeight, rect.height));
+                currentFlow.steps.forEach(step => {
+                    if (!step.next) return;
+                    const target = currentFlow.steps.find(s => s.id === step.next);
+                    if (!target) return;
+                    const a = getPortPoint(step,   'out');
+                    const b = getPortPoint(target, 'in');
+                    const d = bezierPath(a.x, a.y, b.x, b.y);
+                    const hit = document.createElementNS(svgNS, 'path');
+                    hit.setAttribute('class', 'flow-edge-hit');
+                    hit.setAttribute('d', d);
+                    const path = document.createElementNS(svgNS, 'path');
+                    path.setAttribute('class', 'flow-edge');
+                    path.setAttribute('d', d);
+                    svg.appendChild(hit);
+                    svg.appendChild(path);
+
+                    // Scissors button at edge midpoint (visible on hover, cuts without asking)
+                    const midX = (a.x + b.x) / 2;
+                    const midY = (a.y + b.y) / 2;
+                    const cutBtn = document.createElement('button');
+                    cutBtn.type = 'button';
+                    cutBtn.className = 'flow-edge-cut';
+                    cutBtn.title = 'Cortar ligação';
+                    cutBtn.innerHTML = '<i class="fas fa-scissors"></i>';
+                    cutBtn.style.left = midX + 'px';
+                    cutBtn.style.top  = midY + 'px';
+                    const show = () => cutBtn.classList.add('is-visible');
+                    const hideSoon = () => setTimeout(() => {
+                        if (!cutBtn.matches(':hover') && !hit.matches(':hover') && !path.matches(':hover')) {
+                            cutBtn.classList.remove('is-visible');
+                        }
+                    }, 120);
+                    hit.addEventListener('mouseenter', show);
+                    path.addEventListener('mouseenter', show);
+                    cutBtn.addEventListener('mouseenter', show);
+                    hit.addEventListener('mouseleave', hideSoon);
+                    path.addEventListener('mouseleave', hideSoon);
+                    cutBtn.addEventListener('mouseleave', hideSoon);
+                    cutBtn.addEventListener('click', (ev) => {
+                        ev.preventDefault(); ev.stopPropagation();
+                        step.next = null;
+                        redrawEdges();
+                    });
+                    list.appendChild(cutBtn);
+                });
+            }
+
+            currentFlow.steps.forEach((step, index) => {
+                const m = meta[step.type] || { icon:'fa-cube', title:'Etapa', color:'#64748b' };
+                let summary = '';
+                switch(step.type) {
+                    case 'text': summary = step.content || 'Escreva sua mensagem…'; break;
+                    case 'image': case 'audio': case 'video': case 'file': summary = 'Mídia anexada'; break;
+                    case 'delay': summary = (step.content || 0) + ' ms'; break;
+                    case 'wait_response': summary = 'Aguarda resposta do contato'; break;
+                    case 'kanban_move': summary = 'Mover card no CRM'; break;
+                    default: summary = '';
+                }
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flow-node-wrap';
+                wrap.dataset.index = index;
+                wrap.dataset.id = step.id;
+                wrap.style.left = step.x + 'px';
+                wrap.style.top  = step.y + 'px';
+
+                const div = document.createElement('div');
+                div.className = 'flow-node flow-step-item';
+                div.style.setProperty('--node-color', m.color);
                 div.innerHTML = `
-                    <div style="color:#666;"><i class="fas ${icon}"></i></div>
-                    <div style="flex:1;">
-                        <div style="font-weight:bold; font-size:0.9rem;">${title}</div>
-                        <div style="font-size:0.8rem; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 200px;">${summary}</div>
+                    <span class="flow-node__port flow-node__port--in"  data-port="in"  title="Entrada"></span>
+                    <span class="flow-node__port flow-node__port--out" data-port="out" title="Saída — arraste para outro nó"></span>
+                    <div class="flow-node__head">
+                        <span class="flow-node__badge"><i class="fas ${m.icon}"></i></span>
+                        <span class="flow-node__title">${m.title}</span>
+                        <span class="flow-node__step">#${index + 1}</span>
                     </div>
-                    <div style="display:flex; gap:5px;">
-                        <button onclick="editFlowStep(${index})" class="btn-secondary" style="padding:5px 8px;"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteFlowStep(${index})" class="btn-secondary" style="padding:5px 8px; color:#ef4444;"><i class="fas fa-trash"></i></button>
+                    <div class="flow-node__body">${escapeSummary(summary)}</div>
+                    <div class="flow-node__actions">
+                        <button onclick="editFlowStep(${index})" class="flow-node__btn" title="Editar"><i class="fas fa-pen"></i></button>
+                        <button onclick="deleteFlowStep(${index})" class="flow-node__btn flow-node__btn--danger" title="Remover"><i class="fas fa-trash"></i></button>
                     </div>
                 `;
-                
-                div.ondragstart = (e) => {
-                    e.dataTransfer.setData('text/plain', index);
-                    e.dataTransfer.effectAllowed = 'move';
-                    div.style.opacity = '0.5';
-                };
-                div.ondragend = (e) => {
-                    div.style.opacity = '1';
-                };
-                div.ondragover = (e) => {
+                wrap.appendChild(div);
+                list.appendChild(wrap);
+
+                // Free-form drag of the node
+                div.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('.flow-node__port') || e.target.closest('.flow-node__btn')) return;
                     e.preventDefault();
-                    div.style.borderTop = '2px solid #007bff';
-                };
-                div.ondragleave = () => {
-                    div.style.borderTop = '1px solid #ddd';
-                };
-                div.ondrop = (e) => {
-                    e.preventDefault();
-                    div.style.borderTop = '1px solid #ddd';
-                    
-                    const type = e.dataTransfer.getData('type');
-                    if (type) {
-                         addFlowStep(type, index);
-                    } else {
-                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
-                        if(!isNaN(fromIndex)) {
-                            moveStep(fromIndex, index);
+                    const startX = e.clientX, startY = e.clientY;
+                    const origX = step.x, origY = step.y;
+                    div.style.cursor = 'grabbing';
+                    const move = (ev) => {
+                        step.x = Math.max(0, origX + (ev.clientX - startX));
+                        step.y = Math.max(0, origY + (ev.clientY - startY));
+                        wrap.style.left = step.x + 'px';
+                        wrap.style.top  = step.y + 'px';
+                        redrawEdges();
+                    };
+                    const up = () => {
+                        div.style.cursor = 'grab';
+                        document.removeEventListener('mousemove', move);
+                        document.removeEventListener('mouseup', up);
+                    };
+                    document.addEventListener('mousemove', move);
+                    document.addEventListener('mouseup', up);
+                });
+
+                // Drag from OUT port to another IN port to create/replace connection
+                const outPort = div.querySelector('.flow-node__port--out');
+                outPort.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    const canvasRect = list.getBoundingClientRect();
+                    const startPt = getPortPoint(step, 'out');
+                    const tempPath = document.createElementNS(svgNS, 'path');
+                    tempPath.setAttribute('class', 'flow-edge-temp');
+                    svg.appendChild(tempPath);
+                    const move = (ev) => {
+                        const x = ev.clientX - canvasRect.left + list.scrollLeft;
+                        const y = ev.clientY - canvasRect.top  + list.scrollTop;
+                        tempPath.setAttribute('d', bezierPath(startPt.x, startPt.y, x, y));
+                    };
+                    const up = (ev) => {
+                        document.removeEventListener('mousemove', move);
+                        document.removeEventListener('mouseup', up);
+                        tempPath.remove();
+                        const target = document.elementFromPoint(ev.clientX, ev.clientY);
+                        const targetPort = target && target.closest && target.closest('.flow-node__port--in');
+                        if (targetPort) {
+                            const targetWrap = targetPort.closest('.flow-node-wrap');
+                            const targetId = targetWrap && targetWrap.dataset.id;
+                            if (targetId && targetId !== step.id) {
+                                step.next = targetId;
+                                redrawEdges();
+                            }
                         }
-                    }
-                };
-                
-                list.appendChild(div);
+                    };
+                    document.addEventListener('mousemove', move);
+                    document.addEventListener('mouseup', up);
+                });
             });
+
+            requestAnimationFrame(redrawEdges);
+
+            // Middle-mouse-button pan (attach once)
+            if (!list.dataset.panBound) {
+                list.dataset.panBound = '1';
+                list.addEventListener('mousedown', (e) => {
+                    if (e.button !== 1) return; // middle button only
+                    e.preventDefault();
+                    list.classList.add('is-panning');
+                    const startX = e.clientX, startY = e.clientY;
+                    const startScrollL = list.scrollLeft, startScrollT = list.scrollTop;
+                    const move = (ev) => {
+                        list.scrollLeft = startScrollL - (ev.clientX - startX);
+                        list.scrollTop  = startScrollT - (ev.clientY - startY);
+                    };
+                    const up = () => {
+                        list.classList.remove('is-panning');
+                        document.removeEventListener('mousemove', move);
+                        document.removeEventListener('mouseup', up);
+                    };
+                    document.addEventListener('mousemove', move);
+                    document.addEventListener('mouseup', up);
+                });
+                // Prevent browser autoscroll cursor on middle click
+                list.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+            }
         };
 
         function moveStep(from, to) {
@@ -2503,10 +3179,49 @@
         }
 
         window.deleteFlowStep = function(index) {
-            if(confirm('Remover esta etapa?')) {
-                currentFlow.steps.splice(index, 1);
+            // Skip modal for this edit session if user opted in previously
+            if (flowEditSkipDelete) {
+                const removed = currentFlow.steps.splice(index, 1)[0];
+                if (removed && removed.id) {
+                    currentFlow.steps.forEach(s => { if (s.next === removed.id) s.next = null; });
+                }
+                renderFlowSteps();
+                return;
+            }
+            const modal = document.getElementById('confirmDeleteStepModal');
+            if (!modal) {
+                if (confirm('Remover esta etapa?')) {
+                    currentFlow.steps.splice(index, 1);
+                    renderFlowSteps();
+                }
+                return;
+            }
+            const step = currentFlow.steps[index];
+            document.getElementById('confirmDeleteStepLabel').innerText =
+                'Etapa #' + (index + 1) + ' — ' + (step ? step.type : '');
+            modal.dataset.index = index;
+            const chk = document.getElementById('confirmDeleteStepSkip');
+            if (chk) chk.checked = false;
+            modal.style.display = 'flex';
+        };
+        window.closeConfirmDeleteStep = function() {
+            const modal = document.getElementById('confirmDeleteStepModal');
+            if (modal) modal.style.display = 'none';
+        };
+        window.confirmDeleteStep = function() {
+            const modal = document.getElementById('confirmDeleteStepModal');
+            if (!modal) return;
+            const idx = parseInt(modal.dataset.index, 10);
+            if (!isNaN(idx)) {
+                const removed = currentFlow.steps.splice(idx, 1)[0];
+                if (removed && removed.id) {
+                    currentFlow.steps.forEach(s => { if (s.next === removed.id) s.next = null; });
+                }
                 renderFlowSteps();
             }
+            const chk = document.getElementById('confirmDeleteStepSkip');
+            if (chk && chk.checked) flowEditSkipDelete = true;
+            modal.style.display = 'none';
         };
 
         window.editFlowStep = function(index) {
@@ -2650,8 +3365,8 @@
                 }
                 
                 if(res.ok) {
-                    alert('Fluxo salvo com sucesso!');
                     window.socket.emit('get-flows', window.sessionId);
+                    if (typeof backToFlowsList === 'function') backToFlowsList();
                 } else {
                     alert('Erro ao salvar: ' + (res.error || 'Desconhecido'));
                 }
@@ -3822,14 +4537,7 @@
                     btn.style.cursor = 'pointer';
                     btn.onclick = () => {
                          if (!window.currentWaChatId) return alert('Selecione uma conversa.');
-                         if (confirm(`Deseja enviar o fluxo "${flow.name}" para este contato?`)) {
-                             window.socket.emit('start-flow', {
-                                 sessionId: window.sessionId,
-                                 chatId: window.currentWaChatId,
-                                 flowId: flow.id
-                             });
-                             alert('Fluxo iniciado!');
-                         }
+                         window.openSendFlowModal(flow);
                     };
                     container.appendChild(btn);
                 });
@@ -4126,15 +4834,87 @@
         </div>
     </div>
 
-    <!-- Agenda View -->
-    <div id="agendaView" class="view-section" style="display:none; height:100%; overflow:hidden; flex-direction:column;">
-        <div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-            <h2>Agenda</h2>
-            <div class="show-mobile-only" onclick="toggleAgendaSidebar()" style="cursor:pointer; font-size:1.2rem;">
-                <i class="fas fa-bars"></i>
+    <!-- Novo Agendamento (via Agenda) -->
+    <div id="agendaNewModal" class="modal" style="display:none;">
+        <div class="modal-content" style="max-width: 520px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 style="margin:0; display:flex; align-items:center; gap:10px;">
+                    <i class="fas fa-calendar-plus" style="color:#0d7a5f;"></i> Novo Agendamento
+                </h3>
+                <button type="button" onclick="closeAgendaNewModal()" style="background:#f1f5f9; border:none; width:34px; height:34px; border-radius:10px; cursor:pointer; color:#475569;">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Contato / Conversa</label>
+            <div style="position:relative; margin-bottom:12px;">
+                <input type="text" id="agendaContactPickerSearch" class="form-input" placeholder="Buscar por nome ou telefone..." style="width:100%; padding:10px; padding-left:34px;">
+                <i class="fas fa-magnifying-glass" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8;"></i>
+            </div>
+            <div id="agendaContactPickerList" style="max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:10px; margin-bottom:12px; background:#fafafa;"></div>
+            <div id="agendaContactPickerSelected" style="display:none; padding:10px 12px; background:#dcfce7; border:1px solid #a7f3d0; border-radius:10px; margin-bottom:12px; font-size:0.9rem;"></div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div>
+                    <label style="display:block; margin-bottom:5px; font-weight:600;">Data</label>
+                    <input type="date" id="agendaNewDate" class="form-input" style="width:100%; padding:10px;">
+                </div>
+                <div>
+                    <label style="display:block; margin-bottom:5px; font-weight:600;">Hora</label>
+                    <input type="time" id="agendaNewTime" class="form-input" style="width:100%; padding:10px;">
+                </div>
+            </div>
+
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Tipo</label>
+            <select id="agendaNewType" class="form-input" style="width:100%; margin-bottom:12px; padding:10px;">
+                <option value="text">Mensagem de texto</option>
+                <option value="flow">Fluxo</option>
+            </select>
+
+            <div id="agendaNewMessageRow">
+                <label style="display:block; margin-bottom:5px; font-weight:600;">Mensagem</label>
+                <textarea id="agendaNewMessage" class="form-input" placeholder="Digite a mensagem que será enviada..." style="width:100%; height:90px; margin-bottom:12px; padding:10px;"></textarea>
+            </div>
+            <div id="agendaNewFlowRow" style="display:none;">
+                <label style="display:block; margin-bottom:5px; font-weight:600;">Fluxo</label>
+                <select id="agendaNewFlowSelect" class="form-input" style="width:100%; margin-bottom:12px; padding:10px;"></select>
+            </div>
+
+            <div class="modal-actions" style="display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" class="btn-secondary" onclick="closeAgendaNewModal()">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="if(window.confirmAgendaNew) window.confirmAgendaNew()">
+                    <i class="fas fa-check"></i> Agendar
+                </button>
             </div>
         </div>
-        <div style="display:flex; flex:1; overflow:hidden; position:relative;">
+    </div>
+
+    <!-- Agenda View -->
+    <div id="agendaView" class="view-section" style="display:none; height:100%; overflow:hidden; flex-direction:column;">
+        <div class="agenda-topbar">
+            <div class="agenda-topbar__title">
+                <div class="agenda-topbar__icon"><i class="fas fa-calendar-check"></i></div>
+                <div>
+                    <h2>Agenda</h2>
+                    <span>Agende mensagens ou fluxos para seus contatos e conversas.</span>
+                </div>
+            </div>
+            <div class="agenda-topbar__actions">
+                <button type="button" class="agenda-chip is-active" data-agenda-toggle="contacts" title="Mostrar/ocultar contatos">
+                    <i class="fas fa-address-book"></i><span>Contatos</span>
+                </button>
+                <button type="button" class="agenda-chip is-active" data-agenda-toggle="calendar" title="Mostrar/ocultar calendário">
+                    <i class="fas fa-calendar-days"></i><span>Calendário</span>
+                </button>
+                <button type="button" class="agenda-chip is-active" data-agenda-toggle="scheduled" title="Mostrar/ocultar agendados">
+                    <i class="fas fa-list-check"></i><span>Agendados</span>
+                </button>
+                <button type="button" class="agenda-chip agenda-chip--primary" id="agendaNewBtn" title="Novo agendamento">
+                    <i class="fas fa-plus"></i><span>Novo agendamento</span>
+                </button>
+            </div>
+        </div>
+        <div id="agendaBody" style="display:flex; flex:1; overflow:hidden; position:relative;">
             
             <!-- Contacts Sidebar (Agenda) -->
             <div id="agendaContactsSidebar" class="agenda-sidebar">
@@ -4147,7 +4927,7 @@
             </div>
 
             <!-- Calendar Area -->
-            <div style="flex:2; padding:20px; border-right:1px solid #eee; overflow-y:auto; display:flex; flex-direction:column;">
+            <div id="agendaCalendarWrap" class="agenda-calendar-wrap">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                     <button id="prevMonthBtn" class="btn-secondary" onclick="changeAgendaMonth(-1)"><i class="fas fa-chevron-left"></i></button>
                     <h3 id="currentMonthLabel" style="margin:0; text-transform: capitalize;"></h3>
@@ -4155,17 +4935,18 @@
                 </div>
                 
                 <!-- Days Header -->
-                <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:5px; font-weight:bold; text-align:center; margin-bottom:10px; color:#555;">
+                <div class="agenda-weekhead">
                     <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
                 </div>
                 
                 <!-- Calendar Grid -->
-                <div id="calendarGrid" style="display:grid; grid-template-columns:repeat(7, 1fr); gap:5px; flex:1; auto-rows: minmax(80px, 1fr);"></div>
+                <div id="calendarGrid" class="agenda-grid"></div>
+                <div class="agenda-hint"><i class="fas fa-hand-pointer"></i> Clique em uma data (ou clique com o botão direito) para agendar.</div>
             </div>
 
             <!-- Scheduled List Sidebar -->
-            <div class="agenda-right-sidebar" style="flex:1; padding:20px; overflow-y:auto; background:#f9f9f9; min-width: 250px; border-left:1px solid #ddd;">
-                <h3>Agendados</h3>
+            <div id="agendaScheduledSidebar" class="agenda-right-sidebar" style="flex:1; padding:20px; overflow-y:auto; background:#f9f9f9; min-width: 250px; border-left:1px solid #ddd;">
+                <h3 style="display:flex; align-items:center; gap:8px;"><i class="fas fa-list-check" style="color:#0d7a5f;"></i> Agendados</h3>
                 <div id="scheduledList">
                     <div style="text-align:center; padding:20px; color:#666;">Nenhum agendamento.</div>
                 </div>
@@ -4257,6 +5038,28 @@
 
     <!-- New WinBack Campaign Modal -->
     <div id="winbackModal" class="modal">
+
+    <!-- Export Contacts Confirmation Modal -->
+    <div id="exportContactsModal" class="modal">
+        <div class="modal-content" style="max-width: 440px; text-align:center;">
+            <div style="width:64px; height:64px; margin:0 auto 16px; border-radius:50%; background:linear-gradient(135deg,#064e3b,#0d7a5f); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px -10px rgba(13,122,95,0.55);">
+                <i class="fas fa-file-export" style="font-size:1.6rem; color:#fff;"></i>
+            </div>
+            <h3 style="margin:0 0 8px; color:#0b3d2e;">Exportar Contatos</h3>
+            <p style="color:#4b5563; margin:0 0 22px; font-size:0.95rem;">Deseja exportar todos os contatos do seu CRM em um arquivo CSV?</p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button onclick="document.getElementById('exportContactsModal').style.display='none'"
+                    style="background:#f3f4f6; color:#374151; border:1px solid #e5e7eb; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
+                    Cancelar
+                </button>
+                <button onclick="confirmExportContacts()"
+                    style="background:linear-gradient(135deg,#064e3b,#0d7a5f); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px -8px rgba(13,122,95,0.6);">
+                    <i class="fas fa-download"></i> Exportar CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
         <div class="modal-content" style="max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;">
             <h3 style="margin-bottom: 5px;">Nova Campanha WinBack</h3>
             <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">Configure o envio em massa inteligente.</p>
@@ -4511,6 +5314,251 @@
             if(modal) modal.style.display = 'none';
         };
 
+        // ============ CHAT PANEL RESIZER (drag to expand WhatsApp chat) ============
+        (function initWaResizer() {
+            const resizer = document.getElementById('waResizer');
+            const sidebar = document.getElementById('waSidebar');
+            const container = document.getElementById('whatsappView');
+            if (!resizer || !sidebar || !container) return;
+
+            // Hide resizer on mobile
+            const mq = window.matchMedia('(max-width: 768px)');
+            const applyMobile = () => {
+                if (mq.matches) {
+                    resizer.style.display = 'none';
+                    sidebar.style.width = '';
+                    sidebar.style.flex = '';
+                } else {
+                    resizer.style.display = '';
+                    if (!sidebar.style.width) sidebar.style.width = '30%';
+                    sidebar.style.flex = '0 0 auto';
+                    const saved = parseFloat(localStorage.getItem('waSidebarWidthPct') || '');
+                    if (!isNaN(saved) && saved >= 15 && saved <= 70) {
+                        sidebar.style.width = saved + '%';
+                    }
+                }
+            };
+            applyMobile();
+            mq.addEventListener ? mq.addEventListener('change', applyMobile) : mq.addListener(applyMobile);
+
+            let dragging = false;
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed; inset:0; z-index:9998; cursor:col-resize; display:none;';
+            document.body.appendChild(overlay);
+
+            const onMove = (clientX) => {
+                const rect = container.getBoundingClientRect();
+                let pct = ((clientX - rect.left) / rect.width) * 100;
+                pct = Math.max(15, Math.min(70, pct));
+                sidebar.style.width = pct + '%';
+                localStorage.setItem('waSidebarWidthPct', String(pct.toFixed(2)));
+            };
+
+            const startDrag = (e) => {
+                if (mq.matches) return;
+                dragging = true;
+                overlay.style.display = 'block';
+                resizer.style.background = 'linear-gradient(90deg, rgba(16,185,129,0.35), rgba(16,185,129,0.6), rgba(16,185,129,0.35))';
+                e.preventDefault();
+            };
+            resizer.addEventListener('mousedown', startDrag);
+            resizer.addEventListener('touchstart', startDrag, { passive: false });
+            resizer.addEventListener('dblclick', () => {
+                sidebar.style.width = '30%';
+                localStorage.removeItem('waSidebarWidthPct');
+            });
+            resizer.addEventListener('mouseenter', () => {
+                if (!dragging) resizer.style.background = 'linear-gradient(90deg, rgba(16,185,129,0.25), rgba(16,185,129,0.45), rgba(16,185,129,0.25))';
+            });
+            resizer.addEventListener('mouseleave', () => {
+                if (!dragging) resizer.style.background = 'linear-gradient(90deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08), rgba(0,0,0,0.04))';
+            });
+
+            document.addEventListener('mousemove', (e) => { if (dragging) onMove(e.clientX); });
+            document.addEventListener('touchmove', (e) => { if (dragging && e.touches[0]) { onMove(e.touches[0].clientX); e.preventDefault(); } }, { passive: false });
+            const endDrag = () => {
+                if (!dragging) return;
+                dragging = false;
+                overlay.style.display = 'none';
+                resizer.style.background = 'linear-gradient(90deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08), rgba(0,0,0,0.04))';
+            };
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('touchend', endDrag);
+        })();
+
+        // ============ NEW CHAT MODAL ============
+        window.backToConnections = function() {
+            try {
+                if (window.opener && !window.opener.closed) { window.close(); return; }
+            } catch(e){}
+            window.location.href = '/app.html';
+        };
+
+        window.executeExit = function() { window.backToConnections(); };
+        window.confirmExit = function() { window.backToConnections(); };
+
+        window.switchNewChatTab = function(tab) {
+            const tContact = document.getElementById('newChatTabContact');
+            const tManual = document.getElementById('newChatTabManual');
+            const pContact = document.getElementById('newChatPanelContact');
+            const pManual = document.getElementById('newChatPanelManual');
+            if (!tContact || !tManual) return;
+            if (tab === 'manual') {
+                tContact.classList.remove('active');
+                tManual.classList.add('active');
+                pContact.style.display = 'none';
+                pManual.style.display = 'block';
+            } else {
+                tManual.classList.remove('active');
+                tContact.classList.add('active');
+                pContact.style.display = 'block';
+                pManual.style.display = 'none';
+            }
+        };
+
+        window.openNewChatModal = function() {
+            const modal = document.getElementById('newChatModal');
+            if (!modal) return;
+            modal.style.display = 'flex';
+            window.switchNewChatTab('contact');
+            const input = document.getElementById('newChatSearch');
+            if (input) input.value = '';
+            window.renderNewChatContacts('');
+            if (input) {
+                input.oninput = () => window.renderNewChatContacts(input.value || '');
+            }
+        };
+
+        function normalizePhoneFromChatId(id) {
+            if (!id) return '';
+            return String(id).replace(/@.*/, '').replace(/[^0-9]/g, '');
+        }
+
+        window.renderNewChatContacts = function(query) {
+            const list = document.getElementById('newChatContactList');
+            if (!list) return;
+            const q = (query || '').toLowerCase().trim();
+            const items = [];
+            const seen = new Set();
+
+            // From existing chats/conversations
+            const chats = Object.values(window.allChatsData || {});
+            chats.forEach(c => {
+                if (!c || !c.id) return;
+                const phone = normalizePhoneFromChatId(c.id);
+                if (!phone) return;
+                const key = 'chat:' + phone;
+                if (seen.has(key)) return;
+                seen.add(key);
+                items.push({
+                    source: 'chat',
+                    name: c.name || phone,
+                    phone,
+                    chatId: c.id,
+                    photo: c.profilePic || ''
+                });
+            });
+
+            // From Google/system contacts cache
+            const gcs = window.cachedGoogleContacts || [];
+            gcs.forEach(g => {
+                const phone = (g.phone || '').replace(/[^0-9]/g, '');
+                if (!phone) return;
+                const key = 'g:' + phone;
+                if (seen.has('chat:' + phone) || seen.has(key)) return;
+                seen.add(key);
+                items.push({
+                    source: 'contact',
+                    name: g.name || phone,
+                    phone,
+                    chatId: phone + '@c.us',
+                    photo: g.photoUrl || ''
+                });
+            });
+
+            const filtered = q ? items.filter(i =>
+                (i.name || '').toLowerCase().includes(q) || (i.phone || '').includes(q)
+            ) : items;
+
+            list.innerHTML = '';
+            if (filtered.length === 0) {
+                list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">Nenhum contato ou conversa encontrada.</div>';
+                return;
+            }
+
+            filtered.slice(0, 200).forEach(it => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid #eef2f7; cursor:pointer; background:#fff;';
+                row.onmouseenter = () => row.style.background = '#f3f4f6';
+                row.onmouseleave = () => row.style.background = '#fff';
+                const initial = (it.name || '?').charAt(0).toUpperCase();
+                const photoHtml = it.photo
+                    ? `<img src="${it.photo}" style="width:38px; height:38px; border-radius:50%; object-fit:cover;">`
+                    : `<div style="width:38px; height:38px; border-radius:50%; background:#dcfce7; color:#166534; display:flex; align-items:center; justify-content:center; font-weight:700;">${initial}</div>`;
+                const badge = it.source === 'chat'
+                    ? '<span style="font-size:0.7rem; background:#dcfce7; color:#166534; padding:2px 8px; border-radius:999px; font-weight:700;">Conversa</span>'
+                    : '<span style="font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:999px; font-weight:700;">Contato</span>';
+                row.innerHTML = `
+                    ${photoHtml}
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${it.name}</div>
+                        <div style="font-size:0.8rem; color:#6b7280;">+${it.phone}</div>
+                    </div>
+                    ${badge}
+                `;
+                row.onclick = () => window.startNewChatWith(it);
+                list.appendChild(row);
+            });
+        };
+
+        window.startNewChatWith = function(it) {
+            const modal = document.getElementById('newChatModal');
+            if (modal) modal.style.display = 'none';
+            if (typeof window.switchTab === 'function') window.switchTab('whatsapp');
+            const chatId = it.chatId || (it.phone + '@c.us');
+            // If chat already exists open directly
+            if (window.allChatsData && window.allChatsData[chatId] && typeof window.openWaChat === 'function') {
+                window.openWaChat(chatId);
+                return;
+            }
+            // Otherwise ask backend to open/create the chat
+            try {
+                if (window.socket && window.sessionId) {
+                    window.socket.emit('open-chat', { sessionId: window.sessionId, phone: it.phone, chatId });
+                }
+            } catch(e){}
+            // Optimistic entry
+            window.allChatsData = window.allChatsData || {};
+            if (!window.allChatsData[chatId]) {
+                window.allChatsData[chatId] = {
+                    id: chatId,
+                    name: it.name,
+                    profilePic: it.photo || '',
+                    lastMessage: '',
+                    timestamp: Date.now(),
+                    unreadCount: 0
+                };
+            }
+            if (typeof window.openWaChat === 'function') window.openWaChat(chatId);
+        };
+
+        // Start button (contact tab uses row click; this handles manual number)
+        document.addEventListener('DOMContentLoaded', function() {
+            const startBtn = document.getElementById('startNewChatBtn');
+            if (startBtn) {
+                startBtn.onclick = function() {
+                    const manualPanel = document.getElementById('newChatPanelManual');
+                    if (manualPanel && manualPanel.style.display !== 'none') {
+                        const raw = (document.getElementById('newChatNumber').value || '').replace(/[^0-9]/g, '');
+                        if (raw.length < 10) { alert('Digite um número válido com DDI e DDD.'); return; }
+                        window.startNewChatWith({ source:'manual', name:'+'+raw, phone:raw, chatId: raw+'@c.us', photo:'' });
+                    } else {
+                        alert('Selecione um contato da lista ou vá para "Digitar Número".');
+                    }
+                };
+            }
+        });
+
         // --- NEW CONTACTS FUNCTIONS ---
         window.toggleAccordion = function(type) {
             const body = document.getElementById('accordionBody-' + type);
@@ -4735,6 +5783,22 @@
                 div.style.minHeight = '80px';
                 div.style.background = 'white';
                 div.style.position = 'relative';
+                // Mark today
+                const today = new Date();
+                if (date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate()) {
+                    div.classList.add('is-today');
+                }
+                // Click / right-click to schedule
+                const isoDate = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                div.addEventListener('click', function (ev) {
+                    // Ignore clicks on events inside the day
+                    if (ev.target && ev.target.closest && ev.target.closest('[data-agenda-event]')) return;
+                    if (window.openAgendaNewModal) window.openAgendaNewModal({ date: isoDate });
+                });
+                div.addEventListener('contextmenu', function (ev) {
+                    ev.preventDefault();
+                    if (window.openAgendaNewModal) window.openAgendaNewModal({ date: isoDate });
+                });
 
                 const dayNum = document.createElement('div');
                 dayNum.innerText = day;
@@ -4750,6 +5814,7 @@
 
                 events.forEach(ev => {
                     const evDiv = document.createElement('div');
+                    evDiv.setAttribute('data-agenda-event', '1');
                     evDiv.style.background = '#dbeafe';
                     evDiv.style.color = '#1e40af';
                     evDiv.style.fontSize = '0.7rem';
@@ -4902,6 +5967,498 @@
                 window.renderScheduledList();
             });
         }
+
+        // ============ AGENDA — Panel toggles + Novo Agendamento ============
+        (function initAgendaPro() {
+            // Toggle chips (Contatos / Calendário / Agendados)
+            const chips = document.querySelectorAll('[data-agenda-toggle]');
+            chips.forEach(function (chip) {
+                chip.addEventListener('click', function () {
+                    const key = chip.getAttribute('data-agenda-toggle');
+                    const targetId = key === 'contacts' ? 'agendaContactsSidebar'
+                                   : key === 'calendar' ? 'agendaCalendarWrap'
+                                   : 'agendaScheduledSidebar';
+                    const el = document.getElementById(targetId);
+                    if (!el) return;
+                    el.classList.toggle('is-collapsed');
+                    chip.classList.toggle('is-active', !el.classList.contains('is-collapsed'));
+                });
+            });
+
+            const newBtn = document.getElementById('agendaNewBtn');
+            if (newBtn) newBtn.addEventListener('click', function () { window.openAgendaNewModal(); });
+
+            // Contact list filtering inside the picker
+            const search = document.getElementById('agendaContactPickerSearch');
+            if (search) {
+                search.addEventListener('input', function () { renderContactPicker(search.value); });
+            }
+
+            const typeSel = document.getElementById('agendaNewType');
+            if (typeSel) typeSel.addEventListener('change', function () {
+                const isText = typeSel.value === 'text';
+                document.getElementById('agendaNewMessageRow').style.display = isText ? 'block' : 'none';
+                document.getElementById('agendaNewFlowRow').style.display = isText ? 'none' : 'block';
+            });
+
+            // Sidebar contact click → open modal preselecting that contact
+            const sidebar = document.getElementById('agendaContactsList');
+            if (sidebar) {
+                sidebar.addEventListener('click', function (ev) {
+                    const item = ev.target && ev.target.closest ? ev.target.closest('.agenda-contact-item') : null;
+                    if (!item) return;
+                    const chatId = item.getAttribute('data-chat-id');
+                    if (chatId) window.openAgendaNewModal({ chatId: chatId });
+                });
+            }
+        })();
+
+        window.__agendaSelectedChatId = null;
+
+        function renderContactPicker(filter) {
+            const list = document.getElementById('agendaContactPickerList');
+            if (!list) return;
+            const q = (filter || '').toLowerCase().trim();
+            const chats = Object.values(window.allChatsData || {});
+            const filtered = chats.filter(function (c) {
+                if (!q) return true;
+                const n = (c.name || c.pushname || '').toLowerCase();
+                const p = (c.phoneNumber || '').toLowerCase();
+                return n.indexOf(q) !== -1 || p.indexOf(q) !== -1;
+            }).slice(0, 60);
+            if (filtered.length === 0) {
+                list.innerHTML = '<div style="padding:16px; text-align:center; color:#94a3b8; font-size:0.85rem;">Nenhum contato ou conversa encontrado.</div>';
+                return;
+            }
+            list.innerHTML = filtered.map(function (c) {
+                const name = (c.name || c.pushname || c.id || 'Sem nome').replace(/</g, '&lt;');
+                const phone = (c.phoneNumber || (c.id ? String(c.id).split('@')[0] : '')).replace(/</g, '&lt;');
+                const img = c.profilePic
+                    ? '<img src="' + c.profilePic + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">'
+                    : '<div style="width:32px;height:32px;border-radius:50%;background:#e2e8f0;display:grid;place-items:center;color:#64748b;"><i class="fas fa-user"></i></div>';
+                return '<div class="agenda-picker-item" data-chat-id="' + (c.id || '') + '" style="display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;border-bottom:1px solid #eef2f7;">'
+                    + img
+                    + '<div style="min-width:0;flex:1;"><div style="font-weight:600;font-size:0.88rem;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</div>'
+                    + '<div style="font-size:0.78rem;color:#64748b;">' + phone + '</div></div></div>';
+            }).join('');
+            list.querySelectorAll('.agenda-picker-item').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    const id = el.getAttribute('data-chat-id');
+                    selectAgendaContact(id);
+                });
+            });
+        }
+
+        function selectAgendaContact(chatId) {
+            window.__agendaSelectedChatId = chatId;
+            const chat = (window.allChatsData && window.allChatsData[chatId]) || {};
+            const name = chat.name || chat.pushname || 'Contato selecionado';
+            const phone = chat.phoneNumber || (chatId ? String(chatId).split('@')[0] : '');
+            const sel = document.getElementById('agendaContactPickerSelected');
+            const list = document.getElementById('agendaContactPickerList');
+            if (sel) {
+                sel.style.display = 'block';
+                sel.innerHTML = '<b><i class="fas fa-check-circle" style="color:#047857;"></i> ' + name + '</b> <span style="color:#475569;">— ' + phone + '</span> <button type="button" onclick="clearAgendaContact()" style="float:right;background:none;border:none;color:#b91c1c;cursor:pointer;font-size:0.85rem;">Trocar</button>';
+            }
+            if (list) list.style.display = 'none';
+        }
+
+        window.clearAgendaContact = function () {
+            window.__agendaSelectedChatId = null;
+            const sel = document.getElementById('agendaContactPickerSelected');
+            const list = document.getElementById('agendaContactPickerList');
+            if (sel) { sel.style.display = 'none'; sel.innerHTML = ''; }
+            if (list) list.style.display = '';
+            renderContactPicker('');
+            const s = document.getElementById('agendaContactPickerSearch');
+            if (s) { s.value = ''; s.focus(); }
+        };
+
+        window.openAgendaNewModal = function (opts) {
+            opts = opts || {};
+            const modal = document.getElementById('agendaNewModal');
+            if (!modal) return;
+
+            // Populate flow options
+            const flowSel = document.getElementById('agendaNewFlowSelect');
+            if (flowSel) {
+                flowSel.innerHTML = '<option value="">Selecione um fluxo...</option>';
+                (window.allFlows || []).forEach(function (f) {
+                    const o = document.createElement('option');
+                    o.value = f.id; o.innerText = f.name;
+                    flowSel.appendChild(o);
+                });
+            }
+
+            // Prefill date/time
+            const now = new Date();
+            now.setMinutes(now.getMinutes() + 30);
+            const dateInput = document.getElementById('agendaNewDate');
+            const timeInput = document.getElementById('agendaNewTime');
+            if (dateInput) dateInput.value = opts.date || (now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0'));
+            if (timeInput) timeInput.value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+            // Reset type
+            const typeSel = document.getElementById('agendaNewType');
+            if (typeSel) typeSel.value = 'text';
+            document.getElementById('agendaNewMessageRow').style.display = 'block';
+            document.getElementById('agendaNewFlowRow').style.display = 'none';
+            const msg = document.getElementById('agendaNewMessage');
+            if (msg) msg.value = '';
+
+            // Reset & render contact picker
+            window.__agendaSelectedChatId = null;
+            const sel = document.getElementById('agendaContactPickerSelected');
+            if (sel) { sel.style.display = 'none'; sel.innerHTML = ''; }
+            const list = document.getElementById('agendaContactPickerList');
+            if (list) list.style.display = '';
+            const search = document.getElementById('agendaContactPickerSearch');
+            if (search) search.value = '';
+            renderContactPicker('');
+
+            if (opts.chatId) selectAgendaContact(opts.chatId);
+
+            modal.style.display = 'flex';
+        };
+
+        window.closeAgendaNewModal = function () {
+            const modal = document.getElementById('agendaNewModal');
+            if (modal) modal.style.display = 'none';
+        };
+
+        window.confirmAgendaNew = function () {
+            const chatId = window.__agendaSelectedChatId;
+            if (!chatId) { alert('Selecione um contato ou conversa.'); return; }
+            const dateVal = document.getElementById('agendaNewDate').value;
+            const timeVal = document.getElementById('agendaNewTime').value;
+            if (!dateVal || !timeVal) { alert('Data e hora são obrigatórios.'); return; }
+            const ts = new Date(dateVal + 'T' + timeVal).getTime();
+            if (isNaN(ts)) { alert('Data inválida.'); return; }
+            if (ts <= Date.now()) { alert('A data deve ser no futuro.'); return; }
+            const type = document.getElementById('agendaNewType').value;
+            let body = ''; let flowId = null;
+            if (type === 'text') {
+                body = document.getElementById('agendaNewMessage').value;
+                if (!body.trim()) { alert('Digite a mensagem.'); return; }
+            } else {
+                flowId = document.getElementById('agendaNewFlowSelect').value;
+                if (!flowId) { alert('Selecione um fluxo.'); return; }
+            }
+            if (!window.socket) { alert('Conexão com o servidor indisponível.'); return; }
+            window.socket.emit('schedule-message', {
+                sessionId: window.sessionId,
+                chatId: chatId,
+                message: body,
+                flowId: flowId,
+                timestamp: ts,
+                type: type
+            });
+            // Optimistic update
+            window.scheduledMessages = window.scheduledMessages || [];
+            window.scheduledMessages.push({
+                id: 'tmp-' + Date.now(), chatId: chatId, body: body || ('Fluxo #' + flowId),
+                flowId: flowId, timestamp: ts, type: type
+            });
+            if (window.renderCalendar) window.renderCalendar();
+            if (window.renderScheduledList) window.renderScheduledList();
+            window.closeAgendaNewModal();
+        };
+
+        // Wire sidebar contact items to carry data-chat-id (patch renderer defensively)
+        (function decorateContactsRenderer() {
+            const orig = window.renderAgendaContacts;
+            if (typeof orig !== 'function') return;
+            window.renderAgendaContacts = function () {
+                orig.apply(this, arguments);
+                const list = document.getElementById('agendaContactsList');
+                if (!list) return;
+                const items = list.querySelectorAll('.agenda-contact-item');
+                const chats = Object.values(window.allChatsData || {}).sort(function (a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+                items.forEach(function (el, i) {
+                    if (chats[i] && chats[i].id) el.setAttribute('data-chat-id', chats[i].id);
+                });
+            };
+        })();
+
+        // Modo demonstração: libera o dashboard completo sem depender de uma conexão real.
+        (function initDemoCrmMode() {
+            if (!window.isDemoCrmSession) return;
+
+            const now = Math.floor(Date.now() / 1000);
+            const demoColumns = [
+                { id: 'todos', title: 'Todos', color: '#6b778c' },
+                { id: 'new', title: 'Novos', color: '#3b82f6' },
+                { id: 'attending', title: 'Em Atendimento', color: '#eab308' },
+                { id: 'waiting', title: 'Aguardando', color: '#f97316' },
+                { id: 'won', title: 'Ganhou', color: '#10b981' },
+                { id: 'lost', title: 'Perdeu', color: '#ef4444' }
+            ];
+            const demoChats = [
+                { id: '5551999000001@c.us', name: 'Marina Costa', phoneNumber: '+55 51 99900-0001', lastMessage: 'Olá, quero entender os planos do ZAPMRO.', timestamp: now - 180, unreadCount: 2, status: 'new', aiActive: true, tags: [{ name: 'Lead quente', color: '#ef4444' }] },
+                { id: '5551999000002@c.us', name: 'Roberto Almeida', phoneNumber: '+55 51 99900-0002', lastMessage: 'Podemos agendar uma apresentação amanhã?', timestamp: now - 950, unreadCount: 0, status: 'attending', aiActive: true, tags: [{ name: 'Demonstração', color: '#3b82f6' }] },
+                { id: '5551999000003@c.us', name: 'Clínica Vida Mais', phoneNumber: '+55 51 99900-0003', lastMessage: 'Vou falar com meu sócio e retorno.', timestamp: now - 3800, unreadCount: 1, status: 'waiting', aiActive: false, tags: [{ name: 'Follow-up', color: '#f97316' }] },
+                { id: '5551999000004@c.us', name: 'Pedro Martins', phoneNumber: '+55 51 99900-0004', lastMessage: 'Fechado, pode enviar o acesso.', timestamp: now - 7600, unreadCount: 0, status: 'won', aiActive: true, tags: [{ name: 'Cliente', color: '#10b981' }] },
+                { id: '5551999000005@c.us', name: 'Ana Paula', phoneNumber: '+55 51 99900-0005', lastMessage: 'Achei o valor acima do orçamento.', timestamp: now - 12600, unreadCount: 0, status: 'lost', aiActive: false, tags: [{ name: 'WinBack', color: '#8b5cf6' }] }
+            ];
+            const demoMessages = {
+                '5551999000001@c.us': [
+                    { id: 'm1', body: 'Olá! Vi o ZAPMRO e quero entender os planos.', fromMe: false, timestamp: now - 900, ack: 0 },
+                    { id: 'm2', body: 'Oi, Marina! Claro. O painel reúne WhatsApp Web, CRM Kanban, fluxos, agenda, contatos, WinBack e agente IA.', fromMe: true, timestamp: now - 840, ack: 3 },
+                    { id: 'm3', body: 'Perfeito. Consigo testar hoje?', fromMe: false, timestamp: now - 180, ack: 0 }
+                ],
+                '5551999000002@c.us': [
+                    { id: 'm4', body: 'Podemos agendar uma apresentação amanhã?', fromMe: false, timestamp: now - 1100, ack: 0 },
+                    { id: 'm5', body: 'Sim. Tenho horários às 10h e 15h. Qual fica melhor?', fromMe: true, timestamp: now - 950, ack: 3 }
+                ],
+                '5551999000003@c.us': [
+                    { id: 'm6', body: 'Vou falar com meu sócio e retorno.', fromMe: false, timestamp: now - 3800, ack: 0 },
+                    { id: 'm7', body: 'Combinado. Deixo salvo aqui e faço um follow-up amanhã.', fromMe: true, timestamp: now - 3700, ack: 2 }
+                ],
+                '5551999000004@c.us': [
+                    { id: 'm8', body: 'Fechado, pode enviar o acesso.', fromMe: false, timestamp: now - 7600, ack: 0 },
+                    { id: 'm9', body: 'Acesso enviado. Bem-vindo ao ZAPMRO!', fromMe: true, timestamp: now - 7500, ack: 3 }
+                ],
+                '5551999000005@c.us': [
+                    { id: 'm10', body: 'Achei o valor acima do orçamento.', fromMe: false, timestamp: now - 12600, ack: 0 },
+                    { id: 'm11', body: 'Entendo. Posso te mostrar um plano inicial mais enxuto?', fromMe: true, timestamp: now - 12500, ack: 2 }
+                ]
+            };
+            const demoFlows = [
+                { id: 'flow_boas_vindas', name: 'Boas-vindas automático', triggerType: 'first_message', triggerKeyword: '', steps: [{ type: 'text', content: 'Olá! Seja bem-vindo(a) ao atendimento ZAPMRO.' }, { type: 'delay', content: '3' }, { type: 'text', content: 'Como posso te ajudar hoje?' }] },
+                { id: 'flow_orcamento', name: 'Qualificação de orçamento', triggerType: 'keyword', triggerKeyword: 'preço', steps: [{ type: 'text', content: 'Legal! Vou te fazer algumas perguntas rápidas para indicar o melhor plano.' }] }
+            ];
+            const demoGoogleContacts = [
+                { name: 'Fornecedor Agência MRO', email: 'contato@agenciamro.com', phone: '+55 51 98888-1010' },
+                { name: 'Parceiro Comercial', email: 'parceiro@zapmro.com', phone: '+55 51 98888-2020' }
+            ];
+            const demoScheduled = [
+                { id: 'sch_demo_1', chatId: '5551999000002@c.us', body: 'Lembrete: apresentação do ZAPMRO às 15h.', timestamp: new Date(Date.now() + 86400000).toISOString() },
+                { id: 'sch_demo_2', chatId: '5551999000003@c.us', body: 'Follow-up sobre decisão com o sócio.', timestamp: new Date(Date.now() + 172800000).toISOString() }
+            ];
+            const demoCampaigns = [
+                { id: 'campanha_demo_01', createdAt: new Date(Date.now() - 86400000).toISOString(), status: 'running', sentCount: 18, totalCount: 32, config: { type: 'text', ai: { goal: 'recuperar interesse', context: 'lead demonstrou objeção de preço' } } },
+                { id: 'campanha_demo_02', createdAt: new Date(Date.now() - 604800000).toISOString(), status: 'completed', sentCount: 24, totalCount: 24, config: { type: 'flow', ai: null } }
+            ];
+            const demoAiConfig = {
+                enabled: true,
+                provider: 'deepseek',
+                triggerMode: 'all',
+                keyword: '',
+                respondInGroups: false,
+                prompt: 'Você é um atendente consultivo da ZAPMRO. Responda com clareza, cordialidade e foco em conversão.',
+                proofreadEnabled: true,
+                proofreadProvider: 'same',
+                proofreadModel: ''
+            };
+
+            function trigger(eventName, payload) {
+                if (window.socket && typeof window.socket.trigger === 'function') {
+                    window.socket.trigger(eventName, payload);
+                }
+            }
+
+            function sendDemoData(eventName) {
+                if (eventName === 'get-chats') {
+                    trigger('kanban-columns', { columns: demoColumns });
+                    trigger('chats-loaded', demoChats);
+                    return;
+                }
+                if (eventName === 'get-kanban-columns') {
+                    trigger('kanban-columns', { columns: demoColumns });
+                    trigger('chats-loaded', demoChats);
+                }
+                if (eventName === 'get-flows') trigger('flows-list', demoFlows);
+                if (eventName === 'get-ai-config') trigger('ai-config-data', demoAiConfig);
+                if (eventName === 'get-tags') trigger('tags-list', { tags: [{ name: 'Lead quente', color: '#ef4444' }, { name: 'Demonstração', color: '#3b82f6' }, { name: 'WinBack', color: '#8b5cf6' }] });
+                if (eventName === 'get-google-contacts') {
+                    trigger('google-contacts-status', { connected: true, email: 'demo@zapmro.com' });
+                    trigger('google-contacts-list', demoGoogleContacts);
+                }
+                if (eventName === 'get-winback-stats') {
+                    trigger('winback-stats-update', { totalSent: 42, weekly: 18, today: 4 });
+                    trigger('winback-campaigns-list', demoCampaigns);
+                }
+                if (eventName === 'get-scheduled-messages') trigger('scheduled-messages-list', demoScheduled);
+            }
+
+            window.__zapmroHandleDemoEmit = function(eventName, args) {
+                const callback = args.find(arg => typeof arg === 'function');
+                const payload = args[0] || {};
+
+                if (eventName === 'get-chat-history') {
+                    const chatId = payload.chatId || args[0];
+                    trigger('chat-history', { chatId, messages: demoMessages[chatId] || [] });
+                    return window.socket;
+                }
+
+                if (eventName === 'send-message') {
+                    const chatId = payload.chatId;
+                    const text = payload.message || '';
+                    const msg = { id: 'demo_msg_' + Date.now(), body: text, fromMe: true, timestamp: Math.floor(Date.now() / 1000), ack: 3 };
+                    if (!demoMessages[chatId]) demoMessages[chatId] = [];
+                    demoMessages[chatId].push(msg);
+                    const chat = demoChats.find(item => item.id === chatId);
+                    if (chat) {
+                        chat.lastMessage = text;
+                        chat.timestamp = msg.timestamp;
+                        chat.unreadCount = 0;
+                    }
+                    trigger('new-message', { chat: chat || { id: chatId }, message: msg });
+                    if (callback) callback({ ok: true, success: true });
+                    return window.socket;
+                }
+
+                if (eventName === 'save-kanban-columns') {
+                    if (Array.isArray(payload.columns)) demoColumns.splice(0, demoColumns.length, ...payload.columns);
+                    if (callback) callback({ ok: true, success: true });
+                    return window.socket;
+                }
+
+                if (eventName === 'save-flow') {
+                    if (payload.flow) {
+                        const index = demoFlows.findIndex(flow => flow.id === payload.flow.id);
+                        if (index >= 0) demoFlows[index] = payload.flow;
+                        else demoFlows.push({ ...payload.flow, id: payload.flow.id || 'flow_demo_' + Date.now() });
+                    }
+                    if (callback) callback({ ok: true, success: true });
+                    trigger('flows-list', demoFlows);
+                    return window.socket;
+                }
+
+                if (eventName === 'delete-flow') {
+                    const index = demoFlows.findIndex(flow => flow.id === payload.flowId);
+                    if (index >= 0) demoFlows.splice(index, 1);
+                    if (callback) callback({ ok: true, success: true });
+                    trigger('flows-list', demoFlows);
+                    return window.socket;
+                }
+
+                if (eventName === 'save-ai-config') {
+                    Object.assign(demoAiConfig, payload.config || {});
+                    trigger('ai-config-saved', { success: true });
+                    return window.socket;
+                }
+
+                if (eventName === 'create-winback-campaign') {
+                    demoCampaigns.unshift({ id: 'campanha_demo_' + Date.now(), createdAt: new Date().toISOString(), status: 'running', sentCount: 0, totalCount: (payload.targets || []).length, config: payload.config || { type: 'text' } });
+                    trigger('winback-campaign-created', { success: true });
+                    trigger('winback-campaigns-list', demoCampaigns);
+                    return window.socket;
+                }
+
+                if (eventName === 'schedule-message') {
+                    const scheduled = { id: 'sch_demo_' + Date.now(), chatId: payload.chatId, body: payload.message || 'Mensagem agendada', timestamp: payload.timestamp };
+                    demoScheduled.push(scheduled);
+                    trigger('schedule-created', scheduled);
+                    if (callback) callback({ ok: true, success: true });
+                    return window.socket;
+                }
+
+                if (eventName === 'delete-scheduled-message') {
+                    const index = demoScheduled.findIndex(item => item.id === payload.id);
+                    if (index >= 0) demoScheduled.splice(index, 1);
+                    trigger('scheduled-message-deleted', payload.id);
+                    return window.socket;
+                }
+
+                if (eventName === 'export-contacts') {
+                    alert('Exportação simulada: seus contatos apareceriam em CSV no modo real.');
+                    return window.socket;
+                }
+
+                sendDemoData(eventName);
+                if (callback) callback({ ok: true, success: true });
+                return window.socket;
+            };
+
+            function renderDemoDashboard() {
+                trigger('connect');
+                ['get-chats', 'get-kanban-columns', 'get-flows', 'get-ai-config', 'get-tags', 'get-google-contacts', 'get-winback-stats', 'get-scheduled-messages'].forEach(sendDemoData);
+                if (window.renderGoogleContacts) window.renderGoogleContacts(demoGoogleContacts);
+                if (window.renderAppContacts) window.renderAppContacts();
+                if (window.renderAgendaContacts) window.renderAgendaContacts();
+                if (window.renderCalendar) window.renderCalendar();
+                if (window.renderScheduledList) window.renderScheduledList();
+                hideLoading();
+
+                const statusDisplay = document.getElementById('system-stats-display');
+                const statusText = document.getElementById('system-stats-text');
+                if (statusDisplay) statusDisplay.style.display = 'block';
+                if (statusText) {
+                    statusText.innerText = 'Demonstração conectada';
+                    statusText.style.color = '#10b981';
+                }
+
+                const requestedView = urlParams.get('view');
+                if (requestedView && typeof window.switchTab === 'function') {
+                    window.switchTab(requestedView);
+                }
+            }
+
+            setTimeout(renderDemoDashboard, 80);
+        })();
     </script>
+
+    <!-- Send Flow Confirmation Modal (must be outside other modals) -->
+    <div id="sendFlowModal" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:99999; align-items:center; justify-content:center;">
+        <div class="modal-content" style="max-width: 460px; width: 92%; background:#fff; border-radius:14px; padding:28px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="width:64px; height:64px; margin:0 auto 16px; border-radius:50%; background:linear-gradient(135deg,#064e3b,#0d7a5f); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px -10px rgba(13,122,95,0.55);">
+                <i class="fas fa-project-diagram" style="font-size:1.6rem; color:#fff;"></i>
+            </div>
+            <h3 style="margin:0 0 8px; color:#0b3d2e;">Enviar Fluxo</h3>
+            <p style="color:#4b5563; margin:0 0 6px; font-size:0.95rem;">Deseja iniciar o fluxo</p>
+            <p id="sendFlowName" style="color:#0b3d2e; font-weight:700; margin:0 0 22px; font-size:1.05rem;"></p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <button onclick="document.getElementById('sendFlowModal').style.display='none'"
+                    style="background:#f3f4f6; color:#374151; border:1px solid #e5e7eb; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
+                    Cancelar
+                </button>
+                <button onclick="confirmSendFlow()"
+                    style="background:linear-gradient(135deg,#064e3b,#0d7a5f); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px -8px rgba(13,122,95,0.6);">
+                    <i class="fas fa-paper-plane"></i> Enviar Fluxo
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.openSendFlowModal = function(flow) {
+            window._pendingFlow = flow;
+            document.getElementById('sendFlowName').innerText = '"' + flow.name + '"';
+            document.getElementById('sendFlowModal').style.display = 'flex';
+        };
+        window.confirmSendFlow = function() {
+            const flow = window._pendingFlow;
+            document.getElementById('sendFlowModal').style.display = 'none';
+            if (!flow || !window.currentWaChatId) { alert('Selecione uma conversa.'); return; }
+            window.socket.emit('start-flow', {
+                sessionId: window.sessionId,
+                chatId: window.currentWaChatId,
+                flowId: flow.id
+            });
+            if (window.showToast) window.showToast('Fluxo iniciado!', 'success');
+            window._pendingFlow = null;
+        };
+    </script>
+    <!-- Confirm Delete Step Modal (internal) -->
+    <div id="confirmDeleteStepModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:99999; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:#fff; width:100%; max-width:420px; border-radius:16px; padding:22px 22px 18px; box-shadow:0 24px 60px -20px rgba(15,23,42,0.45); font-family:'DM Sans',sans-serif;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+          <div style="width:42px; height:42px; border-radius:12px; background:#fee2e2; color:#b91c1c; display:grid; place-items:center; font-size:1.1rem;"><i class="fas fa-trash"></i></div>
+          <div>
+            <h3 style="margin:0; color:#0f172a; font-size:1.05rem; font-weight:800;">Remover etapa?</h3>
+            <p id="confirmDeleteStepLabel" style="margin:2px 0 0; color:#64748b; font-size:0.82rem;"></p>
+          </div>
+        </div>
+        <p style="margin:6px 0 18px; color:#475569; font-size:0.9rem; line-height:1.45;">Esta ação não pode ser desfeita. A etapa será removida do fluxo.</p>
+        <label style="display:flex; align-items:center; gap:8px; margin:0 0 16px; color:#475569; font-size:0.85rem; cursor:pointer; user-select:none;">
+          <input type="checkbox" id="confirmDeleteStepSkip" style="width:16px; height:16px; accent-color:#b91c1c; cursor:pointer;">
+          Não perguntar novamente nesta edição
+        </label>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+          <button onclick="closeConfirmDeleteStep()" style="background:#fff; color:#111827; border:1.5px solid #d1d5db; padding:9px 18px; border-radius:10px; font-weight:600; cursor:pointer;">Cancelar</button>
+          <button onclick="confirmDeleteStep()" style="background:linear-gradient(135deg,#b91c1c,#ef4444); color:#fff; border:none; padding:9px 18px; border-radius:10px; font-weight:700; cursor:pointer; box-shadow:0 8px 20px -8px rgba(185,28,28,0.55); display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-trash"></i> Remover</button>
+        </div>
+      </div>
+    </div>
 </body>
 </html>
