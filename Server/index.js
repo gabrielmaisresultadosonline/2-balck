@@ -811,6 +811,18 @@ function collectPossibleChatIds(sessionId, chatId) {
         }
     }
 
+    const localNumbers = new Set();
+    for (const candidateId of Array.from(out)) {
+        const history = loadMessageHistory(sessionId, candidateId);
+        extractCandidateNumbersFromMessages(history).forEach(num => localNumbers.add(num));
+    }
+    const archiveFallback = loadArchiveFallback(sessionId, Array.from(out));
+    archiveFallback.numbers.forEach(num => localNumbers.add(num));
+    for (const num of localNumbers) {
+        out.add(`${num}@c.us`);
+        out.add(`${num}@s.whatsapp.net`);
+    }
+
     return Array.from(out).filter(Boolean);
 }
 
@@ -1342,6 +1354,73 @@ function loadMessageHistory(sessionId, chatId) {
         console.error('Error loading history:', e);
     }
     return [];
+}
+
+function extractCandidateNumbersFromMessages(messages) {
+    const out = new Set();
+    const list = Array.isArray(messages) ? messages : [];
+    for (const msg of list) {
+        const candidates = [
+            msg?.from,
+            msg?.to,
+            msg?.chatId,
+            msg?._evoRaw?.key?.remoteJid,
+            msg?._evoRaw?.remoteJid,
+            msg?._evoRaw?.owner,
+            msg?._evoRaw?.sender
+        ];
+        for (const candidate of candidates) {
+            const digits = normalizeEvolutionPhone(candidate || '');
+            if (digits && digits.length >= 10 && digits.length <= 15) out.add(digits);
+        }
+    }
+    return Array.from(out);
+}
+
+function loadArchiveFallback(sessionId, chatIds) {
+    try {
+        if (!fs.existsSync(ARCHIVE_DIR)) return { messages: [], numbers: [] };
+        const targets = new Set((Array.isArray(chatIds) ? chatIds : [chatIds]).map(v => String(v || '').trim()).filter(Boolean));
+        const targetDigits = new Set(Array.from(targets).map(v => normalizeEvolutionPhone(v)).filter(Boolean));
+        const files = fs.readdirSync(ARCHIVE_DIR)
+            .filter(name => name.startsWith(`${sessionId}_`) && name.endsWith('.json'))
+            .sort((a, b) => {
+                try {
+                    const aStat = fs.statSync(path.join(ARCHIVE_DIR, a));
+                    const bStat = fs.statSync(path.join(ARCHIVE_DIR, b));
+                    return bStat.mtimeMs - aStat.mtimeMs;
+                } catch (e) {
+                    return 0;
+                }
+            });
+
+        const merged = new Map();
+        const foundNumbers = new Set();
+
+        for (const fileName of files.slice(0, 200)) {
+            try {
+                const full = path.join(ARCHIVE_DIR, fileName);
+                const raw = JSON.parse(fs.readFileSync(full, 'utf8'));
+                const archivedChatId = String(raw?.chatId || '').trim();
+                const archivedDigits = normalizeEvolutionPhone(archivedChatId);
+                const match = targets.has(archivedChatId) || (archivedDigits && targetDigits.has(archivedDigits));
+                if (!match) continue;
+
+                const messages = Array.isArray(raw?.messages) ? raw.messages : [];
+                extractCandidateNumbersFromMessages(messages).forEach(num => foundNumbers.add(num));
+                for (const msg of messages) {
+                    if (msg && msg.id) merged.set(String(msg.id), msg);
+                }
+            } catch (e) {}
+        }
+
+        return {
+            messages: Array.from(merged.values()).sort((a, b) => (Number(a?.timestamp || 0) - Number(b?.timestamp || 0))),
+            numbers: Array.from(foundNumbers)
+        };
+    } catch (e) {
+        return { messages: [], numbers: [] };
+    }
 }
 function loadWinbackStats() { return loadData(WINBACK_STATS_FILE); }
 function saveWinbackStats(data) { saveData(WINBACK_STATS_FILE, data); }
@@ -5401,6 +5480,13 @@ io.on('connection', (socket) => {
                     } catch (e) {
                         console.error('Error reading local history:', e);
                     }
+                }
+            }
+            if (!Array.isArray(localHistory) || localHistory.length === 0) {
+                const archived = loadArchiveFallback(sessionId, candidateHistoryIds);
+                if (Array.isArray(archived.messages) && archived.messages.length > 0) {
+                    localHistory = archived.messages;
+                    console.log(`[get-chat-history] Loaded ${localHistory.length} archived messages for ${originalChatId}`);
                 }
             }
             if (!Array.isArray(localHistory) || localHistory.length === 0) {
