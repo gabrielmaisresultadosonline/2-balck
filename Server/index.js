@@ -741,26 +741,37 @@ function extractEvolutionRows(payload) {
 
 function normalizeEvolutionChatRecord(sessionId, rawChat) {
     const chat = rawChat && typeof rawChat === 'object' ? rawChat : {};
-    const remoteJid = normalizeEvolutionChatId(
+    const rawRemoteJid = normalizeEvolutionChatId(
         chat.remoteJid ||
         chat.id ||
         chat.key?.remoteJid ||
         chat.chatId ||
         chat.jid
     );
+    const normalizedPhone = normalizeEvolutionPhone(
+        chat.phone ||
+        chat.number ||
+        chat.owner ||
+        chat.participant ||
+        chat.key?.participant ||
+        rawRemoteJid
+    );
+    const remoteJid = rawRemoteJid.endsWith('@lid') && normalizedPhone
+        ? `${normalizedPhone}@c.us`
+        : rawRemoteJid;
     const name =
         chat.pushName ||
         chat.name ||
         chat.contactName ||
         chat.profileName ||
         chat.subject ||
-        remoteJid.split('@')[0];
+        (normalizedPhone || remoteJid.split('@')[0]);
     const lastMessageObj = chat.lastMessage && typeof chat.lastMessage === 'object' ? chat.lastMessage : {};
     const lastContent = extractEvolutionMessageContent(lastMessageObj);
     return {
         id: remoteJid,
         name,
-        phoneNumber: normalizeEvolutionPhone(chat.phone || chat.number || remoteJid),
+        phoneNumber: normalizedPhone,
         unreadCount: Number(chat.unreadCount || chat.unread || 0) || 0,
         timestamp: normalizeEvolutionTimestamp(chat.updatedAt || chat.messageTimestamp || lastMessageObj.messageTimestamp || chat.timestamp),
         lastMessage: lastContent.body || chat.lastMessageText || chat.lastMessage || '',
