@@ -3769,6 +3769,58 @@
             }
         });
 
+        window.socket.on('message-sent', (data) => {
+            if (!data || !data.message) return;
+
+            const normalizeId = (id) => {
+                if (!id) return '';
+                if (typeof id === 'object' && id._serialized) id = id._serialized;
+                if (typeof id !== 'string') return String(id);
+                return id.replace(/@.*$/, '').replace(/:\d+$/, '');
+            };
+
+            const targetId = data.chatId || data.originalChatId || '';
+            const currentId = normalizeId(window.currentWaChatId);
+            const sentId = normalizeId(targetId);
+
+            if (targetId) {
+                const existing = window.allChatsData[targetId] || window.allChatsData[data.originalChatId] || {};
+                window.allChatsData[targetId] = {
+                    ...existing,
+                    id: targetId,
+                    lastMessage: data.message.body || existing.lastMessage || '',
+                    timestamp: data.message.timestamp || existing.timestamp || Math.floor(Date.now() / 1000)
+                };
+            }
+
+            if (currentId && sentId && currentId === sentId) {
+                const waBody = document.getElementById('waChatBody');
+                if (waBody) {
+                    const msgDate = new Date((data.message.timestamp || Math.floor(Date.now() / 1000)) * 1000).toLocaleDateString();
+                    const separators = waBody.querySelectorAll('.wa-date-separator span');
+                    const lastDate = separators.length > 0 ? separators[separators.length - 1].innerText : null;
+
+                    if (lastDate !== msgDate) {
+                        const dateDiv = document.createElement('div');
+                        dateDiv.className = 'wa-date-separator';
+                        dateDiv.innerHTML = `<span>${msgDate}</span>`;
+                        waBody.appendChild(dateDiv);
+                    }
+
+                    waBody.appendChild(renderWaMessage(data.message));
+                    waBody.scrollTop = waBody.scrollHeight;
+                }
+            }
+
+            try {
+                const sortedChats = Object.values(window.allChatsData).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                renderChatList(sortedChats);
+                renderKanban(sortedChats);
+            } catch (e) {
+                console.error('Error re-rendering chat lists after send:', e);
+            }
+        });
+
         window.socket.on('message-ack', (data) => {
             // data: { sessionId, msgId, chatId, ack }
             if (!data || !data.msgId) return;

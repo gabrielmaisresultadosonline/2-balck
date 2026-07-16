@@ -5926,6 +5926,8 @@ io.on('connection', (socket) => {
                     // Remove non-numeric characters
                     const cleanNumber = chatId.replace(/\D/g, '');
                     targetId = `${cleanNumber}@c.us`;
+                } else {
+                    targetId = await resolveChatIdForClient(sessionData.client, targetId);
                 }
 
                 const sentMsg = await sessionData.client.sendMessage(targetId, message);
@@ -5933,6 +5935,7 @@ io.on('connection', (socket) => {
                 
                 socket.emit('message-sent', {
                     chatId: targetId,
+                    originalChatId: chatId,
                     message: {
                         id: sentMsg.id._serialized,
                         body: sentMsg.body,
