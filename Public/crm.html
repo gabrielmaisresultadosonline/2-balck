@@ -1842,6 +1842,19 @@
         .groups-plus-subcard + .groups-plus-subcard {
             margin-top: 12px;
         }
+        .flow-coming-soon-btn {
+            background: #e5e7eb !important;
+            color: #6b7280 !important;
+            border-color: #d1d5db !important;
+            cursor: not-allowed !important;
+            opacity: 0.95;
+        }
+        .flow-coming-soon-btn:hover {
+            background: #dfe3e8 !important;
+            color: #4b5563 !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
         @media (max-width: 720px) {
             #winbackView > div > div:first-child > div:nth-child(2) { grid-template-columns: 1fr !important; }
             #winbackView > div { padding: 12px !important; }
@@ -2272,10 +2285,10 @@
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'file')" onclick="addFlowStep('file')" class="btn-secondary" title="Arquivo"><i class="fas fa-file"></i> <span class="hide-mobile">Arq</span></button>
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'delay')" onclick="addFlowStep('delay')" class="btn-secondary" title="Delay"><i class="fas fa-clock"></i> <span class="hide-mobile">Delay</span></button>
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'wait_response')" onclick="addFlowStep('wait_response')" class="btn-secondary" title="Aguardar"><i class="fas fa-hourglass-half"></i> <span class="hide-mobile">Aguardar</span></button>
-                                <button draggable="true" ondragstart="handleNewStepDragStart(event, 'buttons')" onclick="addFlowStep('buttons')" class="btn-secondary" title="Botões"><i class="fas fa-square-caret-down"></i> <span class="hide-mobile">Botões</span></button>
-                                <button draggable="true" ondragstart="handleNewStepDragStart(event, 'list')" onclick="addFlowStep('list')" class="btn-secondary" title="Lista"><i class="fas fa-list-ul"></i> <span class="hide-mobile">Lista</span></button>
-                                <button draggable="true" ondragstart="handleNewStepDragStart(event, 'carousel')" onclick="addFlowStep('carousel')" class="btn-secondary" title="Carrossel"><i class="fas fa-images"></i> <span class="hide-mobile">Carrossel</span></button>
                                 <button draggable="true" ondragstart="handleNewStepDragStart(event, 'kanban_move')" onclick="addFlowStep('kanban_move')" class="btn-secondary" title="Mover Kanban"><i class="fas fa-columns"></i> <span class="hide-mobile">Kanban</span></button>
+                                <button draggable="false" ondragstart="handleFlowComingSoon(event, 'Botões')" onclick="showFlowComingSoonModal('Botões'); return false;" class="btn-secondary flow-coming-soon-btn" title="Em construção"><i class="fas fa-square-caret-down"></i> <span class="hide-mobile">Botões</span></button>
+                                <button draggable="false" ondragstart="handleFlowComingSoon(event, 'Lista')" onclick="showFlowComingSoonModal('Lista'); return false;" class="btn-secondary flow-coming-soon-btn" title="Em construção"><i class="fas fa-list-ul"></i> <span class="hide-mobile">Lista</span></button>
+                                <button draggable="false" ondragstart="handleFlowComingSoon(event, 'Carrossel')" onclick="showFlowComingSoonModal('Carrossel'); return false;" class="btn-secondary flow-coming-soon-btn" title="Em construção"><i class="fas fa-images"></i> <span class="hide-mobile">Carrossel</span></button>
                             </div>
                              <div style="display: flex; gap: 10px;">
                                  <button onclick="saveFlow()" class="btn-primary"><i class="fas fa-save"></i> Salvar</button>
@@ -6071,6 +6084,30 @@
                 alert('Erro ao excluir: ' + ((res && res.error) || 'Desconhecido'));
             });
         };
+
+        window.showFlowComingSoonModal = function(featureName) {
+            const modal = document.getElementById('flowComingSoonModal');
+            const title = document.getElementById('flowComingSoonTitle');
+            const text = document.getElementById('flowComingSoonText');
+            const label = String(featureName || 'Esta função').trim() || 'Esta função';
+            if (title) title.textContent = `${label} em construção`;
+            if (text) text.textContent = 'Essa função ainda não está disponível. Estamos desenvolvendo.';
+            if (modal) modal.style.display = 'flex';
+        };
+
+        window.closeFlowComingSoonModal = function() {
+            const modal = document.getElementById('flowComingSoonModal');
+            if (modal) modal.style.display = 'none';
+        };
+
+        window.handleFlowComingSoon = function(e, featureName) {
+            if (e) {
+                e.preventDefault();
+                if (e.stopPropagation) e.stopPropagation();
+            }
+            window.showFlowComingSoonModal(featureName);
+            return false;
+        };
         
         window.handleNewStepDragStart = function(e, type) {
             e.dataTransfer.setData('type', type);
@@ -6881,8 +6918,7 @@
              if (!list) return;
              
              const active = data && data.active ? data.active : (data || {});
-             const history = Array.isArray(data && data.history) ? data.history : [];
-             window.flowUsageCache = { active, history };
+             window.flowUsageCache = { active };
              let total = 0;
              let html = '';
              
@@ -6895,7 +6931,6 @@
                         <div style="font-weight:bold; color:#333; padding-right:8px;">${info.flowName || ('Fluxo ID: ' + flowId)}</div>
                         <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
                             <button onclick='stopFlowInstancesAction(${JSON.stringify(flowId)}, ${JSON.stringify(info.flowName || "Fluxo")})' class="btn-secondary" style="padding:5px 9px; border-radius:8px; color:#b45309; font-size:0.74rem;" title="Parar fluxo"><i class="fas fa-stop-circle"></i> Parar</button>
-                            <button onclick='deleteFlow(${JSON.stringify(flowId)}, ${JSON.stringify(info.flowName || "Fluxo")})' class="btn-secondary" style="padding:5px 9px; border-radius:8px; color:#ef4444; font-size:0.74rem;" title="Remover fluxo"><i class="fas fa-trash"></i> Remover</button>
                         </div>
                     </div>
                     <div style="font-size:0.85rem; color:#666; display:flex; gap:10px; margin-top:4px;">
@@ -6913,33 +6948,10 @@
                     `).join('')}
                  </div>`;
              }
-
-             const historyHtml = history.slice(0, 20).map((item) => {
-                 const statusColor = item.status === 'success'
-                     ? '#047857'
-                     : (item.status === 'error' ? '#b91c1c' : '#2563eb');
-                 const statusLabel = item.status === 'success'
-                     ? 'Sucesso'
-                     : (item.status === 'error' ? 'Falha' : 'Rodando');
-                 return `
-                    <div style="padding:10px; border:1px solid #e5e7eb; background:#fff; margin-bottom:8px; border-radius:10px;">
-                        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
-                            <div style="font-weight:700; color:#111827;">${escapeSummary(item.flowName || 'Fluxo')}</div>
-                            <span style="font-size:0.76rem; font-weight:800; color:${statusColor};">${statusLabel}</span>
-                        </div>
-                        <div style="font-size:0.8rem; color:#475569; margin-top:6px;">${escapeSummary(item.chatId || '')}</div>
-                        ${item.message ? `<div style="font-size:0.78rem; color:#64748b; margin-top:4px;">${escapeSummary(item.message)}</div>` : ''}
-                        ${item.error ? `<div style="font-size:0.78rem; color:#b91c1c; margin-top:4px;">${escapeSummary(item.error)}</div>` : ''}
-                    </div>
-                 `;
-             }).join('');
              
-             list.innerHTML = (html
+             list.innerHTML = html
                 ? `<div style="margin-bottom:12px;"><div style="font-size:0.76rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Ativos agora</div>${html}</div>`
-                : '<div style="padding:14px; text-align:center; color:#888; border:1px dashed #d1d5db; border-radius:10px; margin-bottom:12px;">Nenhum fluxo em execução.</div>')
-                + (historyHtml
-                    ? `<div><div style="font-size:0.76rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin:8px 0;">Últimas execuções</div>${historyHtml}</div>`
-                    : '');
+                : '<div style="padding:14px; text-align:center; color:#888; border:1px dashed #d1d5db; border-radius:10px; margin-bottom:12px;">Nenhum fluxo em execução.</div>';
              
              if (badge) {
                  badge.innerText = total;
@@ -8194,6 +8206,19 @@
             <div class="modal-actions" style="margin-top: 20px; display:flex; justify-content:flex-end; gap:10px;">
                 <button onclick="closeConfirmExit()" class="btn-secondary">Não</button>
                 <button onclick="executeExit()" class="btn-primary">Sim</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="flowComingSoonModal" class="modal">
+        <div class="modal-content" style="max-width: 430px; text-align:center;">
+            <div style="width:64px; height:64px; margin:0 auto 16px; border-radius:50%; background:linear-gradient(135deg,#6b7280,#9ca3af); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px -10px rgba(107,114,128,0.45);">
+                <i class="fas fa-tools" style="font-size:1.5rem; color:#fff;"></i>
+            </div>
+            <h3 id="flowComingSoonTitle" style="margin:0 0 8px; color:#111827;">Função em construção</h3>
+            <p id="flowComingSoonText" style="color:#4b5563; margin:0 0 22px; font-size:0.95rem;">Essa função ainda não está disponível. Estamos desenvolvendo.</p>
+            <div style="display:flex; justify-content:center;">
+                <button onclick="closeFlowComingSoonModal()" class="btn-secondary">Fechar</button>
             </div>
         </div>
     </div>
