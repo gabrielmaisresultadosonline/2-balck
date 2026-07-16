@@ -24,7 +24,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -y
-apt-get install -y ca-certificates curl gnupg git nginx certbot python3-certbot-nginx
+apt-get install -y ca-certificates curl gnupg git nginx certbot python3-certbot-nginx openssl
 
 if ! command -v node >/dev/null 2>&1; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
@@ -33,7 +33,37 @@ fi
 
 npm i -g pm2
 
-apt-get install -y docker.io docker-compose-plugin
+if ! command -v docker >/dev/null 2>&1; then
+  apt-mark unhold containerd containerd.io docker-ce docker-ce-cli docker.io >/dev/null 2>&1 || true
+
+  apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc >/dev/null 2>&1 || true
+  apt-get autoremove -y >/dev/null 2>&1 || true
+
+  apt-get install -y lsb-release >/dev/null 2>&1 || true
+  mkdir -p /etc/apt/keyrings
+
+  if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
+  fi
+
+  CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+  if [[ -n "${CODENAME}" ]]; then
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${CODENAME} stable" \
+      > /etc/apt/sources.list.d/docker.list
+  fi
+
+  apt-get update -y
+
+  set +e
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  DOCKER_INSTALL_CODE="$?"
+  set -e
+
+  if [[ "${DOCKER_INSTALL_CODE}" -ne 0 ]]; then
+    apt-get install -y docker.io docker-compose-plugin
+  fi
+fi
 systemctl enable --now docker
 systemctl enable --now nginx
 
