@@ -16,6 +16,14 @@ function toRemoteJid(value) {
     return digits ? `${digits}@s.whatsapp.net` : raw;
 }
 
+function toMessageTarget(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return raw;
+    if (raw.endsWith('@g.us') || raw.endsWith('@newsletter')) return raw;
+    const digits = toDigits(raw);
+    return digits || raw;
+}
+
 class EvolutionApi {
     constructor({ baseUrl, apiKey, integration = 'WHATSAPP-BAILEYS' }) {
         this.baseUrl = trimSlash(baseUrl);
@@ -169,7 +177,7 @@ class EvolutionApi {
     async sendText(instanceName, numberOrJid, text, options = {}) {
         return this.request('post', `/message/sendText/${encodeURIComponent(instanceName)}`, {
             data: {
-                number: String(numberOrJid || ''),
+                number: toMessageTarget(numberOrJid),
                 text: String(text || ''),
                 ...options
             }
@@ -179,7 +187,7 @@ class EvolutionApi {
     async sendMedia(instanceName, numberOrJid, mediaPayload, options = {}) {
         return this.request('post', `/message/sendMedia/${encodeURIComponent(instanceName)}`, {
             data: {
-                number: String(numberOrJid || ''),
+                number: toMessageTarget(numberOrJid),
                 ...mediaPayload,
                 ...options
             }
@@ -189,7 +197,7 @@ class EvolutionApi {
     async sendWhatsAppAudio(instanceName, numberOrJid, audioBase64, options = {}) {
         return this.request('post', `/message/sendWhatsAppAudio/${encodeURIComponent(instanceName)}`, {
             data: {
-                number: String(numberOrJid || ''),
+                number: toMessageTarget(numberOrJid),
                 audio: audioBase64,
                 ...options
             }

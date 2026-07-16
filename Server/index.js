@@ -4670,12 +4670,14 @@ app.get('/api/active-sessions', requireUser, (req, res) => {
     if (data) {
         let status = data.status;
         if (status === 'initializing' && (data.phoneNumber || data.name)) status = 'authenticated';
+        const fallbackPhone = data.phoneNumber || req.user.whatsappNumber || (loadSessionsData()[sid] && loadSessionsData()[sid].phoneNumber) || null;
+        const fallbackName = data.name || req.user.whatsappName || (loadSessionsData()[sid] && loadSessionsData()[sid].name) || null;
         sessions.push({
             sessionId: sid,
             status,
-            phoneNumber: data.phoneNumber,
-            name: data.name,
-            connectedAt: data.connectedAt,
+            phoneNumber: fallbackPhone,
+            name: fallbackName,
+            connectedAt: data.connectedAt || req.user.connectedAt || null,
             hasPassword: !!passwords[sid]
         });
         res.json({ sessions });
