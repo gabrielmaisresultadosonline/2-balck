@@ -1216,7 +1216,25 @@
         .flow-node__port:hover { transform: translateY(-50%) scale(1.35); box-shadow: 0 4px 10px rgba(15,23,42,0.28); }
         .flow-node__port--in  { left: -9px; }
         .flow-node__port--out { right: -9px; }
+        .flow-node__port--out-response { right: -9px; top: 38%; }
+        .flow-node__port--out-timeout { right: -9px; top: 68%; }
         .flow-node__port.is-connected { background: var(--node-color, #10b981); }
+        .flow-node__port-label {
+            position: absolute;
+            right: 14px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #475569;
+            background: rgba(255,255,255,0.95);
+            padding: 1px 6px;
+            border-radius: 999px;
+            border: 1px solid rgba(15,23,42,0.08);
+            box-shadow: 0 2px 6px rgba(15,23,42,0.06);
+            z-index: 3;
+            pointer-events: none;
+        }
+        .flow-node__port-label--response { top: calc(38% - 11px); }
+        .flow-node__port-label--timeout { top: calc(68% - 11px); }
         .flow-canvas .flow-node:hover {
             transform: translateY(-2px);
             box-shadow: 0 22px 40px -22px rgba(15,23,42,0.45), 0 4px 8px rgba(15,23,42,0.06);
@@ -2974,7 +2992,12 @@
             
             if(type === 'text') newStep.content = 'Olá!';
             if(type === 'delay') newStep.content = '1000';
-            if(type === 'wait_response') newStep.content = 'true';
+            if(type === 'wait_response') {
+                newStep.content = 'true';
+                newStep.responseNext = null;
+                newStep.timeoutNext = null;
+                newStep.timeout = 0;
+            }
 
             if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
                 newStep.x = pos.x; newStep.y = pos.y;
@@ -3054,6 +3077,12 @@
                     s.next = (i < currentFlow.steps.length - 1) ? currentFlow.steps[i+1].id : null;
                 });
             }
+            currentFlow.steps.forEach((s) => {
+                if (s.type === 'wait_response') {
+                    if (typeof s.responseNext === 'undefined') s.responseNext = s.next || null;
+                    if (typeof s.timeoutNext === 'undefined') s.timeoutNext = null;
+                }
+            });
 
             // SVG overlay for edges
             const svgNS = 'http://www.w3.org/2000/svg';
@@ -3065,8 +3094,19 @@
                 const wrap = list.querySelector('.flow-node-wrap[data-id="' + step.id + '"]');
                 const w = wrap ? wrap.offsetWidth  : NODE_W;
                 const h = wrap ? wrap.offsetHeight : NODE_H;
+                if (side === 'out-response') return { x: step.x + w, y: step.y + h * 0.38 };
+                if (side === 'out-timeout') return { x: step.x + w, y: step.y + h * 0.68 };
                 const y = step.y + h / 2;
                 return side === 'out' ? { x: step.x + w, y } : { x: step.x, y };
+            }
+            function getStepConnections(step) {
+                if (step.type === 'wait_response') {
+                    return [
+                        { key: 'responseNext', targetId: step.responseNext || step.next || null, port: 'out-response' },
+                        { key: 'timeoutNext', targetId: step.timeoutNext || null, port: 'out-timeout' }
+                    ].filter(conn => conn.targetId);
+                }
+                return step.next ? [{ key: 'next', targetId: step.next, port: 'out' }] : [];
             }
             function bezierPath(x1, y1, x2, y2) {
                 const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
@@ -3079,49 +3119,51 @@
                 svg.setAttribute('width',  Math.max(list.scrollWidth,  rect.width));
                 svg.setAttribute('height', Math.max(list.scrollHeight, rect.height));
                 currentFlow.steps.forEach(step => {
-                    if (!step.next) return;
-                    const target = currentFlow.steps.find(s => s.id === step.next);
-                    if (!target) return;
-                    const a = getPortPoint(step,   'out');
-                    const b = getPortPoint(target, 'in');
-                    const d = bezierPath(a.x, a.y, b.x, b.y);
-                    const hit = document.createElementNS(svgNS, 'path');
-                    hit.setAttribute('class', 'flow-edge-hit');
-                    hit.setAttribute('d', d);
-                    const path = document.createElementNS(svgNS, 'path');
-                    path.setAttribute('class', 'flow-edge');
-                    path.setAttribute('d', d);
-                    svg.appendChild(hit);
-                    svg.appendChild(path);
+                    getStepConnections(step).forEach(conn => {
+                        const target = currentFlow.steps.find(s => s.id === conn.targetId);
+                        if (!target) return;
+                        const a = getPortPoint(step, conn.port);
+                        const b = getPortPoint(target, 'in');
+                        const d = bezierPath(a.x, a.y, b.x, b.y);
+                        const hit = document.createElementNS(svgNS, 'path');
+                        hit.setAttribute('class', 'flow-edge-hit');
+                        hit.setAttribute('d', d);
+                        const path = document.createElementNS(svgNS, 'path');
+                        path.setAttribute('class', 'flow-edge');
+                        path.setAttribute('d', d);
+                        svg.appendChild(hit);
+                        svg.appendChild(path);
 
-                    // Scissors button at edge midpoint (visible on hover, cuts without asking)
-                    const midX = (a.x + b.x) / 2;
-                    const midY = (a.y + b.y) / 2;
-                    const cutBtn = document.createElement('button');
-                    cutBtn.type = 'button';
-                    cutBtn.className = 'flow-edge-cut';
-                    cutBtn.title = 'Cortar ligação';
-                    cutBtn.innerHTML = '<i class="fas fa-scissors"></i>';
-                    cutBtn.style.left = midX + 'px';
-                    cutBtn.style.top  = midY + 'px';
-                    const show = () => cutBtn.classList.add('is-visible');
-                    const hideSoon = () => setTimeout(() => {
-                        if (!cutBtn.matches(':hover') && !hit.matches(':hover') && !path.matches(':hover')) {
-                            cutBtn.classList.remove('is-visible');
-                        }
-                    }, 120);
-                    hit.addEventListener('mouseenter', show);
-                    path.addEventListener('mouseenter', show);
-                    cutBtn.addEventListener('mouseenter', show);
-                    hit.addEventListener('mouseleave', hideSoon);
-                    path.addEventListener('mouseleave', hideSoon);
-                    cutBtn.addEventListener('mouseleave', hideSoon);
-                    cutBtn.addEventListener('click', (ev) => {
-                        ev.preventDefault(); ev.stopPropagation();
-                        step.next = null;
-                        redrawEdges();
+                        // Scissors button at edge midpoint (visible on hover, cuts without asking)
+                        const midX = (a.x + b.x) / 2;
+                        const midY = (a.y + b.y) / 2;
+                        const cutBtn = document.createElement('button');
+                        cutBtn.type = 'button';
+                        cutBtn.className = 'flow-edge-cut';
+                        cutBtn.title = 'Cortar ligação';
+                        cutBtn.innerHTML = '<i class="fas fa-scissors"></i>';
+                        cutBtn.style.left = midX + 'px';
+                        cutBtn.style.top  = midY + 'px';
+                        const show = () => cutBtn.classList.add('is-visible');
+                        const hideSoon = () => setTimeout(() => {
+                            if (!cutBtn.matches(':hover') && !hit.matches(':hover') && !path.matches(':hover')) {
+                                cutBtn.classList.remove('is-visible');
+                            }
+                        }, 120);
+                        hit.addEventListener('mouseenter', show);
+                        path.addEventListener('mouseenter', show);
+                        cutBtn.addEventListener('mouseenter', show);
+                        hit.addEventListener('mouseleave', hideSoon);
+                        path.addEventListener('mouseleave', hideSoon);
+                        cutBtn.addEventListener('mouseleave', hideSoon);
+                        cutBtn.addEventListener('click', (ev) => {
+                            ev.preventDefault(); ev.stopPropagation();
+                            step[conn.key] = null;
+                            if (conn.key === 'responseNext') step.next = null;
+                            redrawEdges();
+                        });
+                        list.appendChild(cutBtn);
                     });
-                    list.appendChild(cutBtn);
                 });
             }
 
@@ -3132,7 +3174,11 @@
                     case 'text': summary = step.content || 'Escreva sua mensagem…'; break;
                     case 'image': case 'audio': case 'video': case 'file': summary = 'Mídia anexada'; break;
                     case 'delay': summary = (step.content || 0) + ' ms'; break;
-                    case 'wait_response': summary = 'Aguarda resposta do contato'; break;
+                    case 'wait_response': {
+                        const timeoutMin = step.timeout ? Math.round((step.timeout / 60000) * 100) / 100 : 0;
+                        summary = `Resposta: nó superior${timeoutMin ? ' | Sem resposta: ' + timeoutMin + ' min no nó inferior' : ' | Sem resposta: configure minutos para usar o nó inferior'}`;
+                        break;
+                    }
                     case 'kanban_move': summary = 'Mover card no CRM'; break;
                     default: summary = '';
                 }
@@ -3147,9 +3193,19 @@
                 const div = document.createElement('div');
                 div.className = 'flow-node flow-step-item';
                 div.style.setProperty('--node-color', m.color);
+                const responseConnected = step.type === 'wait_response' ? !!(step.responseNext || step.next) : !!step.next;
+                const timeoutConnected = step.type === 'wait_response' ? !!step.timeoutNext : false;
                 div.innerHTML = `
                     <span class="flow-node__port flow-node__port--in"  data-port="in"  title="Entrada"></span>
-                    <span class="flow-node__port flow-node__port--out" data-port="out" title="Saída — arraste para outro nó"></span>
+                    ${step.type === 'wait_response'
+                        ? `
+                            <span class="flow-node__port-label flow-node__port-label--response">Respondeu</span>
+                            <span class="flow-node__port flow-node__port--out-response ${responseConnected ? 'is-connected' : ''}" data-port="out-response" title="Se responder"></span>
+                            <span class="flow-node__port-label flow-node__port-label--timeout">Sem resposta</span>
+                            <span class="flow-node__port flow-node__port--out-timeout ${timeoutConnected ? 'is-connected' : ''}" data-port="out-timeout" title="Se não responder no tempo"></span>
+                        `
+                        : `<span class="flow-node__port flow-node__port--out ${step.next ? 'is-connected' : ''}" data-port="out" title="Saída — arraste para outro nó"></span>`
+                    }
                     <div class="flow-node__head">
                         <span class="flow-node__badge"><i class="fas ${m.icon}"></i></span>
                         <span class="flow-node__title">${m.title}</span>
@@ -3188,36 +3244,43 @@
                 });
 
                 // Drag from OUT port to another IN port to create/replace connection
-                const outPort = div.querySelector('.flow-node__port--out');
-                outPort.addEventListener('mousedown', (e) => {
-                    e.preventDefault(); e.stopPropagation();
-                    const canvasRect = list.getBoundingClientRect();
-                    const startPt = getPortPoint(step, 'out');
-                    const tempPath = document.createElementNS(svgNS, 'path');
-                    tempPath.setAttribute('class', 'flow-edge-temp');
-                    svg.appendChild(tempPath);
-                    const move = (ev) => {
-                        const x = ev.clientX - canvasRect.left + list.scrollLeft;
-                        const y = ev.clientY - canvasRect.top  + list.scrollTop;
-                        tempPath.setAttribute('d', bezierPath(startPt.x, startPt.y, x, y));
-                    };
-                    const up = (ev) => {
-                        document.removeEventListener('mousemove', move);
-                        document.removeEventListener('mouseup', up);
-                        tempPath.remove();
-                        const target = document.elementFromPoint(ev.clientX, ev.clientY);
-                        const targetPort = target && target.closest && target.closest('.flow-node__port--in');
-                        if (targetPort) {
-                            const targetWrap = targetPort.closest('.flow-node-wrap');
-                            const targetId = targetWrap && targetWrap.dataset.id;
-                            if (targetId && targetId !== step.id) {
-                                step.next = targetId;
-                                redrawEdges();
+                div.querySelectorAll('.flow-node__port[data-port^="out"]').forEach(outPort => {
+                    outPort.addEventListener('mousedown', (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        const portType = outPort.dataset.port || 'out';
+                        const targetField = portType === 'out-timeout'
+                            ? 'timeoutNext'
+                            : (portType === 'out-response' ? 'responseNext' : 'next');
+                        const canvasRect = list.getBoundingClientRect();
+                        const startPt = getPortPoint(step, portType);
+                        const tempPath = document.createElementNS(svgNS, 'path');
+                        tempPath.setAttribute('class', 'flow-edge-temp');
+                        svg.appendChild(tempPath);
+                        const move = (ev) => {
+                            const x = ev.clientX - canvasRect.left + list.scrollLeft;
+                            const y = ev.clientY - canvasRect.top  + list.scrollTop;
+                            tempPath.setAttribute('d', bezierPath(startPt.x, startPt.y, x, y));
+                        };
+                        const up = (ev) => {
+                            document.removeEventListener('mousemove', move);
+                            document.removeEventListener('mouseup', up);
+                            tempPath.remove();
+                            const target = document.elementFromPoint(ev.clientX, ev.clientY);
+                            const targetPort = target && target.closest && target.closest('.flow-node__port--in');
+                            if (targetPort) {
+                                const targetWrap = targetPort.closest('.flow-node-wrap');
+                                const targetId = targetWrap && targetWrap.dataset.id;
+                                if (targetId && targetId !== step.id) {
+                                    step[targetField] = targetId;
+                                    if (targetField === 'responseNext') step.next = targetId;
+                                    redrawEdges();
+                                    renderFlowSteps();
+                                }
                             }
-                        }
-                    };
-                    document.addEventListener('mousemove', move);
-                    document.addEventListener('mouseup', up);
+                        };
+                        document.addEventListener('mousemove', move);
+                        document.addEventListener('mouseup', up);
+                    });
                 });
             });
 
@@ -3261,7 +3324,11 @@
             if (flowEditSkipDelete) {
                 const removed = currentFlow.steps.splice(index, 1)[0];
                 if (removed && removed.id) {
-                    currentFlow.steps.forEach(s => { if (s.next === removed.id) s.next = null; });
+                    currentFlow.steps.forEach(s => {
+                        if (s.next === removed.id) s.next = null;
+                        if (s.responseNext === removed.id) s.responseNext = null;
+                        if (s.timeoutNext === removed.id) s.timeoutNext = null;
+                    });
                 }
                 renderFlowSteps();
                 return;
@@ -3293,7 +3360,11 @@
             if (!isNaN(idx)) {
                 const removed = currentFlow.steps.splice(idx, 1)[0];
                 if (removed && removed.id) {
-                    currentFlow.steps.forEach(s => { if (s.next === removed.id) s.next = null; });
+                    currentFlow.steps.forEach(s => {
+                        if (s.next === removed.id) s.next = null;
+                        if (s.responseNext === removed.id) s.responseNext = null;
+                        if (s.timeoutNext === removed.id) s.timeoutNext = null;
+                    });
                 }
                 renderFlowSteps();
             }
@@ -3339,11 +3410,27 @@
 
                 html += `
                     <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
-                        <label style="font-weight:bold; display:block; margin-bottom:5px;">Timeout (Sem resposta)</label>
+                        <label style="font-weight:bold; display:block; margin-bottom:5px;">Quando responder</label>
+                        <p style="font-size:0.8rem; color:#64748b; margin:0 0 8px 0;">A saída superior do nó segue quando o contato responder. Se não definir minutos abaixo, ele fica aguardando até a resposta chegar.</p>
                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                             <div>
-                                <label style="font-size:0.8rem;">Tempo (segundos)</label>
-                                <input type="number" id="stepTimeout" class="form-control" value="${step.timeout ? step.timeout / 1000 : ''}" placeholder="0 para desativar" style="width:100%; color:black;">
+                                <label style="font-size:0.8rem;">Tempo limite para resposta (minutos)</label>
+                                <input type="number" id="stepTimeout" class="form-control" value="${step.timeout ? step.timeout / 60000 : ''}" placeholder="Deixe vazio para aguardar" style="width:100%; color:black;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.8rem;">Saída superior</label>
+                                <input type="text" class="form-control" value="Ligação visual no nó (Respondeu)" disabled style="width:100%; color:black; background:#f8fafc;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+                        <label style="font-weight:bold; display:block; margin-bottom:5px;">Quando não responder</label>
+                        <p style="font-size:0.8rem; color:#64748b; margin:0 0 8px 0;">A saída inferior do nó dispara quando o tempo acima acabar sem resposta. Se usar essa saída, os minutos são obrigatórios.</p>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                            <div>
+                                <label style="font-size:0.8rem;">Saída inferior</label>
+                                <input type="text" class="form-control" value="Ligação visual no nó (Sem resposta)" disabled style="width:100%; color:black; background:#f8fafc;">
                             </div>
                             <div>
                                 <label style="font-size:0.8rem;">Ação: Iniciar Fluxo</label>
@@ -3405,7 +3492,11 @@
             }
             if(step.type === 'wait_response') {
                 const timeoutSec = document.getElementById('stepTimeout').value;
-                step.timeout = timeoutSec ? parseInt(timeoutSec) * 1000 : 0;
+                const timeoutMinutes = timeoutSec ? parseFloat(timeoutSec) : 0;
+                if ((step.timeoutNext || step.timeoutFlowId || document.getElementById('stepTimeoutFlowId').value || document.getElementById('stepTimeoutMessage').value.trim()) && !timeoutMinutes) {
+                    return alert('No nó "Sem resposta", os minutos são obrigatórios.');
+                }
+                step.timeout = timeoutMinutes ? Math.round(timeoutMinutes * 60000) : 0;
                 step.timeoutMessage = document.getElementById('stepTimeoutMessage').value;
                 step.timeoutFlowId = document.getElementById('stepTimeoutFlowId').value;
                 step.exactMatch = document.getElementById('stepExactMatch').value;
@@ -3426,6 +3517,11 @@
             currentFlow.name = name;
             currentFlow.triggerType = triggerType;
             currentFlow.triggerKeyword = triggerKeyword;
+
+            const invalidWaitStep = (currentFlow.steps || []).find(step => step && step.type === 'wait_response' && (step.timeoutNext || step.timeoutFlowId || step.timeoutMessage) && !step.timeout);
+            if (invalidWaitStep) {
+                return alert('Existe um nó "Aguardar resposta" com saída de "Sem resposta" sem minutos definidos.');
+            }
             
             const btns = document.querySelectorAll('#flowEditor button');
             let saveBtn = null;

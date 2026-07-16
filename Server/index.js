@@ -1949,6 +1949,11 @@ async function resolveChatIdForClient(client, chatId) {
     return raw;
 }
 
+function getFlowStepIndexById(flow, stepId) {
+    if (!flow || !Array.isArray(flow.steps) || !stepId) return -1;
+    return flow.steps.findIndex(item => item && String(item.id) === String(stepId));
+}
+
 async function safeGetProfilePicUrl(client, contactId) {
     const raw = String(contactId || '');
     if (!raw || !client || !client.pupPage) return null;
@@ -2827,6 +2832,12 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                 active.waiting = true;
                 active.action = 'waiting';
                 active.updatedAt = Date.now();
+                if (typeof step.responseNext === 'undefined') step.responseNext = step.next || null;
+                if (typeof step.timeoutNext === 'undefined') step.timeoutNext = null;
+                if (active.timeoutId) {
+                    clearTimeout(active.timeoutId);
+                    active.timeoutId = null;
+                }
                 emitFlowUsage(sessionId);
                 
                 // Set timeout if configured
@@ -2849,6 +2860,15 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                              }
 
                              // 2. Start new flow OR Stop
+                            if (step.timeoutNext) {
+                                const nextIndex = getFlowStepIndexById(flow, step.timeoutNext);
+                                if (nextIndex >= 0) {
+                                    activeFlows[sessionId][chatId] = { flowId: flow.id, step: nextIndex, waiting: false, action: null, updatedAt: Date.now(), timeoutId: null };
+                                    emitFlowUsage(sessionId);
+                                    executeFlowStep(sessionId, chatId, flow, nextIndex, client);
+                                    return;
+                                }
+                            }
                              if (step.timeoutFlowId) {
                                  const allFlows = loadFlows(sessionId);
                                  const targetFlow = allFlows.find(f => String(f.id) === String(step.timeoutFlowId));
@@ -3602,6 +3622,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                             
                             if (currentFlowObj && currentFlowObj.steps && currentFlowObj.steps[active.step]) {
                                 const step = currentFlowObj.steps[active.step];
+                                if (typeof step.responseNext === 'undefined') step.responseNext = step.next || null;
                                 
                                 // Check for Exact Match Trigger
                                 if (step.exactMatch && msg.body && msg.body.trim().toLowerCase() === step.exactMatch.trim().toLowerCase()) {
@@ -3628,7 +3649,10 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                             const flows = loadFlows(sessionId);
                             const flow = flows.find(f => String(f.id) === String(active.flowId));
                             if (flow) {
-                                executeFlowStep(sessionId, msg.from, flow, active.step + 1, client);
+                                const currentStep = flow.steps && flow.steps[active.step] ? flow.steps[active.step] : null;
+                                const responseNext = currentStep && (currentStep.responseNext || currentStep.next);
+                                const nextIndex = responseNext ? getFlowStepIndexById(flow, responseNext) : -1;
+                                executeFlowStep(sessionId, msg.from, flow, nextIndex >= 0 ? nextIndex : active.step + 1, client);
                             }
                             emitFlowUsage(sessionId);
                             return; // Stop processing triggers if we resumed a flow
