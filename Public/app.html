@@ -291,7 +291,7 @@
         /* ---------- UNIFIED CARD — full-width horizontal grid ---------- */
         #sessionsContainer .session-card.unified-card {
             display: grid;
-            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(220px, 0.9fr);
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 0.9fr);
             gap: 28px;
             align-items: stretch;
             background:
@@ -392,6 +392,9 @@
             gap:10px;
             justify-content:center;
             min-width: 0;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         #sessionsContainer .uc-actions .btn {
             width:100%; justify-content:center;
@@ -400,6 +403,8 @@
             transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
             white-space: normal; line-height:1.15;
             min-width: 0;
+            max-width: 100%;
+            box-sizing: border-box;
             position: relative; overflow: hidden;
             text-align: center;
         }
@@ -407,7 +412,7 @@
         #sessionsContainer .uc-actions .btn:active { transform: translateY(0); }
 
         /* Breakpoints */
-        @media (max-width: 1180px) {
+        @media (max-width: 1320px) {
             #sessionsContainer .session-card.unified-card {
                 grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             }
@@ -419,7 +424,7 @@
                 padding-top: 20px;
                 margin-top: 4px;
             }
-            #sessionsContainer .uc-actions .btn { flex: 1 1 180px; }
+            #sessionsContainer .uc-actions .btn { flex: 1 1 220px; }
         }
         @media (max-width: 900px) {
             .auth-shell.is-connected #connectionPanel { padding: 24px 22px; }
