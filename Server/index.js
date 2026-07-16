@@ -557,7 +557,7 @@ function normalizeEvolutionEventName(value) {
     return String(value || '')
         .trim()
         .toLowerCase()
-        .replace(/[\s-]+/g, '_');
+        .replace(/[.\s-]+/g, '_');
 }
 
 function extractEvolutionSessionId(payload) {
