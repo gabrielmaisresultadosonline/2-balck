@@ -779,6 +779,41 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
     };
 }
 
+function collectPossibleChatIds(sessionId, chatId) {
+    const out = new Set();
+    const base = String(chatId || '').trim();
+    if (!base) return [];
+    out.add(base);
+
+    const normalized = normalizeEvolutionChatId(base);
+    if (normalized) out.add(normalized);
+
+    const digits = normalizeEvolutionPhone(base);
+    if (digits) {
+        out.add(`${digits}@c.us`);
+        out.add(`${digits}@s.whatsapp.net`);
+    }
+
+    const cachedChats = loadChatCache(sessionId);
+    const list = Array.isArray(cachedChats) ? cachedChats : [];
+    const match = list.find(item => item && (
+        String(item.id || '') === base ||
+        String(item.id || '') === normalized ||
+        normalizeEvolutionPhone(item.phoneNumber || item.id || '') === digits
+    ));
+    if (match) {
+        const cachedId = String(match.id || '').trim();
+        const cachedDigits = normalizeEvolutionPhone(match.phoneNumber || cachedId);
+        if (cachedId) out.add(cachedId);
+        if (cachedDigits) {
+            out.add(`${cachedDigits}@c.us`);
+            out.add(`${cachedDigits}@s.whatsapp.net`);
+        }
+    }
+
+    return Array.from(out).filter(Boolean);
+}
+
 function buildEvolutionContactFromCache(sessionId, chatId) {
     const cache = loadChatCache(sessionId);
     const list = Array.isArray(cache) ? cache : [];
@@ -859,7 +894,15 @@ function createEvolutionChatWrapper(sessionId, chatId) {
         timestamp: Math.floor(Date.now() / 1000),
         lastMessage: { body: '' },
         async fetchMessages({ limit = 100 } = {}) {
-            const local = loadMessageHistory(sessionId, normalizedChatId);
+            const possibleIds = collectPossibleChatIds(sessionId, normalizedChatId);
+            let local = [];
+            for (const candidateId of possibleIds) {
+                const history = loadMessageHistory(sessionId, candidateId);
+                if (Array.isArray(history) && history.length > 0) {
+                    local = history;
+                    break;
+                }
+            }
             if (local && local.length > 0) {
                 return local.slice(-limit).map(msg => createEvolutionMessageObject(sessionId, normalizedChatId, msg._evoRaw || {
                     key: { id: msg.id, remoteJid: normalizedChatId, fromMe: !!msg.fromMe },
@@ -869,14 +912,15 @@ function createEvolutionChatWrapper(sessionId, chatId) {
             }
             if (!USE_EVOLUTION || !evolutionApi) return [];
             try {
+                const remoteIds = collectPossibleChatIds(sessionId, normalizedChatId);
                 const res = await evolutionApi.findMessages(evolutionInstanceName(sessionId), {
                     where: {
                         key: {
                             remoteJid: {
-                                in: [
-                                    normalizedChatId,
-                                    toEvolutionApiTarget(normalizedChatId)
-                                ]
+                                in: Array.from(new Set([
+                                    ...remoteIds,
+                                    ...remoteIds.map(id => toEvolutionApiTarget(id))
+                                ].filter(Boolean)))
                             }
                         }
                     },
@@ -5334,6 +5378,9 @@ io.on('connection', (socket) => {
                 effectiveChatId = await resolveChatIdForClient(sessionData.client, chatId);
             }
 
+            const candidateHistoryIds = collectPossibleChatIds(sessionId, effectiveChatId || originalChatId);
+            if (!candidateHistoryIds.includes(originalChatId)) candidateHistoryIds.unshift(String(originalChatId));
+
             if (String(effectiveChatId) !== String(chatId)) {
                 console.log(`[get-chat-history] resolved ${chatId} -> ${effectiveChatId}`);
             }
@@ -5342,17 +5389,21 @@ io.on('connection', (socket) => {
 
 
             // 1. Load Local History
-            const file = getHistoryFilePath(sessionId, originalChatId);
             let localHistory = [];
-            if (fs.existsSync(file)) {
-                try {
-                    const raw = fs.readFileSync(file, 'utf8');
-                    localHistory = JSON.parse(raw);
-                    console.log(`[get-chat-history] Loaded ${localHistory.length} local messages for ${originalChatId}`);
-                } catch (e) {
-                    console.error('Error reading local history:', e);
+            for (const candidateId of candidateHistoryIds) {
+                const file = getHistoryFilePath(sessionId, candidateId);
+                if (fs.existsSync(file)) {
+                    try {
+                        const raw = fs.readFileSync(file, 'utf8');
+                        localHistory = JSON.parse(raw);
+                        console.log(`[get-chat-history] Loaded ${localHistory.length} local messages for ${candidateId}`);
+                        if (Array.isArray(localHistory) && localHistory.length > 0) break;
+                    } catch (e) {
+                        console.error('Error reading local history:', e);
+                    }
                 }
-            } else {
+            }
+            if (!Array.isArray(localHistory) || localHistory.length === 0) {
                 console.log(`[get-chat-history] No local history file for ${originalChatId}`);
             }
 
