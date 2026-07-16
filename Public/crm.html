@@ -2700,7 +2700,7 @@
                 document.getElementById('chatMessages').innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Carregando mensagens...</div>';
                 
                 // Request messages
-                window.socket.emit('get-chat-history', { sessionId: window.sessionId, chatId, limit: 50 });
+                window.socket.emit('get-chat-history', { sessionId: window.sessionId, chatId, limit: 200 });
             }
         };
 
@@ -2760,7 +2760,7 @@
             if (body) {
                 body.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Carregando mensagens...</div>';
                 window.currentWaChatId = chatId; // Track current chat
-                window.socket.emit('get-chat-history', { sessionId: window.sessionId, chatId, limit: 50 });
+                window.socket.emit('get-chat-history', { sessionId: window.sessionId, chatId, limit: 200 });
             }
         };
 

@@ -3357,7 +3357,9 @@ function scheduleProfilePicHydration(sessionId, sessionData, socket) {
                 const batch = pending.slice(i, i + 2);
                 await Promise.all(batch.map(async (chatId) => {
                     try {
-                        const effectiveChatId = await resolveChatIdForClient(sessionData.client, chatId).catch(() => chatId);
+                        const effectiveChatId = sessionData.client && sessionData.client.__provider === 'evolution'
+                            ? await resolveEvolutionSendTarget(sessionId, chatId).catch(() => chatId)
+                            : await resolveChatIdForClient(sessionData.client, chatId).catch(() => chatId);
                         let profilePic = null;
                         try {
                             const chatPromise = sessionData.client.getChatById(effectiveChatId);
@@ -5905,7 +5907,9 @@ io.on('connection', (socket) => {
             }
 
             if (String(effectiveChatId) === String(chatId)) {
-                effectiveChatId = await resolveChatIdForClient(sessionData.client, chatId);
+                effectiveChatId = sessionData.client && sessionData.client.__provider === 'evolution'
+                    ? await resolveEvolutionSendTarget(sessionId, chatId)
+                    : await resolveChatIdForClient(sessionData.client, chatId);
             }
 
             const candidateHistoryIds = collectPossibleChatIds(sessionId, effectiveChatId || originalChatId);
@@ -5954,19 +5958,23 @@ io.on('connection', (socket) => {
 
             // 2. Fetch Remote History
             let remoteMessages = [];
+            let remoteChatIdForLookup = effectiveChatId || originalChatId;
             if (hasReadyClient(sessionData)) {
                 try {
-                    const effectiveChatId = await resolveChatIdForClient(sessionData.client, originalChatId);
-                    console.log(`[get-chat-history] Fetching remote for ${effectiveChatId} (Original: ${originalChatId})`);
+                    const remoteChatId = sessionData.client && sessionData.client.__provider === 'evolution'
+                        ? await resolveEvolutionSendTarget(sessionId, effectiveChatId || originalChatId)
+                        : await resolveChatIdForClient(sessionData.client, effectiveChatId || originalChatId);
+                    remoteChatIdForLookup = remoteChatId;
+                    console.log(`[get-chat-history] Fetching remote for ${remoteChatId} (Original: ${originalChatId})`);
                     
                     // Assign to outer chat variable with timeout
                     chat = await Promise.race([
-                        sessionData.client.getChatById(effectiveChatId),
+                        sessionData.client.getChatById(remoteChatId),
                         timeout(5000, 'Timeout getting chat')
                     ]);
                     
-                    // FETCH LIMIT INCREASED to ensure we catch recent messages even if there's a gap
-                    const fetchLimit = limit ? Math.max(limit, 50) : 50; 
+                    // Pull a larger window so chats reopened from cache/history don't look empty.
+                    const fetchLimit = limit ? Math.max(limit, 200) : 200;
                     const messages = await Promise.race([
                         chat.fetchMessages({ limit: fetchLimit }),
                         timeout(10000, 'Timeout fetching messages')
@@ -6071,14 +6079,43 @@ io.on('connection', (socket) => {
             // This ensures that messages fetched from remote or fallback are saved locally.
             // This fixes "what had before" disappearing on refresh.
             try {
-                const saveId = effectiveChatId || originalChatId;
-                const saveFile = getHistoryFilePath(sessionId, saveId);
                 // Keep last 500 to match saveMessageToHistory limit
                 const toSave = allSortedMessages.slice(-500);
-                fs.writeFileSync(saveFile, JSON.stringify(toSave, null, 2));
+                const saveIds = Array.from(new Set([originalChatId, effectiveChatId].filter(Boolean).map(v => String(v))));
+                for (const saveId of saveIds) {
+                    const saveFile = getHistoryFilePath(sessionId, saveId);
+                    fs.writeFileSync(saveFile, JSON.stringify(toSave, null, 2));
+                }
             } catch (err) {
                 console.error('Error saving merged history:', err);
             }
+
+            try {
+                const cached = getCachedChatByAnyId(sessionId, originalChatId);
+                if (!cached || !cached.profilePic) {
+                    let profilePic = null;
+                    if (chat && typeof chat.getProfilePicUrl === 'function') {
+                        profilePic = await Promise.race([
+                            chat.getProfilePicUrl(),
+                            timeout(5000, 'Timeout getting profile pic from chat-history')
+                        ]).catch(() => null);
+                    }
+                    if (!profilePic) {
+                        profilePic = await safeGetProfilePicUrl(sessionData.client, remoteChatIdForLookup).catch(() => null);
+                    }
+                    const cleanProfilePic = sanitizeEvolutionUrl(profilePic);
+                    if (cleanProfilePic) {
+                        const updated = loadChatCache(sessionId);
+                        const list = Array.isArray(updated) ? updated : [];
+                        const item = list.find(c => c && String(c.id) === String(originalChatId));
+                        if (item && item.profilePic !== cleanProfilePic) {
+                            item.profilePic = cleanProfilePic;
+                            saveChatCache(sessionId, list);
+                        }
+                        emitToSessionClients(sessionId, 'profile-pic-updated', { chatId: originalChatId, profilePic: cleanProfilePic });
+                    }
+                }
+            } catch (e) {}
             
             // Apply limit (take last N) for frontend
             let finalMessages = allSortedMessages;
