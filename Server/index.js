@@ -579,10 +579,23 @@ const storage = multer.diskStorage({
         cb(null, sessionDir);
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname)
+        const originalName = String(file && file.originalname ? file.originalname : 'arquivo').trim();
+        const ext = path.extname(originalName);
+        const base = path.basename(originalName, ext)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9_-]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 80) || 'arquivo';
+        cb(null, `${Date.now()}-${base}${ext.toLowerCase()}`);
     }
 });
-const upload = multer({ storage: storage });
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 64 * 1024 * 1024
+    }
+});
 
 function queryFlag(value) {
     if (typeof value === 'boolean') return value;
@@ -3953,6 +3966,7 @@ app.post('/api/upload', (req, res, next) => {
         res.json({
             success: true,
             path: rel,
+            publicPath: toPublicAssetUrl(rel),
             filename: path.basename(finalPath),
             originalName: req.file.originalname || path.basename(finalPath),
             mimetype: finalMime
@@ -3962,6 +3976,20 @@ app.post('/api/upload', (req, res, next) => {
         try { if (req.file && req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) {}
         res.status(500).json({ success: false, error: 'Falha ao processar upload.' });
     }
+});
+
+app.use((err, req, res, next) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({ success: false, error: 'Arquivo muito grande. Limite de 64MB por upload.' });
+        }
+        return res.status(400).json({ success: false, error: err.message || 'Falha no upload do arquivo.' });
+    }
+    if (err && (err.status === 413 || err.statusCode === 413 || err.type === 'entity.too.large')) {
+        return res.status(413).json({ success: false, error: 'Arquivo muito grande para o servidor.' });
+    }
+    return next(err);
 });
 
 function ensureFlowSupportsInteractiveSend(client, stepType) {

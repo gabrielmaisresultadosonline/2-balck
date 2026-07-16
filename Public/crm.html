@@ -3719,6 +3719,21 @@
             return `/${raw.replace(/^\/+/, '')}`;
         }
 
+        async function readApiResponse(res) {
+            const rawText = await res.text();
+            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+            if (contentType.includes('application/json')) {
+                try {
+                    return { data: JSON.parse(rawText || '{}'), rawText, isJson: true };
+                } catch (error) {}
+            }
+            try {
+                return { data: JSON.parse(rawText || '{}'), rawText, isJson: true };
+            } catch (error) {
+                return { data: null, rawText, isJson: false };
+            }
+        }
+
         async function uploadFlowFile(file, extraQuery = '') {
             const formData = new FormData();
             formData.append('file', file);
@@ -3728,13 +3743,26 @@
                 headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
                 body: formData
             });
-            const data = await res.json();
-            if (!data.success) {
-                throw new Error(data.error || 'Falha no upload');
+            const { data, rawText, isJson } = await readApiResponse(res);
+            if (!res.ok) {
+                if (data && data.error) throw new Error(data.error);
+                if (res.status === 413) {
+                    throw new Error('Arquivo muito grande para upload. A VPS/Nginx precisa aceitar um limite maior e o arquivo deve respeitar o limite configurado.');
+                }
+                if (res.status === 404) {
+                    throw new Error('Rota de upload não encontrada no servidor.');
+                }
+                if (!isJson && rawText && /<html|<!doctype/i.test(rawText)) {
+                    throw new Error(`O servidor devolveu uma página HTML em vez de JSON (HTTP ${res.status}).`);
+                }
+                throw new Error(`Falha no upload (HTTP ${res.status}).`);
+            }
+            if (!data || !data.success) {
+                throw new Error((data && data.error) || 'Falha no upload');
             }
             return {
                 ...data,
-                publicPath: normalizeUploadedPublicPath(data.path)
+                publicPath: normalizeUploadedPublicPath((data && (data.publicPath || data.path)) || '')
             };
         }
 
@@ -3756,8 +3784,8 @@
                     input.value = '';
                     return;
                 }
-                if (file.size > 16 * 1024 * 1024) {
-                    alert('Máximo 16MB.');
+                if (file.size > 32 * 1024 * 1024) {
+                    alert('Máximo 32MB para áudio do fluxo.');
                     input.value = '';
                     return;
                 }
@@ -3823,8 +3851,8 @@
                     input.value = '';
                     return;
                 }
-                if (file.size > 32 * 1024 * 1024) {
-                    alert('Máximo 32MB.');
+                if (file.size > 64 * 1024 * 1024) {
+                    alert('Máximo 64MB para imagem, vídeo ou arquivo do fluxo.');
                     input.value = '';
                     return;
                 }
