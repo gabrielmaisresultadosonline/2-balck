@@ -8196,6 +8196,13 @@ io.on('connection', (socket) => {
 
     socket.on('save-flow', ({ sessionId, flow }, cb) => {
         let flows = loadFlows(sessionId);
+        if (!flow || typeof flow !== 'object') {
+            if (typeof cb === 'function') cb({ ok: false, error: 'Fluxo inválido' });
+            return;
+        }
+        if (!flow.id) {
+            flow.id = `flow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+        }
         
         const existingIndex = flows.findIndex(f => String(f.id) === String(flow.id));
         if (existingIndex >= 0) {
@@ -8451,6 +8458,7 @@ io.on('connection', (socket) => {
         }
 
         console.log(`Starting flow ${flow.name} manually for ${chatId}`);
+        logFlowDebug(sessionId, chatId, flow, 0, 'manual_start_request', { sourceEvent: 'start-flow' });
 
         const sessionData = activeClients.get(sessionId);
         if (!hasReadyClient(sessionData)) {

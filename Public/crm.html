@@ -3560,9 +3560,13 @@
         let flowEditSkipDelete = false;
         let currentStepIndex = -1;
 
+        function createFlowDraftId() {
+            return 'flow_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+        }
+
         window.createNewFlow = function() {
             currentFlow = {
-                id: null,
+                id: createFlowDraftId(),
                 name: 'Novo Fluxo',
                 triggerType: 'keyword',
                 triggerKeyword: '',
@@ -5577,6 +5581,7 @@
             if(triggerType === 'keyword' && !triggerKeyword) return alert('Defina a palavra-chave.');
             
             currentFlow.name = name;
+            if (!currentFlow.id) currentFlow.id = createFlowDraftId();
             currentFlow.triggerType = triggerType;
             currentFlow.triggerKeyword = triggerKeyword;
 
@@ -8737,11 +8742,18 @@
             const flow = window._pendingFlow;
             document.getElementById('sendFlowModal').style.display = 'none';
             if (!flow || !window.currentWaChatId) { alert('Selecione uma conversa.'); return; }
+            console.log('[flow-ui] starting flow', {
+                sessionId: window.sessionId,
+                chatId: window.currentWaChatId,
+                flowId: flow.id,
+                flowName: flow.name
+            });
             window.socket.emit('start-flow', {
                 sessionId: window.sessionId,
                 chatId: window.currentWaChatId,
                 flowId: flow.id
             }, (res) => {
+                console.log('[flow-ui] start-flow callback', res);
                 window.toggleRunningFlowsDrawer(true);
                 window.socket.emit('get-flows-usage', { sessionId: window.sessionId });
                 if (res && res.ok) {
