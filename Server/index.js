@@ -63,6 +63,8 @@ const evolutionApi = USE_EVOLUTION
     : null;
 const publicIpCache = new Map();
 const PUBLIC_IP_CACHE_TTL_MS = 2 * 60 * 1000;
+const evolutionContactLookupCache = new Map();
+const EVOLUTION_CONTACT_LOOKUP_TTL_MS = 5 * 60 * 1000;
 
 const PUBLIC_IP_CHECK_ENDPOINTS = [
     { url: 'https://api.ipify.org?format=json', type: 'json' },
@@ -1205,6 +1207,64 @@ function extractEvolutionProfileInfo(profile) {
     return { phoneDigits, name };
 }
 
+function extractEvolutionContactInfo(payload) {
+    const rows = Array.isArray(payload)
+        ? payload
+        : (Array.isArray(payload?.contacts) ? payload.contacts : (Array.isArray(payload?.data?.contacts) ? payload.data.contacts : []));
+    for (const row of rows) {
+        const remoteJid = normalizeEvolutionChatId(row?.remoteJid || row?.jid || row?.id || '');
+        const phoneDigits = normalizeEvolutionPhone(remoteJid || row?.phone || row?.number || '');
+        const name = pickBestChatLabel(
+            row?.pushName,
+            row?.name,
+            row?.profileName,
+            row?.fullName,
+            row?.contactName
+        );
+        const profilePictureUrl = sanitizeEvolutionUrl(row?.profilePictureUrl || row?.profilePicUrl || row?.profilePic || '');
+        if (!remoteJid && !phoneDigits && !name && !profilePictureUrl) continue;
+        return { remoteJid, phoneDigits, name, profilePictureUrl };
+    }
+    return { remoteJid: '', phoneDigits: '', name: '', profilePictureUrl: '' };
+}
+
+async function fetchEvolutionContactIdentity(sessionId, chatId) {
+    if (!USE_EVOLUTION || !evolutionApi) return { remoteJid: '', phoneDigits: '', name: '', profilePictureUrl: '' };
+    const candidates = collectPossibleChatIds(sessionId, chatId);
+    const cacheKey = `${sessionId}:${candidates.sort().join('|')}`;
+    const cached = evolutionContactLookupCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && (now - cached.at) < EVOLUTION_CONTACT_LOOKUP_TTL_MS) {
+        return cached.value;
+    }
+
+    const candidateIds = Array.from(new Set(
+        candidates
+            .map(value => normalizeEvolutionChatId(value))
+            .filter(Boolean)
+    ));
+
+    let best = { remoteJid: '', phoneDigits: '', name: '', profilePictureUrl: '' };
+    for (const candidateId of candidateIds) {
+        try {
+            const result = await evolutionApi.findContacts(evolutionInstanceName(sessionId), {
+                where: { remoteJid: candidateId },
+                limit: 5,
+                offset: 0,
+                sort: { field: 'updatedAt', order: 'desc' }
+            });
+            const info = extractEvolutionContactInfo(result || {});
+            if (info.remoteJid || info.phoneDigits || info.name || info.profilePictureUrl) {
+                best = info;
+                break;
+            }
+        } catch (e) {}
+    }
+
+    evolutionContactLookupCache.set(cacheKey, { at: now, value: best });
+    return best;
+}
+
 function collectPossibleChatIds(sessionId, chatId) {
     const out = new Set();
     const base = String(chatId || '').trim();
@@ -2117,7 +2177,8 @@ function findStoredPhoneForLid(chatId) {
 async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', cached = null) {
     const output = {
         phoneNumber: normalizeEvolutionPhone(cached?.phoneNumber || chatId),
-        name: String(baseName || cached?.name || '').trim()
+        name: String(baseName || cached?.name || '').trim(),
+        profilePictureUrl: sanitizeEvolutionUrl(cached?.profilePic || cached?.profilePictureUrl || '')
     };
     if (isSuspiciousLidPhone(chatId, output.phoneNumber)) output.phoneNumber = '';
 
@@ -2132,6 +2193,17 @@ async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', ca
     if (output.phoneNumber) rememberLidPhone(chatId, output.phoneNumber);
 
     if (!USE_EVOLUTION || !evolutionApi) return output;
+    if (!output.phoneNumber || !output.name || /^[0-9@._+\-\s]+$/.test(output.name) || !output.profilePictureUrl) {
+        try {
+            const contactInfo = await fetchEvolutionContactIdentity(sessionId, chatId);
+            if (!output.phoneNumber && contactInfo.phoneDigits) output.phoneNumber = contactInfo.phoneDigits;
+            if ((!output.name || /^[0-9@._+\-\s]+$/.test(output.name)) && contactInfo.name) output.name = contactInfo.name;
+            if (!output.profilePictureUrl && contactInfo.profilePictureUrl) output.profilePictureUrl = contactInfo.profilePictureUrl;
+            if (contactInfo.phoneDigits && /@lid$/i.test(String(chatId || ''))) {
+                rememberLidPhone(chatId, contactInfo.phoneDigits);
+            }
+        } catch (e) {}
+    }
     if (output.phoneNumber && output.name && !/^[0-9@._+\-\s]+$/.test(output.name)) return output;
 
     try {
@@ -2888,6 +2960,73 @@ function removeSessionFromStores(sessionId) {
 
 // Flow Manager
 let activeFlows = {}; // { sessionId: { chatId: { flowId: '...', step: 0, waitingForResponse: boolean } } }
+let flowExecutionHistory = {}; // { sessionId: [ { ...status } ] }
+const FLOW_EXECUTION_HISTORY_LIMIT = 80;
+
+function getFlowNameById(sessionId, flowId) {
+    const flows = loadFlows(sessionId);
+    const found = Array.isArray(flows) ? flows.find(f => String(f.id) === String(flowId)) : null;
+    return found && found.name ? String(found.name) : `Fluxo ${flowId}`;
+}
+
+function logFlowDebug(sessionId, chatId, flow, stepIndex, stage, extra = {}) {
+    try {
+        console.log('[flow-debug]', JSON.stringify({
+            sessionId,
+            chatId,
+            flowId: flow && flow.id ? flow.id : null,
+            flowName: flow && flow.name ? flow.name : null,
+            stepIndex: Number.isFinite(stepIndex) ? stepIndex : null,
+            stepType: flow && flow.steps && Number.isFinite(stepIndex) && flow.steps[stepIndex] ? flow.steps[stepIndex].type : null,
+            stage,
+            ...extra
+        }));
+    } catch (e) {}
+}
+
+function recordFlowExecutionHistory(sessionId, payload = {}) {
+    if (!sessionId) return;
+    if (!flowExecutionHistory[sessionId]) flowExecutionHistory[sessionId] = [];
+    flowExecutionHistory[sessionId].unshift({
+        id: payload.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        sessionId,
+        flowId: payload.flowId || null,
+        flowName: payload.flowName || (payload.flowId ? getFlowNameById(sessionId, payload.flowId) : 'Fluxo'),
+        chatId: payload.chatId || '',
+        status: payload.status || 'info',
+        action: payload.action || null,
+        step: Number.isFinite(payload.step) ? payload.step : null,
+        message: payload.message ? String(payload.message) : '',
+        error: payload.error ? String(payload.error) : '',
+        createdAt: payload.createdAt || Date.now()
+    });
+    flowExecutionHistory[sessionId] = flowExecutionHistory[sessionId].slice(0, FLOW_EXECUTION_HISTORY_LIMIT);
+}
+
+function getFlowExecutionHistory(sessionId) {
+    return Array.isArray(flowExecutionHistory[sessionId]) ? flowExecutionHistory[sessionId] : [];
+}
+
+function setActiveFlowState(sessionId, chatId, flow, overrides = {}) {
+    if (!sessionId || !chatId || !flow) return null;
+    if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
+    const prev = activeFlows[sessionId][chatId];
+    if (prev && prev.timeoutId) {
+        try { clearTimeout(prev.timeoutId); } catch (e) {}
+    }
+    const state = {
+        flowId: flow.id,
+        flowName: flow.name || getFlowNameById(sessionId, flow.id),
+        step: Number.isFinite(overrides.step) ? overrides.step : 0,
+        waiting: !!overrides.waiting,
+        action: overrides.action || null,
+        updatedAt: Date.now(),
+        startedAt: overrides.startedAt || Date.now(),
+        timeoutId: overrides.timeoutId || null
+    };
+    activeFlows[sessionId][chatId] = state;
+    return state;
+}
 
 function normalizeBoolean(value, fallback = undefined) {
     if (value === undefined || value === null) return fallback;
@@ -3047,24 +3186,29 @@ function getFlowUsage(sessionId, flowId) {
 function getAllFlowsUsage(sessionId) {
     const usage = {};
     const chats = (activeFlows && sessionId && activeFlows[sessionId]) ? activeFlows[sessionId] : null;
-    if (!chats) return usage;
-    for (const chatKey of Object.keys(chats)) {
-        const state = chats[chatKey];
-        if (!state || state.flowId === undefined || state.flowId === null) continue;
-        const id = String(state.flowId);
-        if (!usage[id]) usage[id] = { count: 0, waitingCount: 0, items: [] };
-        usage[id].count += 1;
-        if (state.waiting) usage[id].waitingCount += 1;
-        usage[id].items.push({
-            sessionId: sessionId,
-            chatId: chatKey,
-            step: typeof state.step === 'number' ? state.step : 0,
-            waiting: !!state.waiting,
-            action: state.action || null,
-            updatedAt: Number.isFinite(state.updatedAt) ? state.updatedAt : null
-        });
+    if (chats) {
+        for (const chatKey of Object.keys(chats)) {
+            const state = chats[chatKey];
+            if (!state || state.flowId === undefined || state.flowId === null) continue;
+            const id = String(state.flowId);
+            if (!usage[id]) usage[id] = { count: 0, waitingCount: 0, flowName: state.flowName || getFlowNameById(sessionId, id), items: [] };
+            usage[id].count += 1;
+            if (state.waiting) usage[id].waitingCount += 1;
+            usage[id].items.push({
+                sessionId: sessionId,
+                chatId: chatKey,
+                step: typeof state.step === 'number' ? state.step : 0,
+                waiting: !!state.waiting,
+                action: state.action || null,
+                updatedAt: Number.isFinite(state.updatedAt) ? state.updatedAt : null,
+                flowName: state.flowName || getFlowNameById(sessionId, id)
+            });
+        }
     }
-    return usage;
+    return {
+        active: usage,
+        history: getFlowExecutionHistory(sessionId)
+    };
 }
 
 function stopFlowInstances(sessionId, flowId) {
@@ -3117,9 +3261,7 @@ function stopFlowChat(sessionId, chatId, expectedFlowId = null) {
 
 function emitFlowUsage(sessionId) {
     try {
-        const sessionData = activeClients.get(sessionId);
-        if (!sessionData || !sessionData.socketId) return;
-        io.to(sessionData.socketId).emit('flow-usage', getAllFlowsUsage(sessionId));
+        emitToSessionClients(sessionId, 'flow-usage', getAllFlowsUsage(sessionId));
     } catch (e) {}
 }
 
@@ -3131,12 +3273,17 @@ function startFlowNow(sessionId, chatId, flowId, client) {
     const flow = flows.find(f => String(f.id) === String(flowId));
     if (!flow) return { ok: false, error: 'Fluxo não encontrado' };
 
-    if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
-    const prev = activeFlows[sessionId][chatId];
-    if (prev && prev.timeoutId) {
-        try { clearTimeout(prev.timeoutId); } catch (e) {}
-    }
-    activeFlows[sessionId][chatId] = { flowId: flow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+    setActiveFlowState(sessionId, chatId, flow, { step: 0, waiting: false, action: 'starting' });
+    recordFlowExecutionHistory(sessionId, {
+        flowId: flow.id,
+        flowName: flow.name,
+        chatId,
+        status: 'running',
+        action: 'starting',
+        step: 0,
+        message: 'Fluxo iniciado'
+    });
+    logFlowDebug(sessionId, chatId, flow, 0, 'flow_started', { source: 'startFlowNow' });
     emitFlowUsage(sessionId);
     executeFlowStep(sessionId, chatId, flow, 0, client);
     return { ok: true, flow };
@@ -3885,14 +4032,26 @@ async function handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex,
     }
     emitFlowUsage(sessionId);
 
+    const payload = kind === 'buttons'
+        ? buildFlowButtonsPayload(step)
+        : (kind === 'list' ? buildFlowListPayload(step) : buildFlowCarouselPayload(step));
+    logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_attempt', {
+        kind,
+        payload
+    });
+
     let sentMsg;
     if (kind === 'buttons') {
-        sentMsg = await client.sendButtons(chatId, buildFlowButtonsPayload(step));
+        sentMsg = await client.sendButtons(chatId, payload);
     } else if (kind === 'list') {
-        sentMsg = await client.sendList(chatId, buildFlowListPayload(step));
+        sentMsg = await client.sendList(chatId, payload);
     } else {
-        sentMsg = await client.sendCarousel(chatId, buildFlowCarouselPayload(step));
+        sentMsg = await client.sendCarousel(chatId, payload);
     }
+    logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_success', {
+        kind,
+        sentMessageId: sentMsg && sentMsg.id && sentMsg.id._serialized ? sentMsg.id._serialized : null
+    });
     await handleSentMessage(sessionId, sentMsg, client);
 
     const branches = getFlowInteractiveBranches(step);
@@ -3903,6 +4062,10 @@ async function handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex,
             activeFlows[sessionId][chatId].updatedAt = Date.now();
             emitFlowUsage(sessionId);
         }
+        logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_waiting', {
+            kind,
+            branches: branches.map(branch => ({ id: branch.id, label: branch.label, targetId: branch.targetId || null }))
+        });
         return;
     }
 
@@ -3930,7 +4093,17 @@ async function processIncomingFlowMessage(sessionId, msg, client) {
                 if (step.exactMatchFlowId) {
                     const targetFlow = flows.find(f => String(f.id) === String(step.exactMatchFlowId));
                     if (targetFlow) {
-                        activeFlows[sessionId][chatKey] = { flowId: targetFlow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+                        setActiveFlowState(sessionId, chatKey, targetFlow, { step: 0, waiting: false, action: 'switch_exact_match' });
+                        recordFlowExecutionHistory(sessionId, {
+                            flowId: targetFlow.id,
+                            flowName: targetFlow.name,
+                            chatId: chatKey,
+                            status: 'running',
+                            action: 'switch_exact_match',
+                            step: 0,
+                            message: 'Fluxo iniciado por resposta exata'
+                        });
+                        logFlowDebug(sessionId, chatKey, targetFlow, 0, 'flow_switch_exact_match');
                         emitFlowUsage(sessionId);
                         await executeFlowStep(sessionId, chatKey, targetFlow, 0, client);
                         return true;
@@ -3977,12 +4150,20 @@ async function processIncomingFlowMessage(sessionId, msg, client) {
             triggered = true;
         }
         if (triggered) {
-            if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
-            const prev = activeFlows[sessionId][chatKey];
-            if (prev && prev.timeoutId) {
-                try { clearTimeout(prev.timeoutId); } catch (e) {}
-            }
-            activeFlows[sessionId][chatKey] = { flowId: flow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+            setActiveFlowState(sessionId, chatKey, flow, { step: 0, waiting: false, action: 'triggered' });
+            recordFlowExecutionHistory(sessionId, {
+                flowId: flow.id,
+                flowName: flow.name,
+                chatId: chatKey,
+                status: 'running',
+                action: 'triggered',
+                step: 0,
+                message: `Fluxo iniciado por gatilho ${flow.triggerType || 'keyword'}`
+            });
+            logFlowDebug(sessionId, chatKey, flow, 0, 'flow_triggered', {
+                triggerType: flow.triggerType || 'keyword',
+                incomingText
+            });
             emitFlowUsage(sessionId);
             await executeFlowStep(sessionId, chatKey, flow, 0, client);
             return true;
@@ -4005,6 +4186,16 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
         if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
              delete activeFlows[sessionId][chatId];
         }
+        recordFlowExecutionHistory(sessionId, {
+            flowId: flow.id,
+            flowName: flow.name,
+            chatId,
+            status: 'success',
+            action: 'completed',
+            step: stepIndex,
+            message: 'Fluxo finalizado com sucesso'
+        });
+        logFlowDebug(sessionId, chatId, flow, stepIndex, 'flow_completed');
         emitFlowUsage(sessionId);
         return;
     }
@@ -4024,6 +4215,9 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
 
     const step = flow.steps[stepIndex];
     const { MessageMedia } = require('whatsapp-web.js');
+    logFlowDebug(sessionId, chatId, flow, stepIndex, 'step_start', {
+        stepType: step && step.type ? step.type : null
+    });
 
     try {
         if (step.type === 'text') {
@@ -4056,8 +4250,13 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
             
             const hasUrl = typeof step.content === 'string' && /https?:\/\/\S+/i.test(step.content);
             const options = hasUrl ? { linkPreview: false } : undefined;
+            logFlowDebug(sessionId, chatId, flow, stepIndex, 'text_send_attempt', {
+                text: String(step.content || ''),
+                hasUrl
+            });
             const sentMsg = await client.sendMessage(chatId, step.content, options);
             await handleSentMessage(sessionId, sentMsg, client);
+            logFlowDebug(sessionId, chatId, flow, stepIndex, 'text_send_success');
             return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
         } else if (step.type === 'delay') {
             if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
@@ -4066,6 +4265,7 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
             }
             emitFlowUsage(sessionId);
             const delayMs = sanitizeFlowDurationMs(typeof step.time !== 'undefined' ? step.time : step.content);
+            logFlowDebug(sessionId, chatId, flow, stepIndex, 'delay_wait', { delayMs });
             const timeoutId = setTimeout(() => {
                 // Check again before proceeding after delay
                 const currentActive = activeFlows[sessionId]?.[chatId];
@@ -4090,9 +4290,11 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                     activeFlows[sessionId][chatId].updatedAt = Date.now();
                 }
                 emitFlowUsage(sessionId);
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'image_send_attempt', { fullPath });
                 const media = MessageMedia.fromFilePath(fullPath);
                 const sentMsg = await client.sendMessage(chatId, media);
                 await handleSentMessage(sessionId, sentMsg, client);
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'image_send_success');
             }
             return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
         } else if (step.type === 'audio') {
@@ -4100,6 +4302,10 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
             const fullPath = path.join(PUBLIC_DIR, relPath);
             if (fs.existsSync(fullPath)) {
                 let tempVoicePath = null;
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'audio_prepare', {
+                    fullPath,
+                    recordingDuration: step.recordingDuration || 0
+                });
                 // Simulate recording
                 if (step.recordingDuration && Number(step.recordingDuration) > 0) {
                     try {
@@ -4146,8 +4352,13 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                 }
                 try {
                     const media = MessageMedia.fromFilePath(chosenPath);
+                    logFlowDebug(sessionId, chatId, flow, stepIndex, 'audio_send_attempt', {
+                        chosenPath,
+                        sendAudioAsVoice: true
+                    });
                     const sentMsg = await client.sendMessage(chatId, media, { sendAudioAsVoice: true });
                     await handleSentMessage(sessionId, sentMsg, client);
+                    logFlowDebug(sessionId, chatId, flow, stepIndex, 'audio_send_success', { chosenPath });
                 } finally {
                     if (tempVoicePath) {
                         try { fs.unlinkSync(tempVoicePath); } catch (e) {}
@@ -4164,9 +4375,11 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                     activeFlows[sessionId][chatId].updatedAt = Date.now();
                 }
                 emitFlowUsage(sessionId);
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'video_send_attempt', { fullPath });
                 const media = MessageMedia.fromFilePath(fullPath);
                 const sentMsg = await client.sendMessage(chatId, media, { sendMediaAsDocument: false });
                 await handleSentMessage(sessionId, sentMsg, client);
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'video_send_success');
             }
             return await executeFlowStep(sessionId, chatId, flow, getFlowNextStepIndex(flow, step, stepIndex), client);
         } else if (step.type === 'buttons') {
@@ -4189,6 +4402,12 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                     active.timeoutId = null;
                 }
                 emitFlowUsage(sessionId);
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'wait_response_armed', {
+                    timeout: step.timeout || 0,
+                    timeoutFlowId: step.timeoutFlowId || null,
+                    timeoutNext: step.timeoutNext || null,
+                    exactMatch: step.exactMatch || ''
+                });
                 
                 // Set timeout if configured
                 if (step.timeout && step.timeout > 0) { // timeout in ms
@@ -4213,7 +4432,7 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                             if (step.timeoutNext) {
                                 const nextIndex = getFlowStepIndexById(flow, step.timeoutNext);
                                 if (nextIndex >= 0) {
-                                    activeFlows[sessionId][chatId] = { flowId: flow.id, step: nextIndex, waiting: false, action: null, updatedAt: Date.now(), timeoutId: null };
+                                    setActiveFlowState(sessionId, chatId, flow, { step: nextIndex, waiting: false, action: 'timeout_next', timeoutId: null });
                                     emitFlowUsage(sessionId);
                                     executeFlowStep(sessionId, chatId, flow, nextIndex, client);
                                     return;
@@ -4226,7 +4445,16 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
                                  if (targetFlow) {
                                      console.log(`Timeout triggering flow ${targetFlow.name} for ${chatId}`);
                                      if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
-                                     activeFlows[sessionId][chatId] = { flowId: targetFlow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+                                     setActiveFlowState(sessionId, chatId, targetFlow, { step: 0, waiting: false, action: 'timeout_switch' });
+                                     recordFlowExecutionHistory(sessionId, {
+                                         flowId: targetFlow.id,
+                                         flowName: targetFlow.name,
+                                         chatId,
+                                         status: 'running',
+                                         action: 'timeout_switch',
+                                         step: 0,
+                                         message: 'Fluxo iniciado por timeout'
+                                     });
                                      executeFlowStep(sessionId, chatId, targetFlow, 0, client);
                                      emitFlowUsage(sessionId);
                                      return;
@@ -4243,6 +4471,23 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
         }
     } catch (err) {
         console.error(`Error executing flow step ${stepIndex} for chat ${chatId}:`, err);
+        recordFlowExecutionHistory(sessionId, {
+            flowId: flow && flow.id ? flow.id : null,
+            flowName: flow && flow.name ? flow.name : null,
+            chatId,
+            status: 'error',
+            action: 'step_error',
+            step: stepIndex,
+            message: `Falha na etapa ${step && step.type ? step.type : stepIndex}`,
+            error: err && err.message ? err.message : String(err)
+        });
+        logFlowDebug(sessionId, chatId, flow, stepIndex, 'step_error', {
+            error: err && err.message ? err.message : String(err)
+        });
+        if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
+            delete activeFlows[sessionId][chatId];
+        }
+        emitFlowUsage(sessionId);
         try {
             const sessionData = activeClients.get(sessionId);
             if (sessionData && sessionData.socketId) {
@@ -5057,7 +5302,16 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                                         const targetFlow = currentFlows.find(f => String(f.id) === String(step.exactMatchFlowId));
                                         if (targetFlow) {
                                             console.log(`Switching to flow ${targetFlow.name}`);
-                                            activeFlows[sessionId][msg.from] = { flowId: targetFlow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+                                            setActiveFlowState(sessionId, msg.from, targetFlow, { step: 0, waiting: false, action: 'switch_exact_match' });
+                                            recordFlowExecutionHistory(sessionId, {
+                                                flowId: targetFlow.id,
+                                                flowName: targetFlow.name,
+                                                chatId: msg.from,
+                                                status: 'running',
+                                                action: 'switch_exact_match',
+                                                step: 0,
+                                                message: 'Fluxo iniciado por resposta exata'
+                                            });
                                             executeFlowStep(sessionId, msg.from, targetFlow, 0, client);
                                             emitFlowUsage(sessionId);
                                             return;
@@ -5113,12 +5367,16 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                             
                              if (triggered) {
                                  console.log(`Starting flow ${flow.name} for ${msg.from}`);
-                                 if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
-                                 const prev = activeFlows[sessionId][msg.from];
-                                 if (prev && prev.timeoutId) {
-                                     try { clearTimeout(prev.timeoutId); } catch (e) {}
-                                 }
-                                 activeFlows[sessionId][msg.from] = { flowId: flow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
+                                 setActiveFlowState(sessionId, msg.from, flow, { step: 0, waiting: false, action: 'triggered' });
+                                 recordFlowExecutionHistory(sessionId, {
+                                     flowId: flow.id,
+                                     flowName: flow.name,
+                                     chatId: msg.from,
+                                     status: 'running',
+                                     action: 'triggered',
+                                     step: 0,
+                                     message: `Fluxo iniciado por gatilho ${flow.triggerType || 'keyword'}`
+                                 });
                                  emitFlowUsage(sessionId);
                                  executeFlowStep(sessionId, msg.from, flow, 0, client);
                                  break; 
@@ -6788,6 +7046,9 @@ io.on('connection', (socket) => {
                             if (resolvedIdentity.name && (!chat.name || /^[0-9@._+\-\s]+$/.test(String(chat.name)))) {
                                 chat.name = resolvedIdentity.name;
                             }
+                            if (resolvedIdentity.profilePictureUrl && !chat.profilePic) {
+                                chat.profilePic = resolvedIdentity.profilePictureUrl;
+                            }
                         }
 
                         const phoneNumber =
@@ -8176,7 +8437,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('start-flow-manually', ({ sessionId, chatId, flowId }, cb) => {
+    const handleManualFlowStart = ({ sessionId, chatId, flowId }, cb) => {
         if (!sessionId || !chatId || flowId === undefined || flowId === null) {
             if (typeof cb === 'function') cb({ ok: false, error: 'sessionId, chatId e flowId são obrigatórios' });
             return;
@@ -8191,23 +8452,42 @@ io.on('connection', (socket) => {
 
         console.log(`Starting flow ${flow.name} manually for ${chatId}`);
 
-        if (!activeFlows[sessionId]) activeFlows[sessionId] = {};
-        const prev = activeFlows[sessionId][chatId];
-        if (prev && prev.timeoutId) {
-            try { clearTimeout(prev.timeoutId); } catch (e) {}
-        }
-        activeFlows[sessionId][chatId] = { flowId: flow.id, step: 0, waiting: false, action: null, updatedAt: Date.now() };
-        emitFlowUsage(sessionId);
-
         const sessionData = activeClients.get(sessionId);
         if (!hasReadyClient(sessionData)) {
+            recordFlowExecutionHistory(sessionId, {
+                flowId: flow.id,
+                flowName: flow.name,
+                chatId,
+                status: 'error',
+                action: 'start_failed',
+                step: 0,
+                message: 'Sessão não está pronta para iniciar fluxo',
+                error: 'Sessão ainda não está pronta (sincronizando WhatsApp).'
+            });
+            emitFlowUsage(sessionId);
             if (typeof cb === 'function') cb({ ok: false, error: 'Sessão ainda não está pronta (sincronizando WhatsApp).' });
             return;
         }
 
+        setActiveFlowState(sessionId, chatId, flow, { step: 0, waiting: false, action: 'manual_start' });
+        recordFlowExecutionHistory(sessionId, {
+            flowId: flow.id,
+            flowName: flow.name,
+            chatId,
+            status: 'running',
+            action: 'manual_start',
+            step: 0,
+            message: 'Fluxo iniciado manualmente'
+        });
+        logFlowDebug(sessionId, chatId, flow, 0, 'manual_start');
+        emitFlowUsage(sessionId);
+
         if (typeof cb === 'function') cb({ ok: true });
         executeFlowStep(sessionId, chatId, flow, 0, sessionData.client);
-    });
+    };
+
+    socket.on('start-flow-manually', handleManualFlowStart);
+    socket.on('start-flow', handleManualFlowStart);
 
     socket.on('get-system-stats', (cb) => {
         try {

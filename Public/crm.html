@@ -1339,6 +1339,255 @@
         }
         #textStepModal .btn-secondary { background: #f3f4f6 !important; color: #374151 !important; border: 1px solid #e5e7eb !important; }
         #textStepModal .btn-primary { background: linear-gradient(135deg,#064e3b,#0d7a5f) !important; color: #fff !important; box-shadow: 0 6px 16px -8px rgba(13,122,95,0.5); }
+        #textStepModal .modal-content.flow-step-modal--interactive { max-width: 1120px !important; }
+        .flow-interactive-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.55fr) 340px;
+            gap: 20px;
+            align-items: start;
+        }
+        .flow-interactive-form,
+        .flow-interactive-preview-wrap {
+            min-width: 0;
+        }
+        .flow-editor-card {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+        }
+        .flow-editor-card + .flow-editor-card { margin-top: 14px; }
+        .flow-editor-card h4 {
+            margin: 0 0 12px;
+            color: #0f172a;
+            font-size: 0.98rem;
+            font-weight: 800;
+        }
+        .flow-editor-card p.flow-editor-hint {
+            margin: 0 0 12px;
+            color: #64748b;
+            font-size: 0.82rem;
+        }
+        .flow-editor-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .flow-editor-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .flow-editor-stack { display: grid; gap: 12px; }
+        .flow-editor-toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 12px;
+        }
+        .flow-editor-subcard {
+            border: 1px solid #dbe4ee;
+            border-radius: 14px;
+            background: #fff;
+            padding: 14px;
+        }
+        .flow-editor-subcard + .flow-editor-subcard { margin-top: 12px; }
+        .flow-editor-subcard-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .flow-editor-subcard-title {
+            margin: 0;
+            color: #0f172a;
+            font-size: 0.9rem;
+            font-weight: 800;
+        }
+        .flow-editor-action-btn {
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #0f172a;
+            border-radius: 10px;
+            padding: 9px 12px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.84rem;
+        }
+        .flow-editor-action-btn--danger {
+            color: #b91c1c;
+            border-color: #fecaca;
+            background: #fff5f5;
+        }
+        .flow-editor-action-btn--primary {
+            color: #065f46;
+            border-color: #a7f3d0;
+            background: #ecfdf5;
+        }
+        .flow-preview-phone {
+            position: sticky;
+            top: 0;
+            border-radius: 28px;
+            padding: 14px;
+            background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
+            box-shadow: 0 22px 54px -24px rgba(15,23,42,0.6);
+        }
+        .flow-preview-phone__screen {
+            border-radius: 20px;
+            background: linear-gradient(180deg, #efeae2 0%, #e9e1d5 100%);
+            min-height: 620px;
+            padding: 16px 14px;
+            overflow: hidden;
+        }
+        .flow-preview-phone__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            color: #334155;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .flow-preview-bubble {
+            width: min(100%, 270px);
+            margin-left: auto;
+            background: #dcf8c6;
+            border-radius: 18px 18px 6px 18px;
+            padding: 12px;
+            box-shadow: 0 10px 20px -18px rgba(15,23,42,0.45);
+            color: #0f172a;
+        }
+        .flow-preview-bubble img {
+            width: 100%;
+            border-radius: 12px;
+            display: block;
+            margin-bottom: 10px;
+            object-fit: cover;
+            max-height: 170px;
+            background: #dbe4ee;
+        }
+        .flow-preview-bubble__title {
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .flow-preview-bubble__text {
+            font-size: 0.9rem;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+        .flow-preview-bubble__footer {
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 0.76rem;
+        }
+        .flow-preview-actions {
+            display: grid;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .flow-preview-action {
+            border: 1px solid rgba(15,118,110,0.18);
+            background: rgba(255,255,255,0.8);
+            color: #0f766e;
+            border-radius: 12px;
+            padding: 9px 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            text-align: center;
+        }
+        .flow-preview-action--muted {
+            color: #475569;
+            border-color: rgba(71,85,105,0.16);
+        }
+        .flow-preview-list-sheet {
+            margin-top: 14px;
+            background: #fff;
+            border-radius: 18px;
+            padding: 12px;
+            box-shadow: 0 16px 30px -24px rgba(15,23,42,0.55);
+        }
+        .flow-preview-list-sheet__section + .flow-preview-list-sheet__section {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eef2f7;
+        }
+        .flow-preview-list-sheet__title {
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 6px;
+        }
+        .flow-preview-list-row {
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 10px;
+        }
+        .flow-preview-list-row + .flow-preview-list-row { margin-top: 8px; }
+        .flow-preview-list-row strong {
+            display: block;
+            font-size: 0.9rem;
+            color: #0f172a;
+        }
+        .flow-preview-list-row span {
+            display: block;
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: 2px;
+        }
+        .flow-preview-carousel {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            margin-top: 12px;
+        }
+        .flow-preview-carousel__card {
+            min-width: 210px;
+            max-width: 210px;
+            background: #fff;
+            border-radius: 16px;
+            padding: 10px;
+            box-shadow: 0 16px 30px -24px rgba(15,23,42,0.55);
+        }
+        .flow-preview-carousel__card img {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 12px;
+            display: block;
+            background: #dbe4ee;
+            margin-bottom: 8px;
+        }
+        .flow-preview-empty {
+            border: 1px dashed #cbd5e1;
+            color: #64748b;
+            border-radius: 14px;
+            padding: 18px;
+            text-align: center;
+            background: #fff;
+            font-size: 0.84rem;
+        }
+        @media (max-width: 960px) {
+            .flow-interactive-layout { grid-template-columns: 1fr; }
+            .flow-preview-phone {
+                position: relative;
+                top: auto;
+            }
+        }
+        @media (max-width: 640px) {
+            .flow-editor-grid-2,
+            .flow-editor-grid-3 {
+                grid-template-columns: 1fr;
+            }
+            .flow-preview-phone__screen {
+                min-height: auto;
+            }
+        }
         @media (max-width: 600px) {
             #textStepModal .modal-content { padding: 18px !important; border-radius: 14px !important; }
         }
@@ -3610,7 +3859,7 @@
         window.handleFlowButtonsImageUpload = async function(input) {
             try {
                 const file = input && input.files && input.files[0];
-                const step = currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null;
+                const step = getFlowInteractiveDraft() || (currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null);
                 if (!file || !step || step.type !== 'buttons') return;
                 if (!String(file.type || '').toLowerCase().startsWith('image/')) {
                     alert('Envie uma imagem válida.');
@@ -3631,11 +3880,7 @@
                 step.imageUrl = data.publicPath || data.path || '';
                 const imageInput = document.getElementById('stepButtonsImageUrl');
                 if (imageInput) imageInput.value = step.imageUrl;
-                if (status) {
-                    status.textContent = 'Imagem salva no nó.';
-                    status.style.color = '#047857';
-                }
-                renderFlowSteps();
+                renderFlowInteractiveEditor();
             } catch (error) {
                 alert(error && error.message ? error.message : 'Falha ao enviar a imagem.');
                 const status = document.getElementById('flowButtonsImageStatus');
@@ -3653,7 +3898,10 @@
             }
         };
 
-        window.triggerFlowCarouselCardImageUpload = function() {
+        window.triggerFlowCarouselCardImageUpload = function(cardIndex) {
+            if (typeof cardIndex !== 'undefined') {
+                window.flowCarouselUploadCardIndex = Number(cardIndex) || 0;
+            }
             const input = document.getElementById('flowStepCarouselImageFile');
             if (input) input.click();
         };
@@ -3661,15 +3909,14 @@
         window.handleFlowCarouselCardImageUpload = async function(input) {
             try {
                 const file = input && input.files && input.files[0];
-                const step = currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null;
+                const step = getFlowInteractiveDraft() || (currentFlow && currentFlow.steps ? currentFlow.steps[currentStepIndex] : null);
                 if (!file || !step || step.type !== 'carousel') return;
                 if (!String(file.type || '').toLowerCase().startsWith('image/')) {
                     alert('Envie uma imagem válida.');
                     input.value = '';
                     return;
                 }
-                const cardIndexInput = document.getElementById('stepCarouselImageCardIndex');
-                const cardIndex = Math.max(1, Number(cardIndexInput && cardIndexInput.value || 1)) - 1;
+                const cardIndex = Math.max(0, Number(window.flowCarouselUploadCardIndex || 0));
                 if (!Array.isArray(step.cards) || !step.cards[cardIndex]) {
                     alert('Escolha um card válido para receber a imagem.');
                     input.value = '';
@@ -3688,13 +3935,7 @@
                 const data = await uploadFlowFile(file);
                 step.cards[cardIndex].image = data.publicPath || data.path || '';
                 step.cards[cardIndex].imageUrl = step.cards[cardIndex].image;
-                const textarea = document.getElementById('stepCarouselCardsJson');
-                if (textarea) textarea.value = JSON.stringify(step.cards || [], null, 2);
-                if (status) {
-                    status.textContent = `Imagem salva no card ${cardIndex + 1}.`;
-                    status.style.color = '#047857';
-                }
-                renderFlowSteps();
+                renderFlowInteractiveEditor();
             } catch (error) {
                 alert(error && error.message ? error.message : 'Falha ao enviar a imagem do card.');
                 const status = document.getElementById('flowCarouselImageStatus');
@@ -4019,6 +4260,660 @@
                 used.add(id);
             });
         }
+
+        function isInteractiveFlowStep(step) {
+            return !!(step && ['buttons', 'list', 'carousel'].includes(step.type));
+        }
+
+        function cloneFlowStepData(step) {
+            return JSON.parse(JSON.stringify(step || {}));
+        }
+
+        function getFlowInteractiveDraft() {
+            if (!window.flowInteractiveDraftStep) return null;
+            ensureInteractiveStepDefaults(window.flowInteractiveDraftStep);
+            return window.flowInteractiveDraftStep;
+        }
+
+        function getFlowInteractivePreviewImage(url) {
+            const raw = String(url || '').trim();
+            if (!raw) return '';
+            return escapeSummary(raw);
+        }
+
+        function syncFlowInteractiveDraft() {
+            const draft = getFlowInteractiveDraft();
+            if (!draft) return null;
+
+            if (draft.type === 'buttons') {
+                draft.title = String(document.getElementById('stepButtonsTitle')?.value || '').trim();
+                draft.text = String(document.getElementById('stepButtonsText')?.value || '').trim();
+                draft.bodyText = draft.text;
+                draft.footerText = String(document.getElementById('stepButtonsFooter')?.value || '').trim();
+                draft.imageUrl = String(document.getElementById('stepButtonsImageUrl')?.value || '').trim();
+                draft.buttons = Array.from(document.querySelectorAll('.js-flow-button-item')).map((item, index) => normalizeFlowButtonItem({
+                    type: item.querySelector('.js-flow-btn-type')?.value || 'reply',
+                    displayText: item.querySelector('.js-flow-btn-text')?.value || '',
+                    id: item.querySelector('.js-flow-btn-id')?.value || '',
+                    url: item.querySelector('.js-flow-btn-url')?.value || '',
+                    phoneNumber: item.querySelector('.js-flow-btn-phone')?.value || '',
+                    targetId: draft.buttons && draft.buttons[index] ? draft.buttons[index].targetId : null
+                }, index, 'botao'));
+            }
+
+            if (draft.type === 'list') {
+                draft.title = String(document.getElementById('stepListTitle')?.value || '').trim();
+                draft.description = String(document.getElementById('stepListDescription')?.value || '').trim();
+                draft.buttonText = String(document.getElementById('stepListButtonText')?.value || '').trim() || 'Abrir menu';
+                draft.footerText = String(document.getElementById('stepListFooter')?.value || '').trim();
+                draft.sections = Array.from(document.querySelectorAll('.js-flow-list-section')).map((sectionEl, sectionIndex) => ({
+                    title: String(sectionEl.querySelector('.js-flow-list-section-title')?.value || '').trim() || `Secao ${sectionIndex + 1}`,
+                    rows: Array.from(sectionEl.querySelectorAll('.js-flow-list-row')).map((rowEl, rowIndex) => normalizeFlowListRowItem({
+                        title: rowEl.querySelector('.js-flow-list-row-title')?.value || '',
+                        description: rowEl.querySelector('.js-flow-list-row-description')?.value || '',
+                        rowId: rowEl.querySelector('.js-flow-list-row-id')?.value || '',
+                        targetId: draft.sections && draft.sections[sectionIndex] && draft.sections[sectionIndex].rows && draft.sections[sectionIndex].rows[rowIndex]
+                            ? draft.sections[sectionIndex].rows[rowIndex].targetId
+                            : null
+                    }, sectionIndex, rowIndex))
+                }));
+            }
+
+            if (draft.type === 'carousel') {
+                draft.description = String(document.getElementById('stepCarouselDescription')?.value || '').trim();
+                draft.footerText = String(document.getElementById('stepCarouselFooter')?.value || '').trim();
+                draft.cards = Array.from(document.querySelectorAll('.js-flow-carousel-card')).map((cardEl, cardIndex) => ({
+                    title: String(cardEl.querySelector('.js-flow-carousel-card-title')?.value || '').trim(),
+                    description: String(cardEl.querySelector('.js-flow-carousel-card-description')?.value || '').trim(),
+                    image: String(cardEl.querySelector('.js-flow-carousel-card-image')?.value || '').trim(),
+                    imageUrl: String(cardEl.querySelector('.js-flow-carousel-card-image')?.value || '').trim(),
+                    buttons: Array.from(cardEl.querySelectorAll('.js-flow-carousel-button')).map((buttonEl, buttonIndex) => normalizeFlowButtonItem({
+                        type: buttonEl.querySelector('.js-flow-btn-type')?.value || 'reply',
+                        displayText: buttonEl.querySelector('.js-flow-btn-text')?.value || '',
+                        id: buttonEl.querySelector('.js-flow-btn-id')?.value || '',
+                        url: buttonEl.querySelector('.js-flow-btn-url')?.value || '',
+                        phoneNumber: buttonEl.querySelector('.js-flow-btn-phone')?.value || '',
+                        targetId: draft.cards && draft.cards[cardIndex] && draft.cards[cardIndex].buttons && draft.cards[cardIndex].buttons[buttonIndex]
+                            ? draft.cards[cardIndex].buttons[buttonIndex].targetId
+                            : null
+                    }, buttonIndex, `card_${cardIndex + 1}`))
+                }));
+            }
+
+            return draft;
+        }
+
+        function validateInteractiveDraftStep(draft) {
+            if (!draft) return;
+            ensureInteractiveStepDefaults(draft);
+            if (draft.type === 'buttons') {
+                draft.buttons = (Array.isArray(draft.buttons) ? draft.buttons : []).filter(button => String(button.displayText || '').trim());
+                if (!draft.buttons.length) {
+                    throw new Error('Adicione pelo menos 1 botão.');
+                }
+                if (draft.buttons.length > 3) {
+                    throw new Error('O WhatsApp aceita no máximo 3 botões.');
+                }
+                const replyIds = [];
+                draft.buttons = draft.buttons.map((button, index) => {
+                    const normalized = normalizeFlowButtonItem(button, index, 'botao');
+                    if (!normalized.displayText) {
+                        throw new Error(`Preencha o texto do botão ${index + 1}.`);
+                    }
+                    if (normalized.type === 'reply') {
+                        if (!normalized.id) normalized.id = slugifyFlowInteractiveId(normalized.displayText, `botao_${index + 1}`);
+                        replyIds.push(normalized.id);
+                    }
+                    if (normalized.type === 'url' && !normalized.url) {
+                        throw new Error(`Preencha o link do botão ${index + 1}.`);
+                    }
+                    if (normalized.type === 'call' && !normalized.phoneNumber) {
+                        throw new Error(`Preencha o telefone do botão ${index + 1}.`);
+                    }
+                    return normalized;
+                });
+                validateUniqueInteractiveIds(replyIds, 'ID de botão');
+            }
+
+            if (draft.type === 'list') {
+                if (!Array.isArray(draft.sections) || !draft.sections.length) {
+                    throw new Error('Adicione pelo menos 1 seção na lista.');
+                }
+                const rowIds = [];
+                draft.sections = draft.sections.map((section, sectionIndex) => ({
+                    title: String(section.title || '').trim() || `Secao ${sectionIndex + 1}`,
+                    rows: (Array.isArray(section.rows) ? section.rows : []).filter(row => String(row.title || '').trim()).map((row, rowIndex) => {
+                        const normalized = normalizeFlowListRowItem(row, sectionIndex, rowIndex);
+                        rowIds.push(normalized.rowId);
+                        return normalized;
+                    })
+                }));
+                if (draft.sections.some(section => !section.rows.length)) {
+                    throw new Error('Cada seção precisa ter pelo menos 1 item.');
+                }
+                validateUniqueInteractiveIds(rowIds, 'rowId');
+            }
+
+            if (draft.type === 'carousel') {
+                if (!Array.isArray(draft.cards) || !draft.cards.length) {
+                    throw new Error('Adicione pelo menos 1 card no carrossel.');
+                }
+                const replyIds = [];
+                draft.cards = draft.cards.map((card, cardIndex) => ({
+                    title: String(card.title || '').trim(),
+                    description: String(card.description || '').trim(),
+                    image: String(card.image || card.imageUrl || '').trim(),
+                    imageUrl: String(card.image || card.imageUrl || '').trim(),
+                    buttons: (Array.isArray(card.buttons) ? card.buttons : []).filter(button => String(button.displayText || '').trim()).map((button, buttonIndex) => {
+                        const normalized = normalizeFlowButtonItem(button, buttonIndex, `card_${cardIndex + 1}`);
+                        if (normalized.type === 'reply') replyIds.push(normalized.id);
+                        if (normalized.type === 'url' && !normalized.url) {
+                            throw new Error(`Preencha o link do botão ${buttonIndex + 1} do card ${cardIndex + 1}.`);
+                        }
+                        if (normalized.type === 'call' && !normalized.phoneNumber) {
+                            throw new Error(`Preencha o telefone do botão ${buttonIndex + 1} do card ${cardIndex + 1}.`);
+                        }
+                        return normalized;
+                    })
+                }));
+                validateUniqueInteractiveIds(replyIds, 'ID de botão do carrossel');
+            }
+        }
+
+        function renderFlowPreviewButtons(buttons) {
+            if (!Array.isArray(buttons) || !buttons.length) {
+                return '<div class="flow-preview-empty">Adicione botões para ver a prévia.</div>';
+            }
+            return `
+                <div class="flow-preview-actions">
+                    ${buttons.map((button) => `
+                        <div class="flow-preview-action ${button.type === 'reply' ? '' : 'flow-preview-action--muted'}">
+                            ${button.type === 'url' ? '<i class="fas fa-link"></i> ' : (button.type === 'call' ? '<i class="fas fa-phone"></i> ' : '')}
+                            ${escapeSummary(button.displayText || 'Botão')}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderFlowInteractivePreviewHtml(draft) {
+            if (!draft) return '';
+            const previewHeader = `
+                <div class="flow-preview-phone">
+                    <div class="flow-preview-phone__screen">
+                        <div class="flow-preview-phone__header">
+                            <span>Prévia no WhatsApp</span>
+                            <span>Agora</span>
+                        </div>
+            `;
+            const previewFooter = `
+                    </div>
+                </div>
+            `;
+
+            if (draft.type === 'buttons') {
+                const image = getFlowInteractivePreviewImage(draft.imageUrl);
+                return previewHeader + `
+                    <div class="flow-preview-bubble">
+                        ${image ? `<img src="${image}" alt="Prévia da imagem">` : ''}
+                        ${draft.title ? `<div class="flow-preview-bubble__title">${escapeSummary(draft.title)}</div>` : ''}
+                        ${draft.text ? `<div class="flow-preview-bubble__text">${escapeSummary(draft.text)}</div>` : ''}
+                        ${draft.footerText ? `<div class="flow-preview-bubble__footer">${escapeSummary(draft.footerText)}</div>` : ''}
+                        ${renderFlowPreviewButtons(draft.buttons || [])}
+                    </div>
+                ` + previewFooter;
+            }
+
+            if (draft.type === 'list') {
+                return previewHeader + `
+                    <div class="flow-preview-bubble">
+                        ${draft.title ? `<div class="flow-preview-bubble__title">${escapeSummary(draft.title)}</div>` : ''}
+                        ${draft.description ? `<div class="flow-preview-bubble__text">${escapeSummary(draft.description)}</div>` : ''}
+                        ${draft.footerText ? `<div class="flow-preview-bubble__footer">${escapeSummary(draft.footerText)}</div>` : ''}
+                        <div class="flow-preview-actions">
+                            <div class="flow-preview-action">${escapeSummary(draft.buttonText || 'Abrir menu')}</div>
+                        </div>
+                    </div>
+                    <div class="flow-preview-list-sheet">
+                        ${(draft.sections || []).map((section) => `
+                            <div class="flow-preview-list-sheet__section">
+                                <div class="flow-preview-list-sheet__title">${escapeSummary(section.title || 'Seção')}</div>
+                                ${(section.rows || []).map((row) => `
+                                    <div class="flow-preview-list-row">
+                                        <strong>${escapeSummary(row.title || 'Item')}</strong>
+                                        ${row.description ? `<span>${escapeSummary(row.description)}</span>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` + previewFooter;
+            }
+
+            if (draft.type === 'carousel') {
+                return previewHeader + `
+                    <div class="flow-preview-bubble">
+                        ${draft.description ? `<div class="flow-preview-bubble__text">${escapeSummary(draft.description)}</div>` : ''}
+                        ${draft.footerText ? `<div class="flow-preview-bubble__footer">${escapeSummary(draft.footerText)}</div>` : ''}
+                    </div>
+                    <div class="flow-preview-carousel">
+                        ${(draft.cards || []).map((card) => `
+                            <div class="flow-preview-carousel__card">
+                                ${card.image ? `<img src="${getFlowInteractivePreviewImage(card.image)}" alt="Card">` : ''}
+                                ${card.title ? `<div class="flow-preview-bubble__title">${escapeSummary(card.title)}</div>` : ''}
+                                ${card.description ? `<div class="flow-preview-bubble__text">${escapeSummary(card.description)}</div>` : ''}
+                                ${(card.buttons && card.buttons.length) ? renderFlowPreviewButtons(card.buttons) : '<div class="flow-preview-empty" style="margin-top:10px;">Card sem botões.</div>'}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` + previewFooter;
+            }
+
+            return '';
+        }
+
+        function renderFlowInteractivePreview() {
+            const draft = syncFlowInteractiveDraft() || getFlowInteractiveDraft();
+            const preview = document.getElementById('flowInteractivePreview');
+            if (preview && draft) preview.innerHTML = renderFlowInteractivePreviewHtml(draft);
+        }
+
+        function renderButtonsStepEditorHtml(draft) {
+            return `
+                <div class="flow-interactive-layout">
+                    <div class="flow-interactive-form">
+                        <div class="flow-editor-card">
+                            <h4>Mensagem com botões</h4>
+                            <p class="flow-editor-hint">Você escolhe quantos botões quer usar, de 1 até 3. Link e telefone só aparecem quando esse tipo é selecionado.</p>
+                            <div class="flow-editor-stack">
+                                <div>
+                                    <label>Título</label>
+                                    <input type="text" id="stepButtonsTitle" class="form-control" value="${escapeSummary(draft.title || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                </div>
+                                <div>
+                                    <label>Texto</label>
+                                    <textarea id="stepButtonsText" rows="3" class="form-control" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">${escapeSummary(draft.text || '')}</textarea>
+                                </div>
+                                <div class="flow-editor-grid-2">
+                                    <div>
+                                        <label>Rodapé</label>
+                                        <input type="text" id="stepButtonsFooter" class="form-control" value="${escapeSummary(draft.footerText || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                    </div>
+                                    <div>
+                                        <label>Imagem</label>
+                                        <input type="text" id="stepButtonsImageUrl" class="form-control" value="${escapeSummary(draft.imageUrl || '')}" placeholder="https://site.com/imagem.jpg" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                    </div>
+                                </div>
+                                <input type="file" id="flowStepButtonsImageFile" accept="image/*" onchange="handleFlowButtonsImageUpload(this)" style="display:none;">
+                                <div class="flow-editor-toolbar">
+                                    <button type="button" id="flowButtonsImageUploadBtn" onclick="triggerFlowButtonsImageUpload()" class="flow-editor-action-btn flow-editor-action-btn--primary">
+                                        <i class="fas fa-cloud-upload-alt"></i> Subir imagem
+                                    </button>
+                                    <span id="flowButtonsImageStatus" style="font-size:0.82rem; color:${draft.imageUrl ? '#047857' : '#64748b'};">
+                                        ${draft.imageUrl ? 'Imagem pronta neste nó.' : 'A imagem é opcional.'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flow-editor-card">
+                            <div class="flow-editor-subcard-header">
+                                <div>
+                                    <h4 style="margin-bottom:4px;">Botões</h4>
+                                    <p class="flow-editor-hint" style="margin:0;">Botões de resposta ligam em próximos nós. Link e ligação executam a ação direto no WhatsApp.</p>
+                                </div>
+                                <button type="button" class="flow-editor-action-btn flow-editor-action-btn--primary" onclick="flowInteractiveAddButton('buttons')" ${draft.buttons.length >= 3 ? 'disabled' : ''}>
+                                    <i class="fas fa-plus"></i> Adicionar botão
+                                </button>
+                            </div>
+                            ${draft.buttons.map((button, index) => `
+                                <div class="flow-editor-subcard js-flow-button-item" data-button-index="${index}">
+                                    <div class="flow-editor-subcard-header">
+                                        <h5 class="flow-editor-subcard-title">Botão ${index + 1}</h5>
+                                        ${draft.buttons.length > 1 ? `<button type="button" class="flow-editor-action-btn flow-editor-action-btn--danger" onclick="flowInteractiveRemoveButton('buttons', ${index})"><i class="fas fa-trash"></i> Remover</button>` : ''}
+                                    </div>
+                                    <div class="flow-editor-grid-2">
+                                        <div>
+                                            <label>Tipo</label>
+                                            <select class="form-control js-flow-btn-type" onchange="syncFlowInteractiveDraft(); renderFlowInteractiveEditor();">${getFlowInteractiveButtonTypeOptions(button.type)}</select>
+                                        </div>
+                                        <div>
+                                            <label>Texto exibido</label>
+                                            <input type="text" class="form-control js-flow-btn-text" value="${escapeSummary(button.displayText || '')}" placeholder="Ex: Falar com vendas" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                        </div>
+                                    </div>
+                                    ${button.type === 'reply' ? `
+                                        <div style="margin-top:12px;">
+                                            <label>ID da resposta</label>
+                                            <input type="text" class="form-control js-flow-btn-id" value="${escapeSummary(button.id || '')}" placeholder="vendas" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                        </div>
+                                    ` : ''}
+                                    ${button.type === 'url' ? `
+                                        <div style="margin-top:12px;">
+                                            <label>Link do botão</label>
+                                            <input type="text" class="form-control js-flow-btn-url" value="${escapeSummary(button.url || '')}" placeholder="https://seusite.com" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                        </div>
+                                    ` : ''}
+                                    ${button.type === 'call' ? `
+                                        <div style="margin-top:12px;">
+                                            <label>Telefone da ligação</label>
+                                            <input type="text" class="form-control js-flow-btn-phone" value="${escapeSummary(button.phoneNumber || '')}" placeholder="5511999999999" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="flow-interactive-preview-wrap">
+                        <div id="flowInteractivePreview">${renderFlowInteractivePreviewHtml(draft)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderListStepEditorHtml(draft) {
+            return `
+                <div class="flow-interactive-layout">
+                    <div class="flow-interactive-form">
+                        <div class="flow-editor-card">
+                            <h4>Mensagem de lista</h4>
+                            <p class="flow-editor-hint">Preencha as seções e itens normalmente, sem JSON. Cada item cria uma saída visual no nó.</p>
+                            <div class="flow-editor-stack">
+                                <div>
+                                    <label>Título</label>
+                                    <input type="text" id="stepListTitle" class="form-control" value="${escapeSummary(draft.title || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                </div>
+                                <div>
+                                    <label>Descrição</label>
+                                    <textarea id="stepListDescription" rows="3" class="form-control" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">${escapeSummary(draft.description || '')}</textarea>
+                                </div>
+                                <div class="flow-editor-grid-2">
+                                    <div>
+                                        <label>Texto do botão</label>
+                                        <input type="text" id="stepListButtonText" class="form-control" value="${escapeSummary(draft.buttonText || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                    </div>
+                                    <div>
+                                        <label>Rodapé</label>
+                                        <input type="text" id="stepListFooter" class="form-control" value="${escapeSummary(draft.footerText || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flow-editor-card">
+                            <div class="flow-editor-subcard-header">
+                                <div>
+                                    <h4 style="margin-bottom:4px;">Seções e opções</h4>
+                                    <p class="flow-editor-hint" style="margin:0;">Você pode adicionar quantas seções quiser e os itens de cada uma.</p>
+                                </div>
+                                <button type="button" class="flow-editor-action-btn flow-editor-action-btn--primary" onclick="flowInteractiveAddListSection()">
+                                    <i class="fas fa-plus"></i> Adicionar seção
+                                </button>
+                            </div>
+                            ${(draft.sections || []).map((section, sectionIndex) => `
+                                <div class="flow-editor-subcard js-flow-list-section" data-section-index="${sectionIndex}">
+                                    <div class="flow-editor-subcard-header">
+                                        <h5 class="flow-editor-subcard-title">Seção ${sectionIndex + 1}</h5>
+                                        ${(draft.sections || []).length > 1 ? `<button type="button" class="flow-editor-action-btn flow-editor-action-btn--danger" onclick="flowInteractiveRemoveListSection(${sectionIndex})"><i class="fas fa-trash"></i> Remover seção</button>` : ''}
+                                    </div>
+                                    <div>
+                                        <label>Título da seção</label>
+                                        <input type="text" class="form-control js-flow-list-section-title" value="${escapeSummary(section.title || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                    </div>
+                                    <div class="flow-editor-toolbar">
+                                        <button type="button" class="flow-editor-action-btn flow-editor-action-btn--primary" onclick="flowInteractiveAddListRow(${sectionIndex})"><i class="fas fa-plus"></i> Adicionar opção</button>
+                                    </div>
+                                    <div class="flow-editor-stack" style="margin-top:10px;">
+                                        ${(section.rows || []).map((row, rowIndex) => `
+                                            <div class="flow-editor-subcard js-flow-list-row" data-row-index="${rowIndex}">
+                                                <div class="flow-editor-subcard-header">
+                                                    <h6 class="flow-editor-subcard-title">Opção ${rowIndex + 1}</h6>
+                                                    ${(section.rows || []).length > 1 ? `<button type="button" class="flow-editor-action-btn flow-editor-action-btn--danger" onclick="flowInteractiveRemoveListRow(${sectionIndex}, ${rowIndex})"><i class="fas fa-trash"></i> Remover</button>` : ''}
+                                                </div>
+                                                <div class="flow-editor-grid-2">
+                                                    <div>
+                                                        <label>Título</label>
+                                                        <input type="text" class="form-control js-flow-list-row-title" value="${escapeSummary(row.title || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                    </div>
+                                                    <div>
+                                                        <label>ID interno</label>
+                                                        <input type="text" class="form-control js-flow-list-row-id" value="${escapeSummary(row.rowId || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                    </div>
+                                                </div>
+                                                <div style="margin-top:12px;">
+                                                    <label>Descrição</label>
+                                                    <input type="text" class="form-control js-flow-list-row-description" value="${escapeSummary(row.description || '')}" placeholder="Opcional" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="flow-interactive-preview-wrap">
+                        <div id="flowInteractivePreview">${renderFlowInteractivePreviewHtml(draft)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCarouselStepEditorHtml(draft) {
+            return `
+                <div class="flow-interactive-layout">
+                    <div class="flow-interactive-form">
+                        <div class="flow-editor-card">
+                            <h4>Carrossel</h4>
+                            <p class="flow-editor-hint">Monte os cards visualmente. Você pode usar imagem, texto e botões, ou deixar algum desses itens vazio.</p>
+                            <div class="flow-editor-stack">
+                                <div>
+                                    <label>Texto de apoio</label>
+                                    <textarea id="stepCarouselDescription" rows="3" class="form-control" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">${escapeSummary(draft.description || '')}</textarea>
+                                </div>
+                                <div>
+                                    <label>Rodapé</label>
+                                    <input type="text" id="stepCarouselFooter" class="form-control" value="${escapeSummary(draft.footerText || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flow-editor-card">
+                            <div class="flow-editor-subcard-header">
+                                <div>
+                                    <h4 style="margin-bottom:4px;">Cards</h4>
+                                    <p class="flow-editor-hint" style="margin:0;">Você pode adicionar cards, remover e escolher quantos botões cada card terá.</p>
+                                </div>
+                                <button type="button" class="flow-editor-action-btn flow-editor-action-btn--primary" onclick="flowInteractiveAddCarouselCard()">
+                                    <i class="fas fa-plus"></i> Adicionar card
+                                </button>
+                            </div>
+                            <input type="file" id="flowStepCarouselImageFile" accept="image/*" onchange="handleFlowCarouselCardImageUpload(this)" style="display:none;">
+                            ${(draft.cards || []).map((card, cardIndex) => `
+                                <div class="flow-editor-subcard js-flow-carousel-card" data-card-index="${cardIndex}">
+                                    <div class="flow-editor-subcard-header">
+                                        <h5 class="flow-editor-subcard-title">Card ${cardIndex + 1}</h5>
+                                        ${(draft.cards || []).length > 1 ? `<button type="button" class="flow-editor-action-btn flow-editor-action-btn--danger" onclick="flowInteractiveRemoveCarouselCard(${cardIndex})"><i class="fas fa-trash"></i> Remover card</button>` : ''}
+                                    </div>
+                                    <div class="flow-editor-grid-2">
+                                        <div>
+                                            <label>Título</label>
+                                            <input type="text" class="form-control js-flow-carousel-card-title" value="${escapeSummary(card.title || '')}" placeholder="Opcional" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                        </div>
+                                        <div>
+                                            <label>Imagem</label>
+                                            <input type="text" class="form-control js-flow-carousel-card-image" value="${escapeSummary(card.image || card.imageUrl || '')}" placeholder="https://site.com/card.jpg" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                        </div>
+                                    </div>
+                                    <div class="flow-editor-toolbar">
+                                        <button type="button" class="flow-editor-action-btn flow-editor-action-btn--primary" onclick="triggerFlowCarouselCardImageUpload(${cardIndex})">
+                                            <i class="fas fa-cloud-upload-alt"></i> Subir imagem do card
+                                        </button>
+                                    </div>
+                                    <div style="margin-top:12px;">
+                                        <label>Descrição</label>
+                                        <textarea class="form-control js-flow-carousel-card-description" rows="3" placeholder="Opcional" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">${escapeSummary(card.description || '')}</textarea>
+                                    </div>
+                                    <div class="flow-editor-toolbar">
+                                        <button type="button" class="flow-editor-action-btn flow-editor-action-btn--primary" onclick="flowInteractiveAddButton('carousel', ${cardIndex})" ${(card.buttons || []).length >= 3 ? 'disabled' : ''}>
+                                            <i class="fas fa-plus"></i> Adicionar botão
+                                        </button>
+                                    </div>
+                                    <div class="flow-editor-stack" style="margin-top:10px;">
+                                        ${(card.buttons || []).map((button, buttonIndex) => `
+                                            <div class="flow-editor-subcard js-flow-carousel-button" data-button-index="${buttonIndex}">
+                                                <div class="flow-editor-subcard-header">
+                                                    <h6 class="flow-editor-subcard-title">Botão ${buttonIndex + 1}</h6>
+                                                    <button type="button" class="flow-editor-action-btn flow-editor-action-btn--danger" onclick="flowInteractiveRemoveButton('carousel', ${cardIndex}, ${buttonIndex})"><i class="fas fa-trash"></i> Remover</button>
+                                                </div>
+                                                <div class="flow-editor-grid-2">
+                                                    <div>
+                                                        <label>Tipo</label>
+                                                        <select class="form-control js-flow-btn-type" onchange="syncFlowInteractiveDraft(); renderFlowInteractiveEditor();">${getFlowInteractiveButtonTypeOptions(button.type)}</select>
+                                                    </div>
+                                                    <div>
+                                                        <label>Texto exibido</label>
+                                                        <input type="text" class="form-control js-flow-btn-text" value="${escapeSummary(button.displayText || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                    </div>
+                                                </div>
+                                                ${button.type === 'reply' ? `
+                                                    <div style="margin-top:12px;">
+                                                        <label>ID da resposta</label>
+                                                        <input type="text" class="form-control js-flow-btn-id" value="${escapeSummary(button.id || '')}" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                    </div>
+                                                ` : ''}
+                                                ${button.type === 'url' ? `
+                                                    <div style="margin-top:12px;">
+                                                        <label>Link do botão</label>
+                                                        <input type="text" class="form-control js-flow-btn-url" value="${escapeSummary(button.url || '')}" placeholder="https://seusite.com" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                    </div>
+                                                ` : ''}
+                                                ${button.type === 'call' ? `
+                                                    <div style="margin-top:12px;">
+                                                        <label>Telefone da ligação</label>
+                                                        <input type="text" class="form-control js-flow-btn-phone" value="${escapeSummary(button.phoneNumber || '')}" placeholder="5511999999999" oninput="syncFlowInteractiveDraft(); renderFlowInteractivePreview();">
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `).join('') || '<div class="flow-preview-empty">Card sem botão. Você pode deixar assim ou adicionar um.</div>'}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="flow-interactive-preview-wrap">
+                        <div id="flowInteractivePreview">${renderFlowInteractivePreviewHtml(draft)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderFlowInteractiveEditor() {
+            const container = document.getElementById('interactiveStepEditor');
+            const draft = getFlowInteractiveDraft();
+            if (!container || !draft) return;
+            ensureInteractiveStepDefaults(draft);
+            if (draft.type === 'buttons') {
+                container.innerHTML = renderButtonsStepEditorHtml(draft);
+                return;
+            }
+            if (draft.type === 'list') {
+                container.innerHTML = renderListStepEditorHtml(draft);
+                return;
+            }
+            if (draft.type === 'carousel') {
+                container.innerHTML = renderCarouselStepEditorHtml(draft);
+            }
+        }
+
+        window.flowInteractiveAddButton = function(scope, primaryIndex) {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            if (!draft) return;
+            if (scope === 'buttons') {
+                if ((draft.buttons || []).length >= 3) return;
+                draft.buttons.push(normalizeFlowButtonItem({ type: 'reply', displayText: `Botao ${draft.buttons.length + 1}`, id: `botao_${draft.buttons.length + 1}` }, draft.buttons.length, 'botao'));
+            } else if (scope === 'carousel') {
+                const card = draft.cards && draft.cards[Number(primaryIndex)];
+                if (!card) return;
+                if (!Array.isArray(card.buttons)) card.buttons = [];
+                if (card.buttons.length >= 3) return;
+                card.buttons.push(normalizeFlowButtonItem({ type: 'reply', displayText: `Botao ${card.buttons.length + 1}`, id: `card_${Number(primaryIndex) + 1}_botao_${card.buttons.length + 1}` }, card.buttons.length, `card_${Number(primaryIndex) + 1}`));
+            }
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveRemoveButton = function(scope, primaryIndex, secondaryIndex) {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            if (!draft) return;
+            if (scope === 'buttons') {
+                draft.buttons.splice(Number(primaryIndex), 1);
+            } else if (scope === 'carousel') {
+                const card = draft.cards && draft.cards[Number(primaryIndex)];
+                if (!card || !Array.isArray(card.buttons)) return;
+                card.buttons.splice(Number(secondaryIndex), 1);
+            }
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveAddListSection = function() {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            if (!draft) return;
+            const sectionIndex = (draft.sections || []).length;
+            draft.sections.push({
+                title: `Secao ${sectionIndex + 1}`,
+                rows: [normalizeFlowListRowItem({ title: 'Opcao 1', rowId: `secao_${sectionIndex + 1}_opcao_1` }, sectionIndex, 0)]
+            });
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveRemoveListSection = function(sectionIndex) {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            if (!draft || !Array.isArray(draft.sections)) return;
+            draft.sections.splice(Number(sectionIndex), 1);
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveAddListRow = function(sectionIndex) {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            const section = draft && draft.sections ? draft.sections[Number(sectionIndex)] : null;
+            if (!section) return;
+            if (!Array.isArray(section.rows)) section.rows = [];
+            section.rows.push(normalizeFlowListRowItem({ title: `Opcao ${section.rows.length + 1}`, rowId: `secao_${Number(sectionIndex) + 1}_opcao_${section.rows.length + 1}` }, Number(sectionIndex), section.rows.length));
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveRemoveListRow = function(sectionIndex, rowIndex) {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            const section = draft && draft.sections ? draft.sections[Number(sectionIndex)] : null;
+            if (!section || !Array.isArray(section.rows)) return;
+            section.rows.splice(Number(rowIndex), 1);
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveAddCarouselCard = function() {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            if (!draft) return;
+            const cardIndex = (draft.cards || []).length;
+            draft.cards.push({
+                title: `Card ${cardIndex + 1}`,
+                description: '',
+                image: '',
+                imageUrl: '',
+                buttons: []
+            });
+            renderFlowInteractiveEditor();
+        };
+
+        window.flowInteractiveRemoveCarouselCard = function(cardIndex) {
+            syncFlowInteractiveDraft();
+            const draft = getFlowInteractiveDraft();
+            if (!draft || !Array.isArray(draft.cards)) return;
+            draft.cards.splice(Number(cardIndex), 1);
+            renderFlowInteractiveEditor();
+        };
 
         window.addFlowStep = function(type, insertIndex, pos) {
             if(!currentFlow) return;
@@ -4463,6 +5358,8 @@
             const step = currentFlow.steps[index];
             const modal = document.getElementById('textStepModal');
             const content = modal.querySelector('.modal-content');
+            window.flowInteractiveDraftStep = null;
+            content.classList.toggle('flow-step-modal--interactive', isInteractiveFlowStep(step));
             
             let html = `<h3>Editar Etapa: ${step.type}</h3>`;
             
@@ -4544,96 +5441,17 @@
                     </div>
                 `;
             } else if(step.type === 'buttons') {
-                ensureInteractiveStepDefaults(step);
-                const buttons = getButtonsStepEditorState(step);
-                html += `
-                    <label>Título</label>
-                    <input type="text" id="stepButtonsTitle" class="form-control" value="${escapeSummary(step.title || '')}" style="width:100%; margin-top:5px; color:black;">
-                    <label style="margin-top:10px; display:block;">Texto</label>
-                    <textarea id="stepButtonsText" rows="3" class="form-control" style="width:100%; margin-top:5px; color:black;">${escapeSummary(step.text || '')}</textarea>
-                    <label style="margin-top:10px; display:block;">Rodapé</label>
-                    <input type="text" id="stepButtonsFooter" class="form-control" value="${escapeSummary(step.footerText || '')}" style="width:100%; margin-top:5px; color:black;">
-                    <label style="margin-top:10px; display:block;">Imagem (URL pública ou /uploads/...)</label>
-                    <input type="text" id="stepButtonsImageUrl" class="form-control" value="${escapeSummary(step.imageUrl || '')}" placeholder="https://site.com/imagem.jpg" style="width:100%; margin-top:5px; color:black;">
-                    <input type="file" id="flowStepButtonsImageFile" accept="image/*" onchange="handleFlowButtonsImageUpload(this)" style="display:none;">
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; margin-bottom:8px;">
-                        <button type="button" id="flowButtonsImageUploadBtn" onclick="triggerFlowButtonsImageUpload()" class="btn-secondary" style="color:black;">
-                            <i class="fas fa-cloud-upload-alt"></i> Enviar imagem
-                        </button>
-                    </div>
-                    <p id="flowButtonsImageStatus" style="font-size:0.82rem; color:${step.imageUrl ? '#047857' : '#64748b'}; margin:0 0 8px 0;">${step.imageUrl ? 'Imagem salva neste nó.' : 'Nenhuma imagem enviada ainda.'}</p>
-                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Botões de resposta ligam em próximos nós. Botões de link e ligação enviam a ação no WhatsApp e não retornam webhook de escolha.</p>
-                    <div style="display:grid; gap:12px; margin-top:12px;">
-                        ${buttons.map((button, index) => `
-                            <div style="border:1px solid #e5e7eb; border-radius:12px; padding:12px; background:#f8fafc;">
-                                <div style="display:grid; grid-template-columns: 180px 1fr; gap:10px;">
-                                    <div>
-                                        <label style="font-size:0.8rem;">Tipo do botão ${index + 1}</label>
-                                        <select id="stepButtonType${index}" class="form-control" style="width:100%; color:black;">${getFlowInteractiveButtonTypeOptions(button.type)}</select>
-                                    </div>
-                                    <div>
-                                        <label style="font-size:0.8rem;">Texto exibido</label>
-                                        <input type="text" id="stepButtonText${index}" class="form-control" value="${escapeSummary(button.displayText || '')}" placeholder="Ex: Falar com vendas" style="width:100%; color:black;">
-                                    </div>
-                                </div>
-                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
-                                    <div>
-                                        <label style="font-size:0.8rem;">ID da resposta</label>
-                                        <input type="text" id="stepButtonId${index}" class="form-control" value="${escapeSummary(button.id || '')}" placeholder="vendas" style="width:100%; color:black;">
-                                    </div>
-                                    <div>
-                                        <label style="font-size:0.8rem;">Telefone para ligação</label>
-                                        <input type="text" id="stepButtonPhone${index}" class="form-control" value="${escapeSummary(button.phoneNumber || '')}" placeholder="5511999999999" style="width:100%; color:black;">
-                                    </div>
-                                </div>
-                                <div style="margin-top:10px;">
-                                    <label style="font-size:0.8rem;">Link URL</label>
-                                    <input type="text" id="stepButtonUrl${index}" class="form-control" value="${escapeSummary(button.url || '')}" placeholder="https://seusite.com" style="width:100%; color:black;">
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
+                window.flowInteractiveDraftStep = cloneFlowStepData(step);
+                ensureInteractiveStepDefaults(window.flowInteractiveDraftStep);
+                html += `<div id="interactiveStepEditor"></div>`;
             } else if(step.type === 'list') {
-                ensureInteractiveStepDefaults(step);
-                html += `
-                    <label>Título</label>
-                    <input type="text" id="stepListTitle" class="form-control" value="${escapeSummary(step.title || '')}" style="width:100%; margin-top:5px; color:black;">
-                    <label style="margin-top:10px; display:block;">Descrição</label>
-                    <textarea id="stepListDescription" rows="3" class="form-control" style="width:100%; margin-top:5px; color:black;">${escapeSummary(step.description || '')}</textarea>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
-                        <div>
-                            <label style="font-size:0.8rem;">Texto do botão</label>
-                            <input type="text" id="stepListButtonText" class="form-control" value="${escapeSummary(step.buttonText || '')}" style="width:100%; color:black;">
-                        </div>
-                        <div>
-                            <label style="font-size:0.8rem;">Rodapé</label>
-                            <input type="text" id="stepListFooter" class="form-control" value="${escapeSummary(step.footerText || '')}" style="width:100%; color:black;">
-                        </div>
-                    </div>
-                    <label style="margin-top:10px; display:block;">Sections (JSON)</label>
-                    <textarea id="stepListSectionsJson" rows="10" class="form-control" style="width:100%; margin-top:5px; color:black; font-family:monospace;">${escapeSummary(JSON.stringify(step.sections || [], null, 2))}</textarea>
-                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Use os campos title, rows, rowId e description. Cada rowId cria uma saída própria no nó.</p>
-                `;
+                window.flowInteractiveDraftStep = cloneFlowStepData(step);
+                ensureInteractiveStepDefaults(window.flowInteractiveDraftStep);
+                html += `<div id="interactiveStepEditor"></div>`;
             } else if(step.type === 'carousel') {
-                ensureInteractiveStepDefaults(step);
-                html += `
-                    <label>Texto de apoio</label>
-                    <textarea id="stepCarouselDescription" rows="3" class="form-control" style="width:100%; margin-top:5px; color:black;">${escapeSummary(step.description || '')}</textarea>
-                    <label style="margin-top:10px; display:block;">Rodapé</label>
-                    <input type="text" id="stepCarouselFooter" class="form-control" value="${escapeSummary(step.footerText || '')}" style="width:100%; margin-top:5px; color:black;">
-                    <input type="file" id="flowStepCarouselImageFile" accept="image/*" onchange="handleFlowCarouselCardImageUpload(this)" style="display:none;">
-                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px;">
-                        <input type="number" id="stepCarouselImageCardIndex" min="1" max="${Math.max(1, (step.cards || []).length)}" value="1" class="form-control" style="width:110px; color:black;" placeholder="Card">
-                        <button type="button" id="flowCarouselImageUploadBtn" onclick="triggerFlowCarouselCardImageUpload()" class="btn-secondary" style="color:black;">
-                            <i class="fas fa-cloud-upload-alt"></i> Enviar imagem para card
-                        </button>
-                    </div>
-                    <p id="flowCarouselImageStatus" style="font-size:0.82rem; color:#64748b; margin:8px 0 8px 0;">Você pode subir a imagem e ela entra direto no JSON do card.</p>
-                    <label style="margin-top:10px; display:block;">Cards (JSON)</label>
-                    <textarea id="stepCarouselCardsJson" rows="12" class="form-control" style="width:100%; margin-top:5px; color:black; font-family:monospace;">${escapeSummary(JSON.stringify(step.cards || [], null, 2))}</textarea>
-                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Cada card aceita title, description, image e buttons. Nos botões use type igual a reply, url ou call. Os ids dos botões de resposta precisam ser únicos no carrossel inteiro.</p>
-                `;
+                window.flowInteractiveDraftStep = cloneFlowStepData(step);
+                ensureInteractiveStepDefaults(window.flowInteractiveDraftStep);
+                html += `<div id="interactiveStepEditor"></div>`;
             } else if(step.type === 'kanban_move') {
                 let options = '';
                 if(window.columns) {
@@ -4682,9 +5500,13 @@
             
             content.innerHTML = html;
             modal.style.display = 'flex';
+            if (isInteractiveFlowStep(step)) {
+                renderFlowInteractiveEditor();
+            }
         };
 
         window.closeStepModal = function() {
+            window.flowInteractiveDraftStep = null;
             document.getElementById('textStepModal').style.display = 'none';
         };
 
@@ -4721,27 +5543,22 @@
                     step.exactMatchFlowId = document.getElementById('stepExactMatchFlowId').value;
                 }
                 if(step.type === 'buttons') {
-                    collectButtonsStepFromModal(step);
+                    const draft = syncFlowInteractiveDraft();
+                    validateInteractiveDraftStep(draft);
+                    Object.keys(step).forEach((key) => delete step[key]);
+                    Object.assign(step, cloneFlowStepData(draft));
                 }
                 if(step.type === 'list') {
-                    const sections = parseJsonTextarea('stepListSectionsJson', 'Sections da lista')
-                        .map((section, index) => normalizeFlowListSectionItem(section, index));
-                    const rowIds = sections.flatMap(section => (section.rows || []).map(row => row.rowId));
-                    validateUniqueInteractiveIds(rowIds, 'rowId');
-                    step.title = String(document.getElementById('stepListTitle')?.value || '').trim();
-                    step.description = String(document.getElementById('stepListDescription')?.value || '').trim();
-                    step.buttonText = String(document.getElementById('stepListButtonText')?.value || '').trim() || 'Abrir menu';
-                    step.footerText = String(document.getElementById('stepListFooter')?.value || '').trim();
-                    step.sections = sections;
+                    const draft = syncFlowInteractiveDraft();
+                    validateInteractiveDraftStep(draft);
+                    Object.keys(step).forEach((key) => delete step[key]);
+                    Object.assign(step, cloneFlowStepData(draft));
                 }
                 if(step.type === 'carousel') {
-                    const cards = parseJsonTextarea('stepCarouselCardsJson', 'Cards do carrossel')
-                        .map((card, index) => normalizeFlowCarouselCardItem(card, index));
-                    const replyIds = cards.flatMap(card => (card.buttons || []).filter(button => button.type === 'reply').map(button => button.id));
-                    validateUniqueInteractiveIds(replyIds, 'ID de botão do carrossel');
-                    step.description = String(document.getElementById('stepCarouselDescription')?.value || '').trim();
-                    step.footerText = String(document.getElementById('stepCarouselFooter')?.value || '').trim();
-                    step.cards = cards;
+                    const draft = syncFlowInteractiveDraft();
+                    validateInteractiveDraftStep(draft);
+                    Object.keys(step).forEach((key) => delete step[key]);
+                    Object.assign(step, cloneFlowStepData(draft));
                 }
                 ensureInteractiveStepDefaults(step);
                 renderFlowSteps();
@@ -5606,28 +6423,68 @@
              const badge = document.getElementById('waRunningFlowsBadge');
              if (!list) return;
              
+             const active = data && data.active ? data.active : (data || {});
+             const history = Array.isArray(data && data.history) ? data.history : [];
              let total = 0;
              let html = '';
              
-             for (const flowId in data) {
-                 const info = data[flowId];
+             for (const flowId in active) {
+                 const info = active[flowId];
                  total += info.count;
                  html += `
-                 <div style="padding:10px; border-bottom:1px solid #eee; background:white; margin-bottom:5px; border-radius:5px;">
-                    <div style="font-weight:bold; color:#333;">Fluxo ID: ${flowId}</div>
-                    <div style="font-size:0.85rem; color:#666; display:flex; gap:10px;">
+                 <div style="padding:10px; border:1px solid #e5e7eb; background:white; margin-bottom:8px; border-radius:10px;">
+                    <div style="font-weight:bold; color:#333;">${info.flowName || ('Fluxo ID: ' + flowId)}</div>
+                    <div style="font-size:0.85rem; color:#666; display:flex; gap:10px; margin-top:4px;">
                         <span><i class="fas fa-play-circle" style="color:green;"></i> Ativos: ${info.count}</span>
                         <span><i class="fas fa-clock" style="color:orange;"></i> Aguardando: ${info.waitingCount}</span>
                     </div>
+                    ${(Array.isArray(info.items) ? info.items : []).map((item) => `
+                        <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #e5e7eb; font-size:0.8rem; color:#475569;">
+                            <div><strong>Chat:</strong> ${escapeSummary(item.chatId || '')}</div>
+                            <div><strong>Etapa:</strong> ${Number(item.step || 0) + 1} ${item.action ? `| <strong>Ação:</strong> ${escapeSummary(item.action)}` : ''}</div>
+                        </div>
+                    `).join('')}
                  </div>`;
              }
+
+             const historyHtml = history.slice(0, 20).map((item) => {
+                 const statusColor = item.status === 'success'
+                     ? '#047857'
+                     : (item.status === 'error' ? '#b91c1c' : '#2563eb');
+                 const statusLabel = item.status === 'success'
+                     ? 'Sucesso'
+                     : (item.status === 'error' ? 'Falha' : 'Rodando');
+                 return `
+                    <div style="padding:10px; border:1px solid #e5e7eb; background:#fff; margin-bottom:8px; border-radius:10px;">
+                        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+                            <div style="font-weight:700; color:#111827;">${escapeSummary(item.flowName || 'Fluxo')}</div>
+                            <span style="font-size:0.76rem; font-weight:800; color:${statusColor};">${statusLabel}</span>
+                        </div>
+                        <div style="font-size:0.8rem; color:#475569; margin-top:6px;">${escapeSummary(item.chatId || '')}</div>
+                        ${item.message ? `<div style="font-size:0.78rem; color:#64748b; margin-top:4px;">${escapeSummary(item.message)}</div>` : ''}
+                        ${item.error ? `<div style="font-size:0.78rem; color:#b91c1c; margin-top:4px;">${escapeSummary(item.error)}</div>` : ''}
+                    </div>
+                 `;
+             }).join('');
              
-             list.innerHTML = html || '<div style="padding:20px; text-align:center; color:#888;">Nenhum fluxo em execução.</div>';
+             list.innerHTML = (html
+                ? `<div style="margin-bottom:12px;"><div style="font-size:0.76rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Ativos agora</div>${html}</div>`
+                : '<div style="padding:14px; text-align:center; color:#888; border:1px dashed #d1d5db; border-radius:10px; margin-bottom:12px;">Nenhum fluxo em execução.</div>')
+                + (historyHtml
+                    ? `<div><div style="font-size:0.76rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; margin:8px 0;">Últimas execuções</div>${historyHtml}</div>`
+                    : '');
              
              if (badge) {
                  badge.innerText = total;
                  badge.style.display = total > 0 ? 'block' : 'none';
              }
+        });
+        window.socket.on('flow-execution-error', (payload) => {
+            window.toggleRunningFlowsDrawer(true);
+            window.socket.emit('get-flows-usage', { sessionId: window.sessionId });
+            if (window.showToast) {
+                window.showToast(`Falha no fluxo: ${payload && payload.error ? payload.error : 'erro desconhecido'}`, 'error');
+            }
         });
 
         // Modal Helpers
@@ -7884,8 +8741,15 @@
                 sessionId: window.sessionId,
                 chatId: window.currentWaChatId,
                 flowId: flow.id
+            }, (res) => {
+                window.toggleRunningFlowsDrawer(true);
+                window.socket.emit('get-flows-usage', { sessionId: window.sessionId });
+                if (res && res.ok) {
+                    if (window.showToast) window.showToast('Fluxo iniciado!', 'success');
+                } else if (window.showToast) {
+                    window.showToast(`Falha ao iniciar fluxo: ${res && res.error ? res.error : 'erro desconhecido'}`, 'error');
+                }
             });
-            if (window.showToast) window.showToast('Fluxo iniciado!', 'success');
             window._pendingFlow = null;
         };
     </script>

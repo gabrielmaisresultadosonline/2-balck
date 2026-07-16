@@ -148,6 +148,12 @@ class EvolutionApi {
         });
     }
 
+    async findContacts(instanceName, payload = {}) {
+        return this.request('post', `/chat/findContacts/${encodeURIComponent(instanceName)}`, {
+            data: payload
+        });
+    }
+
     async findMessages(instanceName, payload = {}) {
         return this.request('post', `/chat/findMessages/${encodeURIComponent(instanceName)}`, {
             data: payload
