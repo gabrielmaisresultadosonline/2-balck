@@ -36,34 +36,51 @@ npm i -g pm2
 if ! command -v docker >/dev/null 2>&1; then
   apt-mark unhold containerd containerd.io docker-ce docker-ce-cli docker.io >/dev/null 2>&1 || true
 
-  apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc >/dev/null 2>&1 || true
-  apt-get autoremove -y >/dev/null 2>&1 || true
-
-  apt-get install -y lsb-release >/dev/null 2>&1 || true
-  mkdir -p /etc/apt/keyrings
-
-  if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-  fi
-
-  CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
-  if [[ -n "${CODENAME}" ]]; then
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${CODENAME} stable" \
-      > /etc/apt/sources.list.d/docker.list
-  fi
-
-  apt-get update -y
-
+  # 1) Primeiro tenta instalar pelo repo do Ubuntu (mais estável em VPS/Hostinger)
   set +e
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  DOCKER_INSTALL_CODE="$?"
+  apt-get install -y docker.io docker-compose-plugin >/dev/null 2>&1
   set -e
 
-  if [[ "${DOCKER_INSTALL_CODE}" -ne 0 ]]; then
-    apt-get install -y docker.io docker-compose-plugin
+  # 2) Se não instalou, tenta via repo oficial do Docker (docker-ce)
+  if ! command -v docker >/dev/null 2>&1; then
+    apt-get remove -y docker.io docker-doc docker-compose podman-docker containerd runc >/dev/null 2>&1 || true
+    apt-get autoremove -y >/dev/null 2>&1 || true
+
+    apt-get install -y lsb-release >/dev/null 2>&1 || true
+    mkdir -p /etc/apt/keyrings
+
+    if [[ ! -f /etc/apt/keyrings/docker.gpg ]]; then
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+    fi
+
+    CODENAME="$(. /etc/os-release && echo "${VERSION_CODENAME:-}")"
+    if [[ -n "${CODENAME}" ]]; then
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu ${CODENAME} stable" \
+        > /etc/apt/sources.list.d/docker.list
+    fi
+
+    apt-get update -y
+
+    set +e
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    DOCKER_INSTALL_CODE="$?"
+    set -e
+
+    if [[ "${DOCKER_INSTALL_CODE}" -ne 0 ]]; then
+      echo "Falha ao instalar docker-ce. Tentando fallback docker.io..."
+      rm -f /etc/apt/sources.list.d/docker.list >/dev/null 2>&1 || true
+      apt-get update -y
+      apt-get install -y docker.io docker-compose-plugin
+    fi
   fi
 fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker não foi instalado. Verifique conflitos de packages (containerd/containerd.io)."
+  exit 1
+fi
+
 systemctl enable --now docker
 systemctl enable --now nginx
 
