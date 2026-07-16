@@ -2594,6 +2594,7 @@ const FLOW_TIME_UNITS = Object.freeze({
     minutes: 60000,
     hours: 3600000
 });
+const FLOW_TEXT_MIN_TYPING_MS = 3000;
 
 function getFlowTimeUnit(unit, fallback = 'milliseconds') {
     return Object.prototype.hasOwnProperty.call(FLOW_TIME_UNITS, unit) ? unit : fallback;
@@ -2604,9 +2605,20 @@ function sanitizeFlowDurationMs(value) {
     return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
 }
 
+function getTextStepTypingDurationMs(step) {
+    const direct = sanitizeFlowDurationMs(step && step.typingDuration);
+    return Math.max(FLOW_TEXT_MIN_TYPING_MS, direct || FLOW_TEXT_MIN_TYPING_MS);
+}
+
 function normalizeFlowStep(step) {
     if (!step || typeof step !== 'object') return step;
     const normalized = { ...step };
+
+    if (normalized.type === 'text') {
+        normalized.content = String(normalized.content || '').trim();
+        normalized.typingDuration = getTextStepTypingDurationMs(normalized);
+        normalized.typingUnit = getFlowTimeUnit(normalized.typingUnit, 'seconds');
+    }
 
     if (normalized.type === 'delay') {
         const preferredUnit = getFlowTimeUnit(normalized.timeUnit, 'milliseconds');
@@ -4244,38 +4256,38 @@ async function executeFlowStep(sessionId, chatId, flow, stepIndex, client) {
 
     try {
         if (step.type === 'text') {
+            const typingDurationMs = getTextStepTypingDurationMs(step);
             if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
-                activeFlows[sessionId][chatId].action = step.typingDuration && Number(step.typingDuration) > 0 ? 'typing' : 'sending_text';
+                activeFlows[sessionId][chatId].action = 'typing';
                 activeFlows[sessionId][chatId].updatedAt = Date.now();
             }
             emitFlowUsage(sessionId);
-            if (step.typingDuration && Number(step.typingDuration) > 0) {
-                try {
-                    const chat = await client.getChatById(chatId);
-                    const totalMs = Math.max(0, Number(step.typingDuration));
-                    const tickMs = 7000;
-                    const endAt = Date.now() + totalMs;
-                    while (Date.now() < endAt) {
-                        const stillActive = activeFlows[sessionId]?.[chatId] && String(activeFlows[sessionId][chatId].flowId) === String(flow.id);
-                        if (!stillActive) {
-                            try { await chat.clearState(); } catch (e) {}
-                            return;
-                        }
-                        const remaining = endAt - Date.now();
-                        try { await chat.sendStateTyping(); } catch (e) {}
-                        await new Promise(resolve => setTimeout(resolve, Math.min(tickMs, remaining)));
+            try {
+                const chat = await client.getChatById(chatId);
+                const tickMs = 7000;
+                const endAt = Date.now() + typingDurationMs;
+                logFlowDebug(sessionId, chatId, flow, stepIndex, 'typing_simulation_start', { typingDurationMs });
+                while (Date.now() < endAt) {
+                    const stillActive = activeFlows[sessionId]?.[chatId] && String(activeFlows[sessionId][chatId].flowId) === String(flow.id);
+                    if (!stillActive) {
+                        try { await chat.clearState(); } catch (e) {}
+                        return;
                     }
-                    try { await chat.clearState(); } catch (e) {}
-                } catch (e) {
-                    console.error('Error simulating typing:', e);
+                    const remaining = endAt - Date.now();
+                    try { await chat.sendStateTyping(); } catch (e) {}
+                    await new Promise(resolve => setTimeout(resolve, Math.min(tickMs, remaining)));
                 }
+                try { await chat.clearState(); } catch (e) {}
+            } catch (e) {
+                console.error('Error simulating typing:', e);
             }
             
             const hasUrl = typeof step.content === 'string' && /https?:\/\/\S+/i.test(step.content);
             const options = hasUrl ? { linkPreview: false } : undefined;
             logFlowDebug(sessionId, chatId, flow, stepIndex, 'text_send_attempt', {
                 text: String(step.content || ''),
-                hasUrl
+                hasUrl,
+                typingDurationMs
             });
             const sentMsg = await client.sendMessage(chatId, step.content, options);
             await handleSentMessage(sessionId, sentMsg, client);

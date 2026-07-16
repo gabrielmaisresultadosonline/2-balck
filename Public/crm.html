@@ -3619,6 +3619,7 @@
             minutes: { label: 'Minutos', shortLabel: 'min', multiplier: 60000 },
             hours: { label: 'Horas', shortLabel: 'h', multiplier: 3600000 }
         };
+        const FLOW_TEXT_MIN_TYPING_MS = 3000;
 
         function getFlowTimeUnit(unit, fallback = 'milliseconds') {
             return FLOW_TIME_UNITS[unit] ? unit : fallback;
@@ -3665,6 +3666,15 @@
 
         function getWaitTimeoutUnit(step) {
             return getFlowTimeUnit(step && step.timeoutUnit, 'minutes');
+        }
+
+        function getTextStepTypingMs(step) {
+            const direct = Number(step && step.typingDuration);
+            return Math.max(FLOW_TEXT_MIN_TYPING_MS, Number.isFinite(direct) ? Math.max(0, Math.round(direct)) : FLOW_TEXT_MIN_TYPING_MS);
+        }
+
+        function getTextStepTypingUnit(step) {
+            return getFlowTimeUnit(step && step.typingUnit, 'seconds');
         }
 
         function durationMsToInputValue(ms, unit) {
@@ -4932,6 +4942,10 @@
             };
             
             if(type === 'text') newStep.content = 'Olá!';
+            if(type === 'text') {
+                newStep.typingDuration = FLOW_TEXT_MIN_TYPING_MS;
+                newStep.typingUnit = 'seconds';
+            }
             if(type === 'delay') {
                 newStep.content = '1';
                 newStep.time = 1000;
@@ -5147,7 +5161,7 @@
                 const m = meta[step.type] || { icon:'fa-cube', title:'Etapa', color:'#64748b' };
                 let summary = '';
                 switch(step.type) {
-                    case 'text': summary = step.content || 'Escreva sua mensagem…'; break;
+                    case 'text': summary = `${step.content || 'Escreva sua mensagem…'} | digitando ${formatDurationLabel(getTextStepTypingMs(step), getTextStepTypingUnit(step))}`; break;
                     case 'image': case 'audio': case 'video': case 'file': summary = getStepMediaDisplay(step) || 'Mídia anexada'; break;
                     case 'delay': summary = formatDurationLabel(getDelayStepMs(step), step.timeUnit); break;
                     case 'wait_response': {
@@ -5371,6 +5385,14 @@
                 html += `
                     <label>Mensagem</label>
                     <textarea id="stepContent" rows="5" class="form-control" style="width:100%; margin-top:5px; color:black;">${step.content}</textarea>
+                    <div style="margin-top:12px;">
+                        <label>Tempo simulando digitacao</label>
+                        <div style="display:grid; grid-template-columns:minmax(0, 1fr) 200px; gap:10px; margin-top:5px;">
+                            <input type="number" id="stepTypingDuration" class="form-control" min="3" step="any" value="${durationMsToInputValue(getTextStepTypingMs(step), getTextStepTypingUnit(step))}" style="width:100%; color:black;">
+                            <select id="stepTypingUnit" class="form-control" style="width:100%; color:black;">${getFlowTimeUnitOptions(getTextStepTypingUnit(step))}</select>
+                        </div>
+                    </div>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:6px;">Cada mensagem de texto vai simular digitando antes de enviar. O minimo e 3 segundos para nao disparar tudo em cima.</p>
                     <p style="font-size:0.8rem; color:#aaa; margin-top:5px;">Use {nome} para o nome do contato.</p>
                 `;
             } else if(step.type === 'delay') {
@@ -5520,6 +5542,14 @@
                 if(['text', 'kanban_move'].includes(step.type)) {
                     const input = document.getElementById('stepContent');
                     if(input) step.content = input.value;
+                    if (step.type === 'text') {
+                        const typingInput = document.getElementById('stepTypingDuration');
+                        const typingUnit = getFlowTimeUnit(document.getElementById('stepTypingUnit') && document.getElementById('stepTypingUnit').value, 'seconds');
+                        const typingValue = parseOptionalNumber(typingInput && typingInput.value);
+                        const typingMs = Math.max(FLOW_TEXT_MIN_TYPING_MS, durationToMs(typingValue, typingUnit, 'seconds'));
+                        step.typingDuration = typingMs;
+                        step.typingUnit = typingUnit;
+                    }
                 }
                 if(step.type === 'delay') {
                     const input = document.getElementById('stepContent');
