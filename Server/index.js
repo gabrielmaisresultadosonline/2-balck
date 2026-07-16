@@ -775,7 +775,7 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
         unreadCount: Number(chat.unreadCount || chat.unread || 0) || 0,
         timestamp: normalizeEvolutionTimestamp(chat.updatedAt || chat.messageTimestamp || lastMessageObj.messageTimestamp || chat.timestamp),
         lastMessage: lastContent.body || chat.lastMessageText || chat.lastMessage || '',
-        profilePic: chat.profilePictureUrl || chat.profilePicUrl || null
+        profilePic: sanitizeEvolutionUrl(chat.profilePictureUrl || chat.profilePicUrl || null)
     };
 }
 
@@ -948,6 +948,7 @@ function createEvolutionChatWrapper(sessionId, chatId) {
         name: cached && cached.name ? sanitizeEvolutionText(cached.name) : '',
         phoneNumber: cached && cached.phoneNumber ? sanitizeEvolutionText(cached.phoneNumber) : '',
         unreadCount: Number(cached && cached.unreadCount ? cached.unreadCount : 0) || 0,
+        profilePic: sanitizeEvolutionUrl(cached && cached.profilePic ? cached.profilePic : null),
         timestamp: cachedTimestamp,
         lastMessage: {
             id: { _serialized: `cache-last-${normalizedChatId}-${cachedTimestamp}` },
@@ -1462,6 +1463,12 @@ function sanitizeEvolutionText(value) {
     return String(value == null ? '' : value)
         .replace(/^[`"' ]+|[`"' ]+$/g, '')
         .trim();
+}
+
+function sanitizeEvolutionUrl(value) {
+    const cleaned = sanitizeEvolutionText(value);
+    if (!cleaned) return null;
+    return /^https?:\/\//i.test(cleaned) ? cleaned : null;
 }
 
 function getChatPreviewSafe(value) {
@@ -5230,7 +5237,11 @@ io.on('connection', (socket) => {
                         const rec = phoneDigits ? contactByDigits.get(phoneDigits) : null;
                         const contactName = rec && rec.name ? String(rec.name).trim() : '';
                         const name = chatStatus.customName || contactName || chat.name || (cached && cached.name ? String(cached.name) : '') || phoneNumber || 'Unknown';
-                        const profilePic = cached && cached.profilePic ? String(cached.profilePic) : null;
+                        const profilePic = sanitizeEvolutionUrl(
+                            (chat && chat.profilePic) ||
+                            (cached && cached.profilePic) ||
+                            null
+                        );
 
                         formattedChats.push({
                             id: displayChatId,

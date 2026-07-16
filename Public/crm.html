@@ -2008,6 +2008,11 @@
             return String(value || '').replace(/\D+/g, '');
         }
 
+        function sanitizeMediaUrl(value) {
+            const cleaned = String(value || '').replace(/^[`"' ]+|[`"' ]+$/g, '').trim();
+            return /^https?:\/\//i.test(cleaned) ? cleaned : '';
+        }
+
         function formatPhoneDisplay(value) {
             const digits = extractDigits(value);
             if (!digits) return '';
@@ -2015,6 +2020,7 @@
             if (digits.length === 12) return `+${digits.slice(0,2)} ${digits.slice(2,4)} ${digits.slice(4,8)}-${digits.slice(8)}`;
             if (digits.length === 11) return `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
             if (digits.length === 10) return `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+            if (digits.length > 13) return `+${digits}`;
             return digits;
         }
 
@@ -2423,10 +2429,12 @@
 
         window.socket.on('profile-pic-updated', (data) => {
             if (!data || !data.chatId || !data.profilePic) return;
+            const cleanProfilePic = sanitizeMediaUrl(data.profilePic);
+            if (!cleanProfilePic) return;
             
             // Update global data
             if (window.allChatsData[data.chatId]) {
-                window.allChatsData[data.chatId].profilePic = data.profilePic;
+                window.allChatsData[data.chatId].profilePic = cleanProfilePic;
                 
                 // Update Kanban Card
                 const card = document.querySelector(`.kanban-card[data-id="${data.chatId}"]`);
@@ -2440,7 +2448,7 @@
                 if (chatItem) {
                     const avatarDiv = chatItem.querySelector('div[style*="width: 50px"]');
                     if (avatarDiv) {
-                        avatarDiv.innerHTML = `<img src="${data.profilePic}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+                        avatarDiv.innerHTML = `<img src="${cleanProfilePic}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
                     }
                 }
                 
@@ -2448,7 +2456,7 @@
                 if (window.currentWaChatId === data.chatId) {
                      const headerAvatar = document.querySelector('#waChatHeader .chat-avatar');
                      if (headerAvatar) {
-                         headerAvatar.innerHTML = `<img src="${data.profilePic}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+                         headerAvatar.innerHTML = `<img src="${cleanProfilePic}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
                      }
                 }
             }
@@ -2484,7 +2492,8 @@
                     const displayName = getChatDisplayName(chat);
                     const displayPhone = formatPhoneDisplay(getChatPhone(chat));
                     const subtitle = lastMsg.substring(0, 30) + (lastMsg.length > 30 ? '...' : '');
-                    const avatar = chat.profilePic ? `<img src="${chat.profilePic}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">` : '<div style="width:100%; height:100%; background:#ddd; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#666;"><i class="fas fa-user"></i></div>';
+                    const photoUrl = sanitizeMediaUrl(chat.profilePic);
+                    const avatar = photoUrl ? `<img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">` : '<div style="width:100%; height:100%; background:#ddd; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#666;"><i class="fas fa-user"></i></div>';
                     
                     const aiIcon = chat.aiActive ? '<i class="fas fa-robot ai-sidebar-icon" title="I.A. Ativa"></i>' : '';
 
