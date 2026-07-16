@@ -2811,6 +2811,100 @@ function findFlowInteractiveBranch(step, replyId) {
     return getFlowInteractiveBranches(step).find(branch => normalizeFlowInteractiveId(branch.id) === normalized) || null;
 }
 
+function getEvolutionErrorMessages(error) {
+    const responsePayload = error?.evolutionResponse || error?.response?.data || null;
+    const rawMessages = responsePayload?.response?.message;
+    if (Array.isArray(rawMessages)) return rawMessages.map((item) => String(item || '').trim()).filter(Boolean);
+    if (rawMessages) return [String(rawMessages).trim()].filter(Boolean);
+    if (error && error.message) return [String(error.message).trim()].filter(Boolean);
+    return [];
+}
+
+function isEvolutionInteractiveCompatibilityError(error) {
+    return getEvolutionErrorMessages(error).some((message) => /isZero is not a function/i.test(message));
+}
+
+function buildFlowInteractiveFallbackText(step, kind) {
+    if (!step || !kind) return '';
+
+    const lines = [];
+    const pushLine = (value = '') => lines.push(String(value || '').trim());
+    const joinLines = () => lines.filter((line, index, arr) => line || (arr[index - 1] && arr[index - 1] !== '')).join('\n').trim();
+
+    if (kind === 'buttons') {
+        const title = String(step.title || '').trim();
+        const text = String(step.text || step.bodyText || step.content || '').trim();
+        const footer = String(step.footerText || step.footer || '').trim();
+        const buttons = Array.isArray(step.buttons) ? step.buttons.map((button, index) => normalizeFlowButtonConfig(button, index, 'button')) : [];
+        if (title) pushLine(`*${title}*`);
+        if (text) pushLine(text);
+        if (buttons.length) {
+            pushLine('');
+            pushLine('Opcoes:');
+            buttons.forEach((button) => {
+                if (button.type === 'reply') pushLine(`- ${button.displayText} (responda: ${button.id})`);
+                else if (button.type === 'url' && button.url) pushLine(`- ${button.displayText}: ${button.url}`);
+                else if (button.type === 'call' && button.phoneNumber) pushLine(`- ${button.displayText}: ${button.phoneNumber}`);
+                else if (button.type === 'copy' && button.copyCode) pushLine(`- ${button.displayText}: ${button.copyCode}`);
+                else if (button.type === 'pix' && button.pixKey) pushLine(`- ${button.displayText}: ${button.pixKey}`);
+            });
+        }
+        if (footer) {
+            pushLine('');
+            pushLine(footer);
+        }
+        return joinLines();
+    }
+
+    if (kind === 'list') {
+        const title = String(step.title || '').trim();
+        const description = String(step.description || step.text || step.content || '').trim();
+        const footer = String(step.footerText || step.footer || '').trim();
+        const sections = Array.isArray(step.sections) ? step.sections.map((section, sectionIndex) => normalizeFlowListSection(section, sectionIndex)) : [];
+        if (title) pushLine(`*${title}*`);
+        if (description) pushLine(description);
+        sections.forEach((section) => {
+            if (section.title) {
+                pushLine('');
+                pushLine(`${section.title}:`);
+            }
+            section.rows.forEach((row) => {
+                const detail = row.description ? ` - ${row.description}` : '';
+                pushLine(`- ${row.title}${detail} (responda: ${row.rowId})`);
+            });
+        });
+        if (footer) {
+            pushLine('');
+            pushLine(footer);
+        }
+        return joinLines();
+    }
+
+    if (kind === 'carousel') {
+        const description = String(step.description || step.text || step.content || '').trim();
+        const footer = String(step.footerText || step.footer || '').trim();
+        const cards = Array.isArray(step.cards) ? step.cards.map((card, cardIndex) => normalizeFlowCarouselCard(card, cardIndex)) : [];
+        if (description) pushLine(description);
+        cards.forEach((card, cardIndex) => {
+            pushLine('');
+            pushLine(`${cardIndex + 1}. ${card.title}`);
+            if (card.description) pushLine(card.description);
+            (card.buttons || []).forEach((button) => {
+                if (button.type === 'reply') pushLine(`- ${button.displayText} (responda: ${button.id})`);
+                else if (button.type === 'url' && button.url) pushLine(`- ${button.displayText}: ${button.url}`);
+                else if (button.type === 'call' && button.phoneNumber) pushLine(`- ${button.displayText}: ${button.phoneNumber}`);
+            });
+        });
+        if (footer) {
+            pushLine('');
+            pushLine(footer);
+        }
+        return joinLines();
+    }
+
+    return '';
+}
+
 function getFlowNextStepIndex(flow, step, currentIndex) {
     if (step && step.next) {
         const linkedIndex = getFlowStepIndexById(flow, step.next);
@@ -4104,29 +4198,49 @@ async function handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex,
     });
 
     let sentMsg;
-    if (kind === 'buttons') {
-        sentMsg = await client.sendButtons(chatId, payload);
-    } else if (kind === 'list') {
-        sentMsg = await client.sendList(chatId, payload);
-    } else {
-        sentMsg = await client.sendCarousel(chatId, payload);
+    let usedFallback = false;
+    try {
+        if (kind === 'buttons') {
+            sentMsg = await client.sendButtons(chatId, payload);
+        } else if (kind === 'list') {
+            sentMsg = await client.sendList(chatId, payload);
+        } else {
+            sentMsg = await client.sendCarousel(chatId, payload);
+        }
+        logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_success', {
+            kind,
+            sentMessageId: sentMsg && sentMsg.id && sentMsg.id._serialized ? sentMsg.id._serialized : null
+        });
+    } catch (error) {
+        if (!isEvolutionInteractiveCompatibilityError(error)) throw error;
+        const fallbackText = buildFlowInteractiveFallbackText(step, kind);
+        if (!fallbackText) throw error;
+        usedFallback = true;
+        if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
+            activeFlows[sessionId][chatId].action = 'sending_interactive_fallback';
+            activeFlows[sessionId][chatId].updatedAt = Date.now();
+        }
+        emitFlowUsage(sessionId);
+        logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_fallback', {
+            kind,
+            evolutionMessages: getEvolutionErrorMessages(error),
+            fallbackText
+        });
+        sentMsg = await client.sendMessage(chatId, fallbackText);
     }
-    logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_success', {
-        kind,
-        sentMessageId: sentMsg && sentMsg.id && sentMsg.id._serialized ? sentMsg.id._serialized : null
-    });
     await handleSentMessage(sessionId, sentMsg, client);
 
     const branches = getFlowInteractiveBranches(step);
     if (branches.length > 0) {
         if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
             activeFlows[sessionId][chatId].waiting = true;
-            activeFlows[sessionId][chatId].action = 'waiting_interactive';
+            activeFlows[sessionId][chatId].action = usedFallback ? 'waiting_interactive_fallback' : 'waiting_interactive';
             activeFlows[sessionId][chatId].updatedAt = Date.now();
             emitFlowUsage(sessionId);
         }
         logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_waiting', {
             kind,
+            usedFallback,
             branches: branches.map(branch => ({ id: branch.id, label: branch.label, targetId: branch.targetId || null }))
         });
         return;
