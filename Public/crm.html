@@ -1484,6 +1484,9 @@
                     </div>
                 </div>
                 <div class="chat-actions">
+                    <button id="waLoadFullHistoryBtn" title="Carregar mais histórico" style="display:none; border:1px solid #d1d5db; background:white; padding:6px 10px; border-radius:999px; cursor:pointer; color:#374151; font-size:0.8rem; font-weight:600;">
+                        Ver histórico completo
+                    </button>
                     <button id="waRunningFlowsBtn" title="Fluxos em execução" style="border: none; background: none; padding: 8px; cursor: pointer; color: #555; position: relative;">
                         <i class="fas fa-stream"></i>
                         <span id="waRunningFlowsBadge" style="position:absolute; top:2px; right:2px; background:#b45309; color:white; border-radius:10px; padding:0 6px; font-size:10px; display:none;"></span>
@@ -1979,7 +1982,7 @@
 
             if (tabName === 'whatsapp') {
                 try {
-                    const chats = Object.values(window.allChatsData || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    const chats = sortChatsByActivity(Object.values(window.allChatsData || {}));
                     renderChatList(chats);
                 } catch (e) {
                     console.error('Erro ao renderizar lista do WhatsApp:', e);
@@ -2057,6 +2060,87 @@
                 if (typeof raw.type === 'string' && raw.type.trim()) return `[${raw.type}]`;
             }
             return 'Sem mensagens';
+        }
+
+        function normalizeTimestampValue(value) {
+            if (value === null || value === undefined || value === '') return 0;
+            const numeric = Number(value);
+            if (Number.isFinite(numeric) && numeric > 0) {
+                return numeric > 10000000000 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+            }
+            if (typeof value === 'string') {
+                const parsed = Date.parse(value);
+                if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed / 1000);
+            }
+            return 0;
+        }
+
+        function normalizeComparableChatId(id) {
+            if (!id) return '';
+            if (typeof id === 'object' && id._serialized) id = id._serialized;
+            return String(id).replace(/@.*$/, '').replace(/:\d+$/, '');
+        }
+
+        function sortMessagesChronologically(messages) {
+            return (Array.isArray(messages) ? messages : [])
+                .map(msg => ({ ...msg, timestamp: normalizeTimestampValue(msg && msg.timestamp) }))
+                .sort((a, b) => normalizeTimestampValue(a.timestamp) - normalizeTimestampValue(b.timestamp));
+        }
+
+        function sortChatsByActivity(chats) {
+            return [...(Array.isArray(chats) ? chats : [])].sort((a, b) => {
+                return normalizeTimestampValue(b && b.timestamp) - normalizeTimestampValue(a && a.timestamp);
+            });
+        }
+
+        function rerenderChatCollections() {
+            const sortedChats = sortChatsByActivity(Object.values(window.allChatsData || {}));
+            renderChatList(sortedChats);
+            renderKanban(sortedChats);
+        }
+
+        function updateHistoryToggleButton(meta) {
+            const btn = document.getElementById('waLoadFullHistoryBtn');
+            if (!btn) return;
+            const historyMode = meta && meta.historyMode ? meta.historyMode : (window.currentWaHistoryMode || 'recent');
+            const hasOlderMessages = !!(meta && meta.hasOlderMessages);
+            if (!window.currentWaChatId) {
+                btn.style.display = 'none';
+                return;
+            }
+            if (historyMode === 'full') {
+                btn.style.display = 'inline-flex';
+                btn.textContent = 'Voltar 2 dias';
+                return;
+            }
+            if (hasOlderMessages) {
+                btn.style.display = 'inline-flex';
+                btn.textContent = 'Ver histórico completo';
+                return;
+            }
+            btn.style.display = 'none';
+        }
+
+        function requestWaChatHistory(chatId, options) {
+            if (!window.socket || !window.sessionId || !chatId) return;
+            const fullHistory = !!(options && options.fullHistory);
+            window.currentWaHistoryMode = fullHistory ? 'full' : 'recent';
+            window.socket.emit('get-chat-history', {
+                sessionId: window.sessionId,
+                chatId,
+                limit: fullHistory ? 1500 : 400,
+                fullHistory,
+                daysBack: 2
+            });
+        }
+
+        function markChatAsReadLocally(chatId) {
+            if (!chatId || !window.allChatsData || !window.allChatsData[chatId]) return;
+            window.allChatsData[chatId].unreadCount = 0;
+            rerenderChatCollections();
+            if (window.socket && window.sessionId) {
+                window.socket.emit('mark-chat-read', { sessionId: window.sessionId, chatId });
+            }
         }
 
         // --- RENDER LOGIC ---
@@ -2206,7 +2290,7 @@
                 setTimeout(() => openWaChat(chat.id), 50);
             };
             
-            const time = new Date(chat.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const time = new Date(normalizeTimestampValue(chat.timestamp) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const lastMsg = getChatPreviewText(chat);
             const displayName = getChatDisplayName(chat);
             
@@ -2485,7 +2569,7 @@
                     div.dataset.chatId = chatId;
                     div.onclick = () => openWaChat(chatId);
                     
-                    const ts = Number(chat.timestamp || 0);
+                    const ts = normalizeTimestampValue(chat.timestamp);
                     const time = ts > 0
                         ? new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         : '--:--';
@@ -2700,7 +2784,7 @@
                 document.getElementById('chatMessages').innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Carregando mensagens...</div>';
                 
                 // Request messages
-                window.socket.emit('get-chat-history', { sessionId: window.sessionId, chatId, limit: 200 });
+                requestWaChatHistory(chatId, { fullHistory: false });
             }
         };
 
@@ -2758,9 +2842,11 @@
             // Load Messages
             const body = document.getElementById('waChatBody');
             if (body) {
-                body.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Carregando mensagens...</div>';
+                body.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Carregando mensagens dos últimos 2 dias...</div>';
                 window.currentWaChatId = chatId; // Track current chat
-                window.socket.emit('get-chat-history', { sessionId: window.sessionId, chatId, limit: 200 });
+                markChatAsReadLocally(chatId);
+                requestWaChatHistory(chatId, { fullHistory: false });
+                updateHistoryToggleButton({ historyMode: 'recent', hasOlderMessages: false });
             }
         };
 
@@ -2770,6 +2856,20 @@
             if (sidebar) sidebar.classList.remove('hidden');
             if (main) main.classList.remove('active');
         };
+
+        const waLoadFullHistoryBtn = document.getElementById('waLoadFullHistoryBtn');
+        if (waLoadFullHistoryBtn) {
+            waLoadFullHistoryBtn.onclick = function() {
+                if (!window.currentWaChatId) return;
+                const loadFull = window.currentWaHistoryMode !== 'full';
+                const waBody = document.getElementById('waChatBody');
+                if (waBody) {
+                    waBody.innerHTML = `<div style="text-align:center; padding:20px; color:#888;">${loadFull ? 'Carregando histórico completo...' : 'Carregando mensagens dos últimos 2 dias...'}</div>`;
+                }
+                requestWaChatHistory(window.currentWaChatId, { fullHistory: loadFull });
+                updateHistoryToggleButton({ historyMode: loadFull ? 'full' : 'recent', hasOlderMessages: true });
+            };
+        }
 
         window.createNewColumn = function() {
             document.getElementById('columnModalTitle').innerText = 'Nova Coluna';
@@ -2861,10 +2961,11 @@
 
         window.socket.on('chat-history', (data) => {
             if (!data || !data.messages) return;
+            const responseChatId = normalizeComparableChatId(data.chatId);
+            const currentChatId = normalizeComparableChatId(window.currentWaChatId);
 
             // Prepare messages in chronological order (Oldest -> Newest)
-            // Server already sends in Oldest -> Newest order (timestamp ascending)
-            const chronologicalMessages = data.messages;
+            const chronologicalMessages = sortMessagesChronologically(data.messages);
 
             // Update Kanban Chat Panel
             const kanbanPanel = document.getElementById('chatMessages');
@@ -2896,7 +2997,7 @@
 
             // Update WA View
             const waBody = document.getElementById('waChatBody');
-            if (waBody && waBody.offsetParent !== null) {
+            if (waBody && waBody.offsetParent !== null && (!currentChatId || currentChatId === responseChatId)) {
                 waBody.innerHTML = '';
                 if (chronologicalMessages.length === 0) {
                     waBody.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Nenhuma mensagem encontrada.</div>';
@@ -2904,7 +3005,7 @@
                     let lastDate = null;
                     chronologicalMessages.forEach(msg => {
                         // Date Separator
-                        const msgDate = new Date(msg.timestamp * 1000).toLocaleDateString();
+                        const msgDate = new Date(normalizeTimestampValue(msg.timestamp) * 1000).toLocaleDateString();
                         if (msgDate !== lastDate) {
                             const dateDiv = document.createElement('div');
                             dateDiv.className = 'wa-date-separator';
@@ -2918,6 +3019,7 @@
                     });
                     waBody.scrollTop = waBody.scrollHeight;
                 }
+                updateHistoryToggleButton(data);
             }
         });
 
@@ -3626,7 +3728,7 @@
             }
 
             // Timestamp & Checkmarks
-            const date = new Date(msg.timestamp * 1000);
+            const date = new Date(normalizeTimestampValue(msg.timestamp) * 1000);
             const timeStr = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
             
             let statusHtml = '';
@@ -3690,6 +3792,10 @@
             if (!data || !data.message || !data.chat) return;
 
             const chatId = data.chat.id;
+            const messageTimestamp = normalizeTimestampValue(data.message.timestamp) || Math.floor(Date.now() / 1000);
+            const currentId = normalizeComparableChatId(window.currentWaChatId);
+            const incomingId = normalizeComparableChatId(chatId);
+            const isCurrentWaChat = currentId && incomingId && currentId === incomingId;
             
             // 1. Update Global Chat Data
             // Merge existing data to preserve fields that might not be in the update
@@ -3697,30 +3803,17 @@
                 ...(window.allChatsData[chatId] || {}),
                 ...data.chat,
                 lastMessage: data.message.body, // Ensure last message is updated
-                timestamp: data.message.timestamp, // Ensure timestamp is updated
-                unreadCount: data.chat.unreadCount // Ensure unread count is updated
+                timestamp: messageTimestamp,
+                unreadCount: isCurrentWaChat ? 0 : Number(data.chat.unreadCount || 0)
             };
 
             // 2. Update Active Chat View if open (PRIORITY)
             try {
-                // Normalize ID helper to handle various formats (with/without suffix, device ID)
-                const normalizeId = (id) => {
-                    if (!id) return '';
-                    if (typeof id === 'object' && id._serialized) id = id._serialized;
-                    if (typeof id !== 'string') return String(id);
-                    return id.replace(/@.*$/, '').replace(/:\d+$/, '');
-                };
-
-                const currentId = normalizeId(window.currentWaChatId);
-                const incomingId = normalizeId(chatId);
-
-                const isCurrentWaChat = currentId && incomingId && currentId === incomingId;
-
                 if (isCurrentWaChat) {
                     const waBody = document.getElementById('waChatBody');
                     if (waBody) {
                         // Date Separator Check
-                        const msgDate = new Date(data.message.timestamp * 1000).toLocaleDateString();
+                        const msgDate = new Date(messageTimestamp * 1000).toLocaleDateString();
                         const separators = waBody.querySelectorAll('.wa-date-separator span');
                         const lastDate = separators.length > 0 ? separators[separators.length - 1].innerText : null;
 
@@ -3759,12 +3852,7 @@
             // 3. Re-render Chat Lists (Sidebar & Kanban)
             try {
                 // Convert to array and sort by timestamp (newest first)
-                const sortedChats = Object.values(window.allChatsData).sort((a, b) => {
-                    return (b.timestamp || 0) - (a.timestamp || 0);
-                });
-                
-                renderChatList(sortedChats);
-                renderKanban(sortedChats);
+                rerenderChatCollections();
             } catch (e) {
                 console.error('Error re-rendering chat lists:', e);
             }
@@ -3772,17 +3860,11 @@
 
         window.socket.on('message-sent', (data) => {
             if (!data || !data.message) return;
-
-            const normalizeId = (id) => {
-                if (!id) return '';
-                if (typeof id === 'object' && id._serialized) id = id._serialized;
-                if (typeof id !== 'string') return String(id);
-                return id.replace(/@.*$/, '').replace(/:\d+$/, '');
-            };
+            const messageTimestamp = normalizeTimestampValue(data.message.timestamp) || Math.floor(Date.now() / 1000);
 
             const targetId = data.chatId || data.originalChatId || '';
-            const currentId = normalizeId(window.currentWaChatId);
-            const sentId = normalizeId(targetId);
+            const currentId = normalizeComparableChatId(window.currentWaChatId);
+            const sentId = normalizeComparableChatId(targetId);
 
             if (targetId) {
                 const existing = window.allChatsData[targetId] || window.allChatsData[data.originalChatId] || {};
@@ -3790,14 +3872,14 @@
                     ...existing,
                     id: targetId,
                     lastMessage: data.message.body || existing.lastMessage || '',
-                    timestamp: data.message.timestamp || existing.timestamp || Math.floor(Date.now() / 1000)
+                    timestamp: messageTimestamp
                 };
             }
 
             if (currentId && sentId && currentId === sentId) {
                 const waBody = document.getElementById('waChatBody');
                 if (waBody) {
-                    const msgDate = new Date((data.message.timestamp || Math.floor(Date.now() / 1000)) * 1000).toLocaleDateString();
+                    const msgDate = new Date(messageTimestamp * 1000).toLocaleDateString();
                     const separators = waBody.querySelectorAll('.wa-date-separator span');
                     const lastDate = separators.length > 0 ? separators[separators.length - 1].innerText : null;
 
@@ -3814,9 +3896,7 @@
             }
 
             try {
-                const sortedChats = Object.values(window.allChatsData).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                renderChatList(sortedChats);
-                renderKanban(sortedChats);
+                rerenderChatCollections();
             } catch (e) {
                 console.error('Error re-rendering chat lists after send:', e);
             }
@@ -4226,6 +4306,8 @@
                 document.getElementById('waChatHeader').querySelector('.chat-info span').innerText = 'Selecione uma conversa';
                 document.getElementById('chatHeaderPic').style.display = 'none';
                 window.currentWaChatId = null;
+                window.currentWaHistoryMode = 'recent';
+                updateHistoryToggleButton({ historyMode: 'recent', hasOlderMessages: false });
             };
         }
 
@@ -5874,7 +5956,7 @@
                 const nameB = b.name || '';
                 if (nameA && !nameB) return -1;
                 if (!nameA && nameB) return 1;
-                return (b.timestamp || 0) - (a.timestamp || 0);
+                return normalizeTimestampValue(b.timestamp) - normalizeTimestampValue(a.timestamp);
             });
 
             validChats.forEach(contact => {
@@ -6144,7 +6226,7 @@
                 return;
             }
 
-            chats.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            chats.sort((a, b) => normalizeTimestampValue(b.timestamp) - normalizeTimestampValue(a.timestamp));
 
             chats.forEach(chat => {
                 const div = document.createElement('div');

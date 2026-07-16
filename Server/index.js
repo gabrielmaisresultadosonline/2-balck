@@ -636,9 +636,14 @@ function normalizeEvolutionAck(value) {
 }
 
 function normalizeEvolutionTimestamp(value) {
-    const n = Number(value || 0);
-    if (!Number.isFinite(n) || n <= 0) return Math.floor(Date.now() / 1000);
-    return n > 10_000_000_000 ? Math.floor(n / 1000) : Math.floor(n);
+    if (value === null || value === undefined || value === '') return Math.floor(Date.now() / 1000);
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n > 10_000_000_000 ? Math.floor(n / 1000) : Math.floor(n);
+    if (typeof value === 'string') {
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed / 1000);
+    }
+    return Math.floor(Date.now() / 1000);
 }
 
 function extractEvolutionMessageContent(rawMessage) {
@@ -5872,8 +5877,29 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('mark-chat-read', ({ sessionId, chatId }) => {
+        try {
+            if (!sessionId || !chatId) return;
+            const cache = loadChatCache(sessionId);
+            const list = Array.isArray(cache) ? cache : [];
+            let changed = false;
+            for (const item of list) {
+                if (!item) continue;
+                const matches = collectPossibleChatIds(sessionId, item.id || '').includes(String(chatId))
+                    || collectPossibleChatIds(sessionId, chatId).includes(String(item.id || ''));
+                if (matches && Number(item.unreadCount || 0) !== 0) {
+                    item.unreadCount = 0;
+                    changed = true;
+                }
+            }
+            if (changed) saveChatCache(sessionId, list);
+        } catch (error) {
+            console.error('Error marking chat as read:', error);
+        }
+    });
+
     // Get chat history
-    socket.on('get-chat-history', async ({ sessionId, chatId, limit = 100 }) => {
+    socket.on('get-chat-history', async ({ sessionId, chatId, limit = 100, fullHistory = false, daysBack = 2 }) => {
         const sessionData = activeClients.get(sessionId);
         const originalChatId = chatId;
         try {
@@ -5952,7 +5978,12 @@ io.on('connection', (socket) => {
 
             if (Array.isArray(localHistory)) {
                 localHistory.forEach(msg => {
-                    if (msg && msg.id) mergedMap.set(msg.id, msg);
+                    if (msg && msg.id) {
+                        mergedMap.set(msg.id, {
+                            ...msg,
+                            timestamp: normalizeEvolutionTimestamp(msg.timestamp)
+                        });
+                    }
                 });
             }
 
@@ -5974,7 +6005,7 @@ io.on('connection', (socket) => {
                     ]);
                     
                     // Pull a larger window so chats reopened from cache/history don't look empty.
-                    const fetchLimit = limit ? Math.max(limit, 200) : 200;
+                    const fetchLimit = fullHistory ? Math.max(limit || 0, 1000) : Math.max(limit || 0, 300);
                     const messages = await Promise.race([
                         chat.fetchMessages({ limit: fetchLimit }),
                         timeout(10000, 'Timeout fetching messages')
@@ -5987,7 +6018,7 @@ io.on('connection', (socket) => {
                         body: msg.body,
                         from: msg.from,
                         to: msg.to,
-                        timestamp: msg.timestamp,
+                        timestamp: normalizeEvolutionTimestamp(msg.timestamp),
                         fromMe: msg.fromMe,
                         type: msg.type,
                         hasMedia: msg.hasMedia,
@@ -6067,7 +6098,10 @@ io.on('connection', (socket) => {
             }
 
             // Convert to array and sort
-            let allSortedMessages = Array.from(mergedMap.values()).sort((a, b) => {
+            let allSortedMessages = Array.from(mergedMap.values()).map(msg => ({
+                ...msg,
+                timestamp: normalizeEvolutionTimestamp(msg.timestamp)
+            })).sort((a, b) => {
                 const tA = typeof a.timestamp === 'number' ? a.timestamp : 0;
                 const tB = typeof b.timestamp === 'number' ? b.timestamp : 0;
                 return tA - tB;
@@ -6117,10 +6151,20 @@ io.on('connection', (socket) => {
                 }
             } catch (e) {}
             
-            // Apply limit (take last N) for frontend
-            let finalMessages = allSortedMessages;
-            if (limit && finalMessages.length > limit) {
+            const normalizedDaysBack = Math.max(1, Number(daysBack) || 2);
+            const cutoffTimestamp = Math.floor(Date.now() / 1000) - (normalizedDaysBack * 86400);
+            const recentMessages = fullHistory
+                ? allSortedMessages
+                : allSortedMessages.filter(msg => Number(msg.timestamp || 0) >= cutoffTimestamp);
+            const hasOlderMessages = !fullHistory && recentMessages.length < allSortedMessages.length;
+
+            // Apply limit only to the recent mode so "ver histórico completo" can really expand.
+            let finalMessages = fullHistory ? allSortedMessages : recentMessages;
+            if (!fullHistory && limit && finalMessages.length > limit) {
                 finalMessages = finalMessages.slice(-limit);
+            }
+            if (!fullHistory && finalMessages.length === 0 && allSortedMessages.length > 0) {
+                finalMessages = allSortedMessages.slice(-Math.max(limit || 0, 100));
             }
 
             const transcriptsStore = loadAiTranscripts();
@@ -6128,6 +6172,10 @@ io.on('connection', (socket) => {
             
             socket.emit('chat-history', {
                 chatId: originalChatId,
+                historyMode: fullHistory ? 'full' : 'recent',
+                hasOlderMessages,
+                daysBack: normalizedDaysBack,
+                totalMessages: allSortedMessages.length,
                 messages: finalMessages.map(msg => ({
                     id: msg.id,
                     body: msg.body,
