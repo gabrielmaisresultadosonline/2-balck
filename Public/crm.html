@@ -1908,7 +1908,10 @@
         const appConfig = window.ZAPMRO_CONFIG || {};
         const buildApiUrl = appConfig.buildApiUrl || ((path) => path);
         const socketUrl = appConfig.socketUrl || window.location.origin;
-        const authToken = localStorage.getItem('zapmro_token') || '';
+        const authRole = localStorage.getItem('zapmro_role') || '';
+        const authToken = authRole === 'admin'
+            ? (localStorage.getItem('zapmro_admin_token') || localStorage.getItem('zapmro_token') || '')
+            : (localStorage.getItem('zapmro_token') || '');
         const urlParams = new URLSearchParams(window.location.search);
         window.sessionId = urlParams.get('sessionId') || localStorage.getItem('lastSessionId') || '';
         if(window.sessionId) localStorage.setItem('lastSessionId', window.sessionId);
