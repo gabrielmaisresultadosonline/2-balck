@@ -552,7 +552,10 @@ function normalizeEvolutionChatId(value) {
 }
 
 function normalizeEvolutionPhone(value) {
-    return evolutionDigits(value || '');
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/@lid$/i.test(raw) || /@g\.us$/i.test(raw) || /@newsletter$/i.test(raw)) return '';
+    return evolutionDigits(raw);
 }
 
 function toEvolutionApiTarget(value) {
@@ -748,17 +751,53 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
         chat.chatId ||
         chat.jid
     );
-    const normalizedPhone = normalizeEvolutionPhone(
+    const explicitPhone = normalizeEvolutionPhone(
         chat.phone ||
         chat.number ||
         chat.owner ||
         chat.participant ||
-        chat.key?.participant ||
-        rawRemoteJid
+        chat.key?.participant
     );
-    const remoteJid = rawRemoteJid.endsWith('@lid') && normalizedPhone
+    const displayPhone = extractPhoneDigits(
+        chat.pushName ||
+        chat.name ||
+        chat.contactName ||
+        chat.profileName ||
+        ''
+    );
+    const remoteDigits = normalizeEvolutionPhone(rawRemoteJid);
+    const shouldPreferDisplayPhone = !!(
+        displayPhone &&
+        remoteDigits &&
+        displayPhone !== remoteDigits &&
+        /@(c\.us|s\.whatsapp\.net)$/i.test(rawRemoteJid)
+    );
+    const normalizedPhone = explicitPhone || (rawRemoteJid.endsWith('@lid') ? displayPhone : '') || (shouldPreferDisplayPhone ? displayPhone : '') || remoteDigits;
+    const remoteJid = (rawRemoteJid.endsWith('@lid') || shouldPreferDisplayPhone) && normalizedPhone
         ? `${normalizedPhone}@c.us`
         : rawRemoteJid;
+    const shouldDebugSuspiciousChat = !!(
+        rawRemoteJid &&
+        (/@lid$/i.test(rawRemoteJid) || (/@c\.us$/i.test(rawRemoteJid) && remoteDigits && remoteDigits.length > 13)) &&
+        !explicitPhone &&
+        !displayPhone
+    );
+    if (shouldDebugSuspiciousChat) {
+        console.log('[evolution-chat-debug]', JSON.stringify({
+            sessionId,
+            rawRemoteJid,
+            normalizedPhone,
+            pushName: chat.pushName || '',
+            name: chat.name || '',
+            contactName: chat.contactName || '',
+            profileName: chat.profileName || '',
+            phone: chat.phone || '',
+            number: chat.number || '',
+            owner: chat.owner || '',
+            participant: chat.participant || '',
+            keyParticipant: chat.key?.participant || ''
+        }));
+    }
     const name =
         chat.pushName ||
         chat.name ||
@@ -871,7 +910,11 @@ function buildEvolutionContactFromCache(sessionId, chatId) {
     const cache = loadChatCache(sessionId);
     const list = Array.isArray(cache) ? cache : [];
     const found = list.find(item => item && String(item.id) === String(chatId)) || null;
-    const phoneDigits = normalizeEvolutionPhone(found && (found.phoneNumber || found.id) ? (found.phoneNumber || found.id) : chatId);
+    const phoneDigits = normalizeEvolutionPhone(
+        found && (found.phoneNumber || found.name || found.id)
+            ? (found.phoneNumber || found.name || found.id)
+            : chatId
+    );
     return {
         id: { _serialized: String(chatId) },
         name: found && found.name ? String(found.name) : '',
@@ -1148,7 +1191,7 @@ function createEvolutionClientWrapper(sessionId) {
         },
         async sendMessage(chatId, content, options = {}) {
             if (!evolutionApi) throw new Error('evolution_not_configured');
-            const targetId = normalizeEvolutionChatId(chatId);
+            const targetId = normalizeEvolutionChatId(await resolveEvolutionSendTarget(sessionId, chatId));
             const apiTarget = toEvolutionApiTarget(targetId);
             if (typeof content === 'string') {
                 const result = await evolutionApi.sendText(evolutionInstanceName(sessionId), apiTarget, content, {
@@ -1334,11 +1377,21 @@ async function processEvolutionWebhookEvent(body) {
             saveMessageToHistory(sessionId, messagePayload.chatId, messagePayload);
 
             const existingChat = cacheById.get(String(messagePayload.chatId)) || {};
+            const explicitPhoneNumber = normalizeEvolutionPhone(
+                item?.phone ||
+                item?.number ||
+                item?.owner ||
+                item?.participant ||
+                item?.key?.participant ||
+                existingChat.phoneNumber ||
+                existingChat.name ||
+                item?.pushName
+            );
             const nextChat = {
                 ...existingChat,
                 id: messagePayload.chatId,
                 name: existingChat.name || item.pushName || messagePayload.chatId.split('@')[0],
-                phoneNumber: normalizeEvolutionPhone(messagePayload.chatId),
+                phoneNumber: explicitPhoneNumber || existingChat.phoneNumber || '',
                 unreadCount: messagePayload.fromMe ? (existingChat.unreadCount || 0) : ((existingChat.unreadCount || 0) + 1),
                 timestamp: messagePayload.timestamp,
                 lastMessage: messagePayload.body || existingChat.lastMessage || '',
@@ -1515,6 +1568,99 @@ async function resolveEvolutionChatIdentity(sessionId, chatId, baseName = '', ca
     } catch (e) {}
 
     return output;
+}
+
+async function resolveVerifiedEvolutionNumber(sessionId, candidates = []) {
+    if (!USE_EVOLUTION || !evolutionApi) return null;
+
+    const numbers = Array.from(new Set(
+        (Array.isArray(candidates) ? candidates : [candidates])
+            .map(value => normalizeEvolutionPhone(value))
+            .filter(value => value && value.length >= 10 && value.length <= 15)
+    ));
+    if (!numbers.length) return null;
+
+    try {
+        const result = await evolutionApi.checkNumbers(evolutionInstanceName(sessionId), numbers);
+        const rows = Array.isArray(result) ? result : (Array.isArray(result?.numbers) ? result.numbers : []);
+        for (const digits of numbers) {
+            const match = rows.find(item => {
+                const itemDigits = normalizeEvolutionPhone(item?.number || item?.jid || item?.wid || '');
+                return itemDigits === digits && item?.exists !== false;
+            });
+            if (match) {
+                return {
+                    number: digits,
+                    jid: normalizeEvolutionChatId(match.jid || match.wid || `${digits}@s.whatsapp.net`),
+                    raw: match
+                };
+            }
+        }
+    } catch (e) {}
+
+    return null;
+}
+
+async function resolveEvolutionSendTarget(sessionId, chatId) {
+    const raw = String(chatId || '').trim();
+    if (!raw) return raw;
+
+    const normalized = normalizeEvolutionChatId(raw);
+    if (!USE_EVOLUTION || !evolutionApi) return normalized;
+    if (normalized.endsWith('@g.us') || normalized.endsWith('@newsletter')) return normalized;
+
+    const cached = getCachedChatByAnyId(sessionId, normalized);
+    const ids = collectPossibleChatIds(sessionId, normalized);
+    const historyNumbers = new Set();
+    for (const candidateId of ids) {
+        extractCandidateNumbersFromMessages(loadMessageHistory(sessionId, candidateId)).forEach(num => historyNumbers.add(num));
+    }
+    const archiveFallback = loadArchiveFallback(sessionId, ids.length ? ids : [normalized]);
+    const resolvedIdentity = normalized.endsWith('@lid') || !normalizeEvolutionPhone(normalized)
+        ? await resolveEvolutionChatIdentity(sessionId, normalized, cached?.name || '', cached)
+        : null;
+
+    const numericCandidates = new Set();
+    const addCandidate = (value) => {
+        const digits = normalizeEvolutionPhone(value);
+        if (digits && digits.length >= 10 && digits.length <= 15) numericCandidates.add(digits);
+    };
+
+    addCandidate(raw);
+    addCandidate(normalized);
+    addCandidate(cached?.phoneNumber);
+    addCandidate(cached?.name);
+    addCandidate(cached?.id);
+    addCandidate(resolvedIdentity?.phoneNumber);
+    addCandidate(resolvedIdentity?.name);
+    ids.forEach(addCandidate);
+    historyNumbers.forEach(addCandidate);
+    archiveFallback.numbers.forEach(addCandidate);
+
+    const verified = await resolveVerifiedEvolutionNumber(sessionId, Array.from(numericCandidates));
+    const shouldDebugSendTarget = !!(
+        normalized &&
+        (/@lid$/i.test(normalized) || (/@c\.us$/i.test(normalized) && normalizeEvolutionPhone(normalized).length > 13))
+    );
+    if (shouldDebugSendTarget) {
+        console.log('[evolution-send-debug]', JSON.stringify({
+            sessionId,
+            raw,
+            normalized,
+            cachedId: cached?.id || '',
+            cachedName: cached?.name || '',
+            cachedPhoneNumber: cached?.phoneNumber || '',
+            resolvedPhoneNumber: resolvedIdentity?.phoneNumber || '',
+            candidateNumbers: Array.from(numericCandidates),
+            verifiedJid: verified?.jid || ''
+        }));
+    }
+    if (verified?.jid) return verified.jid;
+
+    const firstNumber = Array.from(numericCandidates)[0];
+    if (firstNumber) return `${firstNumber}@c.us`;
+
+    return normalized;
 }
 
 function loadArchiveFallback(sessionId, chatIds) {
@@ -5210,9 +5356,12 @@ io.on('connection', (socket) => {
 
                         const cached = cacheById.get(displayChatId) || null;
 
-                        let derivedPhoneNumber = normalizeDigits(String(chat.phoneNumber || '')) || null;
-                        if (displayChatId.endsWith('@c.us')) derivedPhoneNumber = displayChatId.split('@')[0] || null;
-                        else if (displayChatId.endsWith('@lid')) derivedPhoneNumber = extractPhoneDigits(chat.name || '') || null;
+                        let derivedPhoneNumber =
+                            normalizeDigits(String(chat.phoneNumber || '')) ||
+                            extractPhoneDigits(chat.name || '') ||
+                            null;
+                        if (!derivedPhoneNumber && displayChatId.endsWith('@c.us')) derivedPhoneNumber = displayChatId.split('@')[0] || null;
+                        else if (!derivedPhoneNumber && displayChatId.endsWith('@lid')) derivedPhoneNumber = extractPhoneDigits(chat.name || '') || null;
 
                         if (!derivedPhoneNumber && displayChatId.endsWith('@lid')) {
                             const resolvedIdentity = await resolveEvolutionChatIdentity(
@@ -5922,7 +6071,9 @@ io.on('connection', (socket) => {
                     const cleanNumber = chatId.replace(/\D/g, '');
                     targetId = `${cleanNumber}@c.us`;
                 } else {
-                    targetId = await resolveChatIdForClient(sessionData.client, targetId);
+                    targetId = sessionData.client && sessionData.client.__provider === 'evolution'
+                        ? await resolveEvolutionSendTarget(sessionId, targetId)
+                        : await resolveChatIdForClient(sessionData.client, targetId);
                 }
 
                 const sentMsg = await sessionData.client.sendMessage(targetId, message);
@@ -5964,7 +6115,11 @@ io.on('connection', (socket) => {
                 }
 
             } catch (error) {
-                console.error('Error sending message:', error);
+                console.error('Error sending message:', {
+                    message: error?.message,
+                    chatId,
+                    evolutionResponse: error?.evolutionResponse || error?.response?.data || null
+                });
                 socket.emit('error', 'Error sending message: ' + error.message);
             }
         }
@@ -5982,7 +6137,9 @@ io.on('connection', (socket) => {
                     targetId = `${cleanNumber}@c.us`;
                 }
 
-                targetId = await resolveChatIdForClient(sessionData.client, targetId);
+                targetId = sessionData.client && sessionData.client.__provider === 'evolution'
+                    ? await resolveEvolutionSendTarget(sessionId, targetId)
+                    : await resolveChatIdForClient(sessionData.client, targetId);
 
                 const rawRel = typeof relPath === 'string' ? relPath : '';
                 const safeRel = rawRel.replace(/^[/\\]+/, '');
