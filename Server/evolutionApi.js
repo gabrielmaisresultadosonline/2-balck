@@ -238,6 +238,7 @@ class EvolutionApi {
     normalizeInstanceState(payload) {
         const data = payload && typeof payload === 'object' ? payload : {};
         const instance = data.instance && typeof data.instance === 'object' ? data.instance : data;
+        const me = instance.me && typeof instance.me === 'object' ? instance.me : (data.me && typeof data.me === 'object' ? data.me : {});
         const state =
             instance.state ||
             instance.connectionStatus ||
@@ -248,8 +249,28 @@ class EvolutionApi {
             'close';
         return {
             state: String(state || 'close').toLowerCase(),
-            number: instance.number || instance.ownerJid || data.number || null,
-            profileName: instance.profileName || instance.name || data.profileName || data.name || null,
+            number:
+                instance.number ||
+                instance.ownerJid ||
+                instance.owner ||
+                instance.phone ||
+                instance.wuid ||
+                me.id ||
+                me.user ||
+                data.number ||
+                data.ownerJid ||
+                data.owner ||
+                data.phone ||
+                null,
+            profileName:
+                instance.profileName ||
+                instance.name ||
+                instance.profile?.name ||
+                me.name ||
+                me.pushName ||
+                data.profileName ||
+                data.name ||
+                null,
             profilePictureUrl: instance.profilePictureUrl || data.profilePictureUrl || null,
             raw: data
         };

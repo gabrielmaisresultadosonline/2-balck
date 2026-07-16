@@ -1483,6 +1483,23 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
         sessionData.client.info.pushname = sessionData.name;
     }
 
+    if (mappedStatus === 'connected' && (!sessionData.phoneNumber || !sessionData.name)) {
+        try {
+            const instancePayload = await evolutionApi.getInstance(evolutionInstanceName(sessionId)).catch(() => null);
+            if (instancePayload) {
+                const hydrated = evolutionApi.normalizeInstanceState(instancePayload);
+                if (!sessionData.phoneNumber && hydrated.number) {
+                    sessionData.phoneNumber = normalizeEvolutionPhone(hydrated.number);
+                    sessionData.client.info.wid.user = sessionData.phoneNumber || '';
+                }
+                if (!sessionData.name && hydrated.profileName) {
+                    sessionData.name = String(hydrated.profileName);
+                    sessionData.client.info.pushname = sessionData.name;
+                }
+            }
+        } catch (_) {}
+    }
+
     if (mappedStatus === 'connected') {
         clearReconnect(sessionId);
         stopReadyProbe(sessionId);
