@@ -1796,6 +1796,7 @@ async function resolveEvolutionSendTarget(sessionId, chatId) {
     if (!raw) return raw;
 
     const normalized = normalizeEvolutionChatId(raw);
+    const isLidTarget = /@lid$/i.test(normalized);
     if (!USE_EVOLUTION || !evolutionApi) return normalized;
     if (normalized.endsWith('@g.us') || normalized.endsWith('@newsletter')) return normalized;
 
@@ -1816,14 +1817,16 @@ async function resolveEvolutionSendTarget(sessionId, chatId) {
         if (digits && digits.length >= 10 && digits.length <= 15) numericCandidates.add(digits);
     };
 
-    addCandidate(raw);
-    addCandidate(normalized);
+    if (!isLidTarget) {
+        addCandidate(raw);
+        addCandidate(normalized);
+    }
     addCandidate(cached?.phoneNumber);
     addCandidate(cached?.name);
-    addCandidate(cached?.id);
+    if (!isLidTarget) addCandidate(cached?.id);
     addCandidate(resolvedIdentity?.phoneNumber);
     addCandidate(resolvedIdentity?.name);
-    ids.forEach(addCandidate);
+    if (!isLidTarget) ids.forEach(addCandidate);
     historyNumbers.forEach(addCandidate);
     archiveFallback.numbers.forEach(addCandidate);
 
