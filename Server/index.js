@@ -11,6 +11,15 @@ const proxyManager = require('./proxyManager');
 const { EvolutionApi, toDigits: evolutionDigits, toRemoteJid: evolutionRemoteJid } = require('./evolutionApi');
 require('dotenv').config();
 
+function sanitizeWebhookUrl(value) {
+    let v = String(value || '').trim();
+    if (!v) return '';
+    v = v.replace(/[`"'‘’´]/g, '');
+    v = v.replace(/\s+/g, '');
+    v = v.replace(/^[()<>]+|[()<>]+$/g, '');
+    return v;
+}
+
 const MASTER_PASSWORD = process.env.MASTER_PASSWORD || process.env.SESSION_MASTER_PASSWORD || 'Ga145523@';
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'mro@gmail.com').trim().toLowerCase();
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || MASTER_PASSWORD;
@@ -22,7 +31,7 @@ const WHATSAPP_PROVIDER = String(
 const USE_EVOLUTION = WHATSAPP_PROVIDER === 'evolution';
 const EVOLUTION_API_URL = String(process.env.EVOLUTION_API_URL || '').trim();
 const EVOLUTION_API_KEY = String(process.env.EVOLUTION_API_KEY || '').trim();
-const EVOLUTION_WEBHOOK_URL = String(process.env.EVOLUTION_WEBHOOK_URL || '').trim();
+const EVOLUTION_WEBHOOK_URL = sanitizeWebhookUrl(process.env.EVOLUTION_WEBHOOK_URL || '');
 const evolutionApi = USE_EVOLUTION
     ? new EvolutionApi({
         baseUrl: EVOLUTION_API_URL,
@@ -510,7 +519,7 @@ function getEvolutionWebhookUrl() {
 }
 
 function buildEvolutionWebhookConfig() {
-    const url = getEvolutionWebhookUrl();
+    const url = sanitizeWebhookUrl(getEvolutionWebhookUrl());
     if (!url) return null;
     return {
         enabled: true,
@@ -2245,6 +2254,10 @@ app.use(express.static(PUBLIC_DIR));
 // --- API ENDPOINTS ---
 app.post('/api/evolution/webhook', async (req, res) => {
     try {
+        const body = req.body || {};
+        const event = normalizeEvolutionEventName(body.event || body.type || body.eventName || '');
+        const sessionId = extractEvolutionSessionId(body);
+        if (event && sessionId) console.log('Evolution webhook:', event, sessionId);
         await processEvolutionWebhookEvent(req.body || {});
         res.json({ success: true });
     } catch (e) {
@@ -2671,6 +2684,7 @@ const reconnectState = new Map();
 const profilePicHydrationState = new Map();
 const getChatsInFlight = new Map();
 const readyProbeTimers = new Map();
+const evolutionConnectionPollTimers = new Map();
 
 function stopReadyProbe(sessionId) {
     const t = readyProbeTimers.get(sessionId);
@@ -2722,6 +2736,42 @@ function startReadyProbe(sessionId) {
         }
     }, 1500);
     readyProbeTimers.set(sessionId, timer);
+}
+
+function stopEvolutionConnectionPoll(sessionId) {
+    const t = evolutionConnectionPollTimers.get(sessionId);
+    if (t) clearInterval(t);
+    evolutionConnectionPollTimers.delete(sessionId);
+}
+
+function startEvolutionConnectionPoll(sessionId) {
+    stopEvolutionConnectionPoll(sessionId);
+    const timer = setInterval(async () => {
+        try {
+            if (!USE_EVOLUTION || !evolutionApi) {
+                stopEvolutionConnectionPoll(sessionId);
+                return;
+            }
+            const sessionData = activeClients.get(sessionId);
+            if (!sessionData || !sessionData.client) {
+                stopEvolutionConnectionPoll(sessionId);
+                return;
+            }
+            if (sessionData.ready === true || sessionData.status === 'connected') {
+                stopEvolutionConnectionPoll(sessionId);
+                return;
+            }
+            const state = await evolutionApi.connectionState(evolutionInstanceName(sessionId)).catch(() => null);
+            if (state) {
+                await syncEvolutionSessionState(sessionId, state, { silent: true });
+            }
+            const refreshed = activeClients.get(sessionId);
+            if (refreshed && refreshed.ready === true) {
+                stopEvolutionConnectionPoll(sessionId);
+            }
+        } catch (e) {}
+    }, 2500);
+    evolutionConnectionPollTimers.set(sessionId, timer);
 }
 
 function scheduleProfilePicHydration(sessionId, sessionData, socket) {
@@ -3132,6 +3182,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                     }
                 }
             }
+            startEvolutionConnectionPoll(sessionId);
             return;
         } catch (error) {
             console.error(`Erro ao inicializar sessão Evolution ${sessionId}:`, error && error.message ? error.message : error);
