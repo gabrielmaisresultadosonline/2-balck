@@ -1792,6 +1792,56 @@
             padding: 24px 18px;
             background: rgba(255,255,255,0.7);
         }
+        .groups-plus-toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        .groups-plus-accordion {
+            border-radius: 18px;
+            border: 1px solid rgba(148,163,184,0.22);
+            background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.98));
+            overflow: hidden;
+        }
+        .groups-plus-accordion + .groups-plus-accordion {
+            margin-top: 12px;
+        }
+        .groups-plus-accordion > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 16px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-weight: 800;
+            color: #0f172a;
+            background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,245,249,0.95));
+        }
+        .groups-plus-accordion > summary::-webkit-details-marker { display: none; }
+        .groups-plus-accordion[open] > summary {
+            border-bottom: 1px solid rgba(226,232,240,0.9);
+        }
+        .groups-plus-accordion-body {
+            padding: 16px 18px 18px;
+        }
+        .groups-plus-accordion-icon {
+            transition: transform .18s ease;
+            color: #0d7a5f;
+        }
+        .groups-plus-accordion[open] .groups-plus-accordion-icon {
+            transform: rotate(180deg);
+        }
+        .groups-plus-subcard {
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            padding: 14px;
+        }
+        .groups-plus-subcard + .groups-plus-subcard {
+            margin-top: 12px;
+        }
         @media (max-width: 720px) {
             #winbackView > div > div:first-child > div:nth-child(2) { grid-template-columns: 1fr !important; }
             #winbackView > div { padding: 12px !important; }
@@ -7771,6 +7821,12 @@
                     <input id="groupsPlusSearch" type="text" placeholder="Nome ou ID do grupo" oninput="filterGroupsPlusGroups()">
                 </div>
 
+                <div class="groups-plus-toolbar">
+                    <button class="btn-secondary" type="button" onclick="refreshGroupsPlusGroups()">
+                        <i class="fas fa-rotate"></i> Atualizar grupos
+                    </button>
+                </div>
+
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:10px 12px; font-size:0.82rem;">
                     <i class="fas fa-shield-halved"></i>
                     A moderação real depende de você ser admin do grupo.
@@ -7782,73 +7838,80 @@
             <main class="groups-plus-main">
                 <div class="groups-plus-grid">
                     <section class="groups-plus-card">
-                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px;">
-                            <div>
-                                <h3 style="margin:0; color:#0f172a;">Automação de Publicações</h3>
-                                <p style="margin:6px 0 0; color:#475569; font-size:0.9rem;">
-                                    Agende várias mensagens por grupo com texto, link e imagem, repetindo por dia ou por semana.
-                                </p>
-                            </div>
-                            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                <button class="btn-secondary" type="button" onclick="resetGroupsPlusPostForm()">
-                                    <i class="fas fa-eraser"></i> Limpar
-                                </button>
-                                <button class="btn-primary" type="button" onclick="saveGroupsPlusPost()">
-                                    <i class="fas fa-floppy-disk"></i> Salvar publicação
-                                </button>
-                            </div>
-                        </div>
+                        <details class="groups-plus-accordion" open>
+                            <summary>
+                                <span><i class="fas fa-bullhorn" style="color:#0d7a5f; margin-right:8px;"></i> Automação de Publicações</span>
+                                <i class="fas fa-chevron-down groups-plus-accordion-icon"></i>
+                            </summary>
+                            <div class="groups-plus-accordion-body">
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:16px;">
+                                    <div>
+                                        <p style="margin:0; color:#475569; font-size:0.9rem;">
+                                            Agende várias mensagens por grupo com texto, link e imagem, repetindo por dia ou por semana.
+                                        </p>
+                                    </div>
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                        <button class="btn-secondary" type="button" onclick="resetGroupsPlusPostForm()">
+                                            <i class="fas fa-eraser"></i> Limpar
+                                        </button>
+                                        <button class="btn-primary" type="button" onclick="saveGroupsPlusPost()">
+                                            <i class="fas fa-floppy-disk"></i> Salvar publicação
+                                        </button>
+                                    </div>
+                                </div>
 
-                        <input type="hidden" id="groupsPlusPostId">
-                        <div class="groups-plus-form-grid">
-                            <div class="groups-plus-field full">
-                                <label>Grupo selecionado</label>
-                                <div id="groupsPlusGroupHeadline" style="padding:12px 14px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; font-weight:700;">
-                                    Selecione um grupo ao lado para começar.
+                                <input type="hidden" id="groupsPlusPostId">
+                                <div class="groups-plus-form-grid">
+                                    <div class="groups-plus-field full">
+                                        <label>Grupo selecionado</label>
+                                        <div id="groupsPlusGroupHeadline" style="padding:12px 14px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; color:#0f172a; font-weight:700;">
+                                            Selecione um grupo ao lado para começar.
+                                        </div>
+                                    </div>
+
+                                    <div class="groups-plus-field">
+                                        <label for="groupsPlusPostKind">Tipo da publicação</label>
+                                        <select id="groupsPlusPostKind" onchange="toggleGroupsPlusKind(this.value); renderGroupsPlusPreview();">
+                                            <option value="text">Texto + link</option>
+                                            <option value="image">Texto + imagem</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="groups-plus-field">
+                                        <label for="groupsPlusRepeat">Repetição</label>
+                                        <select id="groupsPlusRepeat" onchange="renderGroupsPlusPreview()">
+                                            <option value="once">Uma vez</option>
+                                            <option value="daily">Todo dia</option>
+                                            <option value="weekly">Toda semana</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="groups-plus-field full">
+                                        <label for="groupsPlusPostText">Texto da publicação</label>
+                                        <textarea id="groupsPlusPostText" rows="5" placeholder="Digite o texto do post. Se quiser, inclua um link no mesmo conteúdo." oninput="renderGroupsPlusPreview()"></textarea>
+                                    </div>
+
+                                    <div class="groups-plus-field" id="groupsPlusImageField" style="display:none;">
+                                        <label>Imagem da publicação</label>
+                                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                            <button class="btn-secondary" type="button" onclick="openGroupsPlusImagePicker()">
+                                                <i class="fas fa-image"></i> Enviar imagem
+                                            </button>
+                                            <button class="btn-secondary" type="button" onclick="clearGroupsPlusImage()">
+                                                <i class="fas fa-trash"></i> Remover imagem
+                                            </button>
+                                        </div>
+                                        <input id="groupsPlusImageFile" type="file" accept="image/*" style="display:none;" onchange="handleGroupsPlusImageUpload(this)">
+                                        <div id="groupsPlusImageStatus" style="margin-top:8px; font-size:0.82rem; color:#475569;">Nenhuma imagem selecionada.</div>
+                                    </div>
+
+                                    <div class="groups-plus-field">
+                                        <label for="groupsPlusScheduleAt">Data e hora</label>
+                                        <input id="groupsPlusScheduleAt" type="datetime-local" onchange="renderGroupsPlusPreview()">
+                                    </div>
                                 </div>
                             </div>
-
-                            <div class="groups-plus-field">
-                                <label for="groupsPlusPostKind">Tipo da publicação</label>
-                                <select id="groupsPlusPostKind" onchange="toggleGroupsPlusKind(this.value); renderGroupsPlusPreview();">
-                                    <option value="text">Texto + link</option>
-                                    <option value="image">Texto + imagem</option>
-                                </select>
-                            </div>
-
-                            <div class="groups-plus-field">
-                                <label for="groupsPlusRepeat">Repetição</label>
-                                <select id="groupsPlusRepeat" onchange="renderGroupsPlusPreview()">
-                                    <option value="once">Uma vez</option>
-                                    <option value="daily">Todo dia</option>
-                                    <option value="weekly">Toda semana</option>
-                                </select>
-                            </div>
-
-                            <div class="groups-plus-field full">
-                                <label for="groupsPlusPostText">Texto da publicação</label>
-                                <textarea id="groupsPlusPostText" rows="5" placeholder="Digite o texto do post. Se quiser, inclua um link no mesmo conteúdo." oninput="renderGroupsPlusPreview()"></textarea>
-                            </div>
-
-                            <div class="groups-plus-field" id="groupsPlusImageField" style="display:none;">
-                                <label>Imagem da publicação</label>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                    <button class="btn-secondary" type="button" onclick="openGroupsPlusImagePicker()">
-                                        <i class="fas fa-image"></i> Enviar imagem
-                                    </button>
-                                    <button class="btn-secondary" type="button" onclick="clearGroupsPlusImage()">
-                                        <i class="fas fa-trash"></i> Remover imagem
-                                    </button>
-                                </div>
-                                <input id="groupsPlusImageFile" type="file" accept="image/*" style="display:none;" onchange="handleGroupsPlusImageUpload(this)">
-                                <div id="groupsPlusImageStatus" style="margin-top:8px; font-size:0.82rem; color:#475569;">Nenhuma imagem selecionada.</div>
-                            </div>
-
-                            <div class="groups-plus-field">
-                                <label for="groupsPlusScheduleAt">Data e hora</label>
-                                <input id="groupsPlusScheduleAt" type="datetime-local" onchange="renderGroupsPlusPreview()">
-                            </div>
-                        </div>
+                        </details>
                     </section>
 
                     <section class="groups-plus-card">
@@ -7882,40 +7945,70 @@
 
                 <div class="groups-plus-grid">
                     <section class="groups-plus-card">
-                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
-                            <div>
-                                <h3 style="margin:0; color:#0f172a;">Grupo Segurança</h3>
-                                <p style="margin:6px 0 0; color:#475569; font-size:0.9rem;">
-                                    Bloqueie link, imagem, vídeo, áudio e arquivo. Quem não estiver na whitelist recebe exclusão e reação de proibido.
-                                </p>
+                        <details class="groups-plus-accordion">
+                            <summary>
+                                <span><i class="fas fa-shield-halved" style="color:#0d7a5f; margin-right:8px;"></i> Grupo Segurança</span>
+                                <i class="fas fa-chevron-down groups-plus-accordion-icon"></i>
+                            </summary>
+                            <div class="groups-plus-accordion-body">
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                                    <div>
+                                        <p style="margin:0; color:#475569; font-size:0.9rem;">
+                                            Bloqueie link, imagem, vídeo, áudio e arquivo. Quem não estiver na whitelist recebe exclusão e reação de proibido.
+                                        </p>
+                                    </div>
+                                    <button class="btn-primary" type="button" onclick="saveGroupsPlusSecurity()">
+                                        <i class="fas fa-shield"></i> Salvar segurança
+                                    </button>
+                                </div>
+
+                                <details class="groups-plus-accordion" open>
+                                    <summary>
+                                        <span>Status da proteção</span>
+                                        <i class="fas fa-chevron-down groups-plus-accordion-icon"></i>
+                                    </summary>
+                                    <div class="groups-plus-accordion-body">
+                                        <div class="groups-plus-field">
+                                            <label for="groupsPlusSecurityEnabled">Status da proteção</label>
+                                            <select id="groupsPlusSecurityEnabled" onchange="renderGroupsPlusSecuritySummary()">
+                                                <option value="true">Ativada</option>
+                                                <option value="false">Desativada</option>
+                                            </select>
+                                        </div>
+                                        <div id="groupsPlusSecuritySummary" class="groups-plus-subcard" style="margin-top:12px; color:#334155; font-size:0.86rem;"></div>
+                                    </div>
+                                </details>
+
+                                <details class="groups-plus-accordion">
+                                    <summary>
+                                        <span>Tipos bloqueados</span>
+                                        <i class="fas fa-chevron-down groups-plus-accordion-icon"></i>
+                                    </summary>
+                                    <div class="groups-plus-accordion-body">
+                                        <div class="groups-plus-switches">
+                                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockLinks" onchange="renderGroupsPlusSecuritySummary()"> Bloquear links</label>
+                                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockImage" onchange="renderGroupsPlusSecuritySummary()"> Bloquear imagens</label>
+                                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockVideo" onchange="renderGroupsPlusSecuritySummary()"> Bloquear vídeos</label>
+                                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockAudio" onchange="renderGroupsPlusSecuritySummary()"> Bloquear áudios</label>
+                                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockDocument" onchange="renderGroupsPlusSecuritySummary()"> Bloquear arquivos</label>
+                                        </div>
+                                    </div>
+                                </details>
+
+                                <details class="groups-plus-accordion">
+                                    <summary>
+                                        <span>Whitelist do grupo</span>
+                                        <i class="fas fa-chevron-down groups-plus-accordion-icon"></i>
+                                    </summary>
+                                    <div class="groups-plus-accordion-body">
+                                        <div class="groups-plus-field">
+                                            <label for="groupsPlusWhitelist">Whitelist do grupo</label>
+                                            <textarea id="groupsPlusWhitelist" rows="5" placeholder="Um número ou ID por linha. Ex: 5599999999999 ou 5599999999999@c.us" oninput="renderGroupsPlusSecuritySummary()"></textarea>
+                                        </div>
+                                    </div>
+                                </details>
                             </div>
-                            <button class="btn-primary" type="button" onclick="saveGroupsPlusSecurity()">
-                                <i class="fas fa-shield"></i> Salvar segurança
-                            </button>
-                        </div>
-
-                        <div class="groups-plus-field">
-                            <label for="groupsPlusSecurityEnabled">Status da proteção</label>
-                            <select id="groupsPlusSecurityEnabled" onchange="renderGroupsPlusSecuritySummary()">
-                                <option value="true">Ativada</option>
-                                <option value="false">Desativada</option>
-                            </select>
-                        </div>
-
-                        <div class="groups-plus-switches">
-                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockLinks" onchange="renderGroupsPlusSecuritySummary()"> Bloquear links</label>
-                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockImage" onchange="renderGroupsPlusSecuritySummary()"> Bloquear imagens</label>
-                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockVideo" onchange="renderGroupsPlusSecuritySummary()"> Bloquear vídeos</label>
-                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockAudio" onchange="renderGroupsPlusSecuritySummary()"> Bloquear áudios</label>
-                            <label class="groups-plus-switch"><input type="checkbox" id="groupsPlusBlockDocument" onchange="renderGroupsPlusSecuritySummary()"> Bloquear arquivos</label>
-                        </div>
-
-                        <div class="groups-plus-field" style="margin-top:14px;">
-                            <label for="groupsPlusWhitelist">Whitelist do grupo</label>
-                            <textarea id="groupsPlusWhitelist" rows="5" placeholder="Um número ou ID por linha. Ex: 5599999999999 ou 5599999999999@c.us" oninput="renderGroupsPlusSecuritySummary()"></textarea>
-                        </div>
-
-                        <div id="groupsPlusSecuritySummary" style="margin-top:12px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; color:#334155; font-size:0.86rem;"></div>
+                        </details>
                     </section>
 
                     <section class="groups-plus-card">
@@ -9619,10 +9712,26 @@
             window.renderGroupsPlusPreview();
         };
 
+        window.filterGroupsPlusGroups = function() {
+            renderGroupsPlusGroupList();
+        };
+
+        window.refreshGroupsPlusGroups = function() {
+            if (window.socket && window.sessionId) {
+                window.socket.emit('get-groups-plus-data', {
+                    sessionId: window.sessionId,
+                    forceRefresh: true
+                });
+            }
+        };
+
         window.initGroupsPlus = function() {
             setGroupsPlusDefaultSchedule();
             if (window.socket && window.sessionId) {
-                window.socket.emit('get-groups-plus-data', window.sessionId);
+                window.socket.emit('get-groups-plus-data', {
+                    sessionId: window.sessionId,
+                    forceRefresh: true
+                });
             }
             window.renderGroupsPlus();
         };

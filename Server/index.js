@@ -802,19 +802,107 @@ function computeGroupsPlusNextRun(post, baseTs = Date.now()) {
     return 0;
 }
 
+function normalizeKnownGroupRecord(chat) {
+    const raw = chat && typeof chat === 'object' ? chat : {};
+    const rawId = normalizeEvolutionChatId(
+        raw.id?._serialized ||
+        raw.id ||
+        raw.remoteJid ||
+        raw.jid ||
+        raw.chatId ||
+        ''
+    );
+    if (!/@g\.us$/i.test(rawId)) return null;
+    return {
+        id: rawId,
+        name: getChatDisplayNameSafe({ ...raw, id: rawId }),
+        profilePic: sanitizeEvolutionUrl(raw.profilePic || raw.profilePictureUrl || raw.profilePicUrl || '') || '',
+        lastMessage: getChatPreviewSafe(raw.lastMessage || raw.lastMessageText || ''),
+        unreadCount: Number(raw.unreadCount || raw.unread || 0) || 0,
+        timestamp: Number(raw.timestamp || raw.updatedAt || raw.messageTimestamp || 0) || 0
+    };
+}
+
+function extractKnownGroupsFromRows(rows = []) {
+    const groups = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+        const normalized = normalizeKnownGroupRecord(row);
+        if (!normalized || !normalized.id) return;
+        const existing = groups.get(normalized.id);
+        if (!existing || (normalized.timestamp || 0) >= (existing.timestamp || 0)) {
+            groups.set(normalized.id, normalized);
+        }
+    });
+    return Array.from(groups.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
+
+function persistKnownGroupsToCache(sessionId, groups = []) {
+    const sid = String(sessionId || '').trim();
+    if (!sid || !Array.isArray(groups) || groups.length === 0) return;
+    const cached = loadChatCache(sid);
+    const map = new Map();
+    (Array.isArray(cached) ? cached : []).forEach((item) => {
+        if (item && item.id) map.set(String(item.id), item);
+    });
+    groups.forEach((group) => {
+        if (!group || !group.id) return;
+        const existing = map.get(String(group.id)) || {};
+        map.set(String(group.id), {
+            ...existing,
+            ...group
+        });
+    });
+    saveChatCache(sid, Array.from(map.values()).sort((a, b) => (Number(b && b.timestamp || 0) || 0) - (Number(a && a.timestamp || 0) || 0)));
+}
+
 function listKnownGroupsForSession(sessionId) {
-    const cache = loadChatCache(sessionId);
-    return (Array.isArray(cache) ? cache : [])
-        .filter(chat => String(chat && chat.id || '').endsWith('@g.us'))
-        .map(chat => ({
-            id: String(chat.id || ''),
-            name: getChatDisplayNameSafe(chat),
-            profilePic: chat.profilePic || '',
-            lastMessage: getChatPreviewSafe(chat.lastMessage || ''),
-            unreadCount: Number(chat.unreadCount || 0) || 0,
-            timestamp: Number(chat.timestamp || 0) || 0
-        }))
-        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    return extractKnownGroupsFromRows(loadChatCache(sessionId));
+}
+
+async function loadKnownGroupsForSession(sessionId, options = {}) {
+    const sid = String(sessionId || '').trim();
+    const forceRefresh = !!(options && options.forceRefresh);
+    if (!sid) return [];
+
+    const cachedGroups = listKnownGroupsForSession(sid);
+    if (cachedGroups.length > 0 && !forceRefresh) return cachedGroups;
+
+    const sessionData = activeClients.get(sid);
+    const liveGroupMap = new Map(cachedGroups.map((group) => [String(group.id), group]));
+
+    const appendGroups = (rows) => {
+        extractKnownGroupsFromRows(rows).forEach((group) => {
+            if (!group || !group.id) return;
+            const existing = liveGroupMap.get(String(group.id));
+            if (!existing || (group.timestamp || 0) >= (existing.timestamp || 0)) {
+                liveGroupMap.set(String(group.id), group);
+            }
+        });
+    };
+
+    if (hasReadyClient(sessionData) && sessionData.client && typeof sessionData.client.getChats === 'function') {
+        try {
+            const chats = await Promise.race([
+                sessionData.client.getChats(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('groups_fetch_timeout')), 45000))
+            ]);
+            appendGroups(chats);
+        } catch (error) {}
+    }
+
+    if (USE_EVOLUTION && evolutionApi && liveGroupMap.size === 0) {
+        try {
+            const rows = extractEvolutionRows(await evolutionApi.findChats(evolutionInstanceName(sid), {
+                limit: 1000,
+                offset: 0
+            }));
+            appendGroups(rows.map((row) => normalizeEvolutionChatRecord(sid, row)));
+        } catch (error) {}
+    }
+
+    const groups = Array.from(liveGroupMap.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    if (groups.length > 0) persistKnownGroupsToCache(sid, groups);
+    return groups;
 }
 
 function getChatDisplayNameSafe(chat) {
@@ -829,11 +917,12 @@ function getChatDisplayNameSafe(chat) {
     );
 }
 
-function emitGroupsPlusData(sessionId) {
+async function emitGroupsPlusData(sessionId, options = {}) {
     const state = getGroupsPlusSessionData(sessionId);
+    const groups = await loadKnownGroupsForSession(sessionId, options);
     emitToSessionClients(sessionId, 'groups-plus-data', {
         sessionId,
-        groups: listKnownGroupsForSession(sessionId),
+        groups,
         posts: state.posts,
         security: state.security,
         activity: state.activity
@@ -9203,21 +9292,28 @@ io.on('connection', (socket) => {
         io.to(`session:${sessionId}`).emit('scheduled-messages-update', scheduled[sessionId]);
     });
 
-    socket.on('get-groups-plus-data', (sessionId, cb) => {
-        const sid = String(sessionId || '').trim();
+    socket.on('get-groups-plus-data', async (payload, cb) => {
+        const sid = String(
+            payload && typeof payload === 'object'
+                ? (payload.sessionId || '')
+                : (payload || '')
+        ).trim();
+        const forceRefresh = !!(payload && typeof payload === 'object' && payload.forceRefresh);
         if (!sid) {
             if (typeof cb === 'function') cb({ ok: false, error: 'Sessão inválida.' });
             return;
         }
-        const payload = {
+        const state = getGroupsPlusSessionData(sid);
+        const groups = await loadKnownGroupsForSession(sid, { forceRefresh });
+        const responsePayload = {
             sessionId: sid,
-            groups: listKnownGroupsForSession(sid),
-            posts: getGroupsPlusSessionData(sid).posts,
-            security: getGroupsPlusSessionData(sid).security,
-            activity: getGroupsPlusSessionData(sid).activity
+            groups,
+            posts: state.posts,
+            security: state.security,
+            activity: state.activity
         };
-        socket.emit('groups-plus-data', payload);
-        if (typeof cb === 'function') cb({ ok: true, data: payload });
+        socket.emit('groups-plus-data', responsePayload);
+        if (typeof cb === 'function') cb({ ok: true, data: responsePayload });
     });
 
     socket.on('save-groups-plus-post', ({ sessionId, post }, cb) => {
