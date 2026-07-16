@@ -2014,6 +2014,13 @@ function emitToSessionClients(sessionId, eventName, payload) {
     io.to(`session:${sessionId}`).emit(eventName, payload);
 }
 
+function sanitizeResolvedPhoneForChat(chatId, value) {
+    const digits = normalizeEvolutionPhone(value);
+    if (!digits) return '';
+    if (/@lid$/i.test(String(chatId || '').trim()) && isSuspiciousLidPhone(chatId, digits)) return '';
+    return digits;
+}
+
 function getCachedChatByAnyId(sessionId, chatId) {
     const ids = collectPossibleChatIds(sessionId, chatId);
     const cache = loadChatCache(sessionId);
@@ -6666,9 +6673,9 @@ io.on('connection', (socket) => {
                 ? cachedChats.map(c => {
                     const id = c && c.id ? String(c.id) : '';
                     if (!id || (!id.endsWith('@c.us') && !id.endsWith('@lid'))) return c;
-                    const resolvedPhone = normalizeEvolutionPhone(c && c.phoneNumber)
+                    const resolvedPhone = sanitizeResolvedPhoneForChat(id, c && c.phoneNumber)
                         || (id.endsWith('@lid') ? (getStoredPhoneForLid(id) || findStoredPhoneForLid(id)) : '')
-                        || normalizeEvolutionPhone(id.includes('@') ? id.split('@')[0] : '');
+                        || (!id.endsWith('@lid') ? normalizeEvolutionPhone(id.includes('@') ? id.split('@')[0] : '') : '');
                     const phoneDigits = normalizeDigits(resolvedPhone || '');
                     const rec = phoneDigits ? contactByDigits.get(phoneDigits) : null;
                     const nm = rec && rec.name ? String(rec.name).trim() : '';
@@ -6783,7 +6790,10 @@ io.on('connection', (socket) => {
                             }
                         }
 
-                        const phoneNumber = derivedPhoneNumber || (cached && cached.phoneNumber ? String(cached.phoneNumber) : null);
+                        const phoneNumber =
+                            sanitizeResolvedPhoneForChat(displayChatId, derivedPhoneNumber)
+                            || sanitizeResolvedPhoneForChat(displayChatId, cached && cached.phoneNumber ? String(cached.phoneNumber) : '')
+                            || null;
                         const phoneDigits = normalizeDigits(phoneNumber || '');
                         const rec = phoneDigits ? contactByDigits.get(phoneDigits) : null;
                         const contactName = rec && rec.name ? String(rec.name).trim() : '';

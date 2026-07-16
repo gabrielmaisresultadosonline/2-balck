@@ -2024,6 +2024,10 @@
                 }, 500);
             }
         }
+        window.hideLoading = hideLoading;
+        window.addEventListener('load', () => setTimeout(hideLoading, 300));
+        window.addEventListener('error', () => setTimeout(hideLoading, 50));
+        window.addEventListener('unhandledrejection', () => setTimeout(hideLoading, 50));
 
         function extractDigits(value) {
             return String(value || '').replace(/\D+/g, '');
@@ -2039,6 +2043,12 @@
             if (!raw || raw === '[object Object]') return true;
             if (/@lid$/i.test(raw)) return true;
             return /^[0-9@._+\-\s]+$/.test(raw);
+        }
+
+        function getLidDigitsFromChat(chat) {
+            const id = String(chat && chat.id || '').trim();
+            if (!/@lid$/i.test(id)) return '';
+            return extractDigits(id.split('@')[0] || '');
         }
 
         function sanitizeMediaUrl(value) {
@@ -2267,9 +2277,10 @@
         }
 
         function getChatPhone(chat) {
-            const direct = isValidPhoneDigits(chat && (chat.phoneNumber || chat.phone || ''));
-            if (direct) return direct;
             const id = String(chat && chat.id || '');
+            const lidDigits = getLidDigitsFromChat(chat);
+            const direct = isValidPhoneDigits(chat && (chat.phoneNumber || chat.phone || ''));
+            if (direct && (!lidDigits || direct !== lidDigits)) return direct;
             if (!id) return '';
             if (/@(lid|g\.us|newsletter)$/i.test(id)) return '';
             return isValidPhoneDigits(id.split('@')[0] || '');
@@ -2624,6 +2635,7 @@
 
         window.socket.on('connect', () => {
             console.log('Socket connected! ID:', window.socket.id);
+            hideLoading();
             
             // Check Session ID
             if (!window.sessionId) {
