@@ -153,6 +153,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sessionInfo && infoHtml) sessionInfo.innerHTML = infoHtml;
     }
 
+    function resetUserConnectionState(messageHtml) {
+        if (qrVisual) qrVisual.classList.remove('is-ready');
+        if (qrLoading) {
+            qrLoading.style.display = 'none';
+            qrLoading.innerHTML = '<i class="fab fa-whatsapp"></i><span>Aguardando ação.</span>';
+        }
+        if (qrCodeImg) {
+            qrCodeImg.style.display = 'none';
+            qrCodeImg.removeAttribute('src');
+            qrCodeImg.onload = null;
+            qrCodeImg.onerror = null;
+        }
+        if (sessionInfo) {
+            sessionInfo.innerHTML = messageHtml || '<p><strong>Status:</strong> <span class="status disconnected">Desconectado</span></p>';
+        }
+        if (openCrmBtn) openCrmBtn.style.display = 'none';
+        setRightPanelVisible(true);
+    }
+
     function showAuthError(msg) {
         if (!authError) return;
         authError.textContent = msg || 'Erro';
@@ -252,6 +271,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                 }
                 showDashboardAccess(data.sessionId);
+            }
+            if (authRole === 'admin') loadAdminUsers();
+            else loadActiveSessions();
+        });
+
+        socket.on('session-status', (data) => {
+            if (!data || !data.sessionId) return;
+            if (data.sessionId === currentSessionId && (data.status === 'disconnected' || data.status === 'auth_failed' || data.status === 'reconnecting')) {
+                resetUserConnectionState(`
+                    <p><strong>ID da Sessão:</strong> ${data.sessionId}</p>
+                    <p><strong>Status:</strong> <span class="status disconnected">${data.status === 'reconnecting' ? 'Desconectado' : 'Desconectado'}</span></p>
+                    <p>Gere um novo QR Code para reconectar seu WhatsApp.</p>
+                `);
+                currentSessionId = null;
             }
             if (authRole === 'admin') loadAdminUsers();
             else loadActiveSessions();
@@ -1457,8 +1490,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (data.success) {
                 if (sessionId === currentSessionId) {
-                    if (qrContainer) qrContainer.style.display = 'none';
                     currentSessionId = null;
+                    resetUserConnectionState('<p><strong>Status:</strong> <span class="status disconnected">Desconectado</span></p><p>Gere um novo QR Code para reconectar seu WhatsApp.</p>');
                 }
                 loadActiveSessions();
             }

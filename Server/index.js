@@ -3249,6 +3249,44 @@ const profilePicHydrationState = new Map();
 const getChatsInFlight = new Map();
 const readyProbeTimers = new Map();
 const evolutionConnectionPollTimers = new Map();
+const manualStopSessions = new Set();
+
+function markSessionManuallyStopped(sessionId) {
+    const sid = String(sessionId || '').trim();
+    if (sid) manualStopSessions.add(sid);
+}
+
+function clearSessionManualStop(sessionId) {
+    manualStopSessions.delete(String(sessionId || '').trim());
+}
+
+function isSessionManuallyStopped(sessionId) {
+    return manualStopSessions.has(String(sessionId || '').trim());
+}
+
+function clearPersistedConnectionState(sessionId, options = {}) {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return;
+    const sessions = loadSessionsData();
+    if (sessions && sessions[sid]) {
+        delete sessions[sid];
+        saveSessionsData(sessions);
+    }
+    if (!options.keepUserBinding) {
+        return;
+    }
+    const user = getUserBySessionId(sid);
+    if (user) {
+        upsertUser({
+            ...user,
+            whatsappNumber: null,
+            whatsappName: null,
+            connectedAt: null,
+            lastQrAt: null,
+            updatedAt: Date.now()
+        });
+    }
+}
 
 function stopReadyProbe(sessionId) {
     const t = readyProbeTimers.get(sessionId);
@@ -3310,6 +3348,10 @@ function startEvolutionConnectionPoll(sessionId) {
     stopEvolutionConnectionPoll(sessionId);
     const timer = setInterval(async () => {
         try {
+            if (isSessionManuallyStopped(sessionId)) {
+                stopEvolutionConnectionPoll(sessionId);
+                return;
+            }
             if (!USE_EVOLUTION || !evolutionApi) {
                 stopEvolutionConnectionPoll(sessionId);
                 return;
@@ -3411,6 +3453,7 @@ function scheduleProfilePicHydration(sessionId, sessionData, socket) {
 }
 
 function scheduleReconnect(sessionId, reason) {
+    if (isSessionManuallyStopped(sessionId)) return;
     const current = reconnectState.get(sessionId) || { attempt: 0, timer: null };
     if (current.timer) return;
 
@@ -3684,6 +3727,7 @@ function generateSessionId() {
 // Função para inicializar cliente
 async function initializeClient(sessionId, savedSession = null, retryCount = 0) {
     console.log(`Inicializando sessão: ${sessionId} (Tentativa ${retryCount})`);
+    clearSessionManualStop(sessionId);
 
     if (USE_EVOLUTION) {
         if (!evolutionApi || !evolutionApi.isConfigured()) {
@@ -4230,6 +4274,19 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 
     client.on('disconnected', (reason) => {
         console.log(`Cliente desconectado: ${sessionId}`, reason);
+        if (isSessionManuallyStopped(sessionId)) {
+            const sessionData = activeClients.get(sessionId);
+            if (sessionData) {
+                sessionData.status = 'disconnected';
+                sessionData.ready = false;
+                sessionData.client = null;
+                stopReadyProbe(sessionId);
+                stopEvolutionConnectionPoll(sessionId);
+                emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'disconnected' });
+                io.to('admin').emit('session-status', { sessionId, status: 'disconnected' });
+            }
+            return;
+        }
         const sessionData = activeClients.get(sessionId);
         if (sessionData) {
             sessionData.status = 'reconnecting';
@@ -4915,17 +4972,34 @@ app.post('/api/create-session', requireUser, (req, res) => {
 });
 
 // Rota para desconectar sessão
-app.post('/api/disconnect-session', requireUser, (req, res) => {
+app.post('/api/disconnect-session', requireUser, async (req, res) => {
     const sessionId = req.user && req.user.sessionId ? String(req.user.sessionId) : '';
-    
-    const sessionData = activeClients.get(sessionId);
-    if (sessionData) {
-        sessionData.client.destroy();
-        activeClients.delete(sessionId);
-        res.json({ success: true, message: 'Sessão desconectada' });
-    } else {
+    if (!sessionId) {
         res.status(404).json({ success: false, message: 'Sessão não encontrada' });
+        return;
     }
+
+    markSessionManuallyStopped(sessionId);
+    clearReconnect(sessionId);
+    stopReadyProbe(sessionId);
+    stopEvolutionConnectionPoll(sessionId);
+
+    const sessionData = activeClients.get(sessionId);
+    if (sessionData && sessionData.client) {
+        try { await sessionData.client.destroy(); } catch (e) {}
+    }
+    if (USE_EVOLUTION && evolutionApi) {
+        try { await evolutionApi.logoutInstance(evolutionInstanceName(sessionId)); } catch (e) {}
+    }
+    activeClients.delete(sessionId);
+    clearPersistedConnectionState(sessionId, { keepUserBinding: true });
+
+    emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'disconnected' });
+    io.to('admin').emit('session-status', { sessionId, status: 'disconnected' });
+    io.to(`session:${sessionId}`).emit('sessions-list-update');
+    io.to('admin').emit('sessions-list-update');
+
+    res.json({ success: true, message: 'Sessão desconectada' });
 });
 
 // Rota para listar sessões ativas
@@ -5094,7 +5168,9 @@ io.on('connection', (socket) => {
         }
 
         try {
+            markSessionManuallyStopped(sid);
             stopReadyProbe(sid);
+            stopEvolutionConnectionPoll(sid);
             clearReconnect(sid);
             if (activeFlows && activeFlows[sid]) delete activeFlows[sid];
             if (aiDebounceTimers && aiDebounceTimers[sid]) delete aiDebounceTimers[sid];
