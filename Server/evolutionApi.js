@@ -315,9 +315,9 @@ class EvolutionApi {
                 ...compactObject({
                     title: data.title || '',
                     description: data.description || data.text || '',
-                    buttonText: data.buttonText || 'Abrir menu',
-                    footerText: data.footerText || data.footer || ''
+                    buttonText: data.buttonText || 'Abrir menu'
                 }),
+                footerText: String(data.footerText ?? data.footer ?? ''),
                 sections,
                 ...options
             }
