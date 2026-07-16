@@ -3221,10 +3221,11 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 
 app.get('/api/network-info', async (req, res) => {
     try {
-        const realIp = await fetchOutboundPublicIp(null);
+        const realNetwork = await fetchOutboundPublicIp(null);
         res.json({
             success: true,
-            realIp: realIp || null,
+            realIp: (realNetwork && realNetwork.ip) ? realNetwork.ip : null,
+            source: (realNetwork && realNetwork.endpoint) ? realNetwork.endpoint : null,
             requestIp: getRemoteRequestIp(req) || null
         });
     } catch (e) {

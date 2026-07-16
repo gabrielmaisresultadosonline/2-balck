@@ -1255,6 +1255,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     ? escapeHtml(session.proxyConnectionIp || '—')
                     : (session.usingProxy ? 'Validando...' : '—');
                 const proxyLabel = escapeHtml(session.proxyName || (session.proxyHost ? `${session.proxyHost}${session.proxyPort ? ':' + session.proxyPort : ''}` : 'Sem proxy'));
+                const userConnectionLabel = session.usingProxy ? 'IP atual via proxy:' : 'Seu IP atual da conexão:';
                 sessionCard.innerHTML = `
                     <div class="uc-user">
                         <div class="uc-user__top">
@@ -1290,8 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="uc-conn__meta"><span>Número:</span> ${formatSessionPhone(session.phoneNumber) || 'Não conectado'}</div>
                         <div class="uc-conn__meta"><span>ID:</span> ${session.sessionId}</div>
-                        <div class="uc-conn__meta"><span>Seu IP atual da conexão:</span> <b title="${proxySource || proxyHint}">${currentIp}</b></div>
-                        <div class="uc-conn__meta"><span>IP real da VPS:</span> ${realIp}</div>
+                        <div class="uc-conn__meta"><span>${userConnectionLabel}</span> <b title="${proxySource || proxyHint}">${currentIp}</b></div>
                         <div class="uc-conn__meta"><span>Proxy em uso:</span> ${proxyLabel}</div>
                         ${session.usingProxy && !session.proxyIpValidated ? `<div class="uc-conn__meta" style="color:#b45309;"><span>Validação do proxy:</span> ${proxyHint || 'Falhou ao consultar IP externo pelo proxy'}</div>` : ''}
                         <span class="uc-badge">CONECTADO</span>
