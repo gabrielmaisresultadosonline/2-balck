@@ -2608,6 +2608,7 @@ const FLOW_TIME_UNITS = Object.freeze({
     hours: 3600000
 });
 const FLOW_TEXT_MIN_TYPING_MS = 3000;
+const FLOW_INTERACTIVE_DELIVERY_MODE = 'compatibility_text';
 
 function getFlowTimeUnit(unit, fallback = 'milliseconds') {
     return Object.prototype.hasOwnProperty.call(FLOW_TIME_UNITS, unit) ? unit : fallback;
@@ -2811,6 +2812,28 @@ function findFlowInteractiveBranch(step, replyId) {
     return getFlowInteractiveBranches(step).find(branch => normalizeFlowInteractiveId(branch.id) === normalized) || null;
 }
 
+function findFlowInteractiveBranchByText(step, incomingText) {
+    const raw = String(incomingText || '').trim();
+    if (!raw) return null;
+    const normalizedText = normalizeFlowInteractiveId(raw);
+    if (!normalizedText) return null;
+    const branches = getFlowInteractiveBranches(step);
+    return branches.find((branch, index) => {
+        const normalizedId = normalizeFlowInteractiveId(branch.id || '');
+        const normalizedLabel = normalizeFlowInteractiveId(branch.label || '');
+        const numericChoice = String(index + 1);
+        return normalizedText === normalizedId
+            || normalizedText === normalizedLabel
+            || normalizedText === numericChoice;
+    }) || null;
+}
+
+function shouldUseFlowInteractiveFallback(step, kind, error = null) {
+    if (FLOW_INTERACTIVE_DELIVERY_MODE === 'compatibility_text') return true;
+    if (FLOW_INTERACTIVE_DELIVERY_MODE === 'compatibility_text_on_error') return !!error;
+    return !!error && isEvolutionInteractiveCompatibilityError(error);
+}
+
 function getEvolutionErrorMessages(error) {
     const responsePayload = error?.evolutionResponse || error?.response?.data || null;
     const rawMessages = responsePayload?.response?.message;
@@ -2841,12 +2864,12 @@ function buildFlowInteractiveFallbackText(step, kind) {
         if (buttons.length) {
             pushLine('');
             pushLine('Opcoes:');
-            buttons.forEach((button) => {
-                if (button.type === 'reply') pushLine(`- ${button.displayText} (responda: ${button.id})`);
-                else if (button.type === 'url' && button.url) pushLine(`- ${button.displayText}: ${button.url}`);
-                else if (button.type === 'call' && button.phoneNumber) pushLine(`- ${button.displayText}: ${button.phoneNumber}`);
-                else if (button.type === 'copy' && button.copyCode) pushLine(`- ${button.displayText}: ${button.copyCode}`);
-                else if (button.type === 'pix' && button.pixKey) pushLine(`- ${button.displayText}: ${button.pixKey}`);
+            buttons.forEach((button, index) => {
+                if (button.type === 'reply') pushLine(`${index + 1}. ${button.displayText} (responda: ${button.id})`);
+                else if (button.type === 'url' && button.url) pushLine(`${index + 1}. ${button.displayText}: ${button.url}`);
+                else if (button.type === 'call' && button.phoneNumber) pushLine(`${index + 1}. ${button.displayText}: ${button.phoneNumber}`);
+                else if (button.type === 'copy' && button.copyCode) pushLine(`${index + 1}. ${button.displayText}: ${button.copyCode}`);
+                else if (button.type === 'pix' && button.pixKey) pushLine(`${index + 1}. ${button.displayText}: ${button.pixKey}`);
             });
         }
         if (footer) {
@@ -2868,9 +2891,9 @@ function buildFlowInteractiveFallbackText(step, kind) {
                 pushLine('');
                 pushLine(`${section.title}:`);
             }
-            section.rows.forEach((row) => {
+            section.rows.forEach((row, rowIndex) => {
                 const detail = row.description ? ` - ${row.description}` : '';
-                pushLine(`- ${row.title}${detail} (responda: ${row.rowId})`);
+                pushLine(`${rowIndex + 1}. ${row.title}${detail} (responda: ${row.rowId})`);
             });
         });
         if (footer) {
@@ -2889,10 +2912,10 @@ function buildFlowInteractiveFallbackText(step, kind) {
             pushLine('');
             pushLine(`${cardIndex + 1}. ${card.title}`);
             if (card.description) pushLine(card.description);
-            (card.buttons || []).forEach((button) => {
-                if (button.type === 'reply') pushLine(`- ${button.displayText} (responda: ${button.id})`);
-                else if (button.type === 'url' && button.url) pushLine(`- ${button.displayText}: ${button.url}`);
-                else if (button.type === 'call' && button.phoneNumber) pushLine(`- ${button.displayText}: ${button.phoneNumber}`);
+            (card.buttons || []).forEach((button, buttonIndex) => {
+                if (button.type === 'reply') pushLine(`   ${buttonIndex + 1}) ${button.displayText} (responda: ${button.id})`);
+                else if (button.type === 'url' && button.url) pushLine(`   ${buttonIndex + 1}) ${button.displayText}: ${button.url}`);
+                else if (button.type === 'call' && button.phoneNumber) pushLine(`   ${buttonIndex + 1}) ${button.displayText}: ${button.phoneNumber}`);
             });
         });
         if (footer) {
@@ -4199,34 +4222,46 @@ async function handleFlowInteractiveStepSend(sessionId, chatId, flow, stepIndex,
 
     let sentMsg;
     let usedFallback = false;
-    try {
-        if (kind === 'buttons') {
-            sentMsg = await client.sendButtons(chatId, payload);
-        } else if (kind === 'list') {
-            sentMsg = await client.sendList(chatId, payload);
-        } else {
-            sentMsg = await client.sendCarousel(chatId, payload);
-        }
-        logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_success', {
-            kind,
-            sentMessageId: sentMsg && sentMsg.id && sentMsg.id._serialized ? sentMsg.id._serialized : null
-        });
-    } catch (error) {
-        if (!isEvolutionInteractiveCompatibilityError(error)) throw error;
+    const sendFallback = async (error = null, stage = 'interactive_send_fallback') => {
         const fallbackText = buildFlowInteractiveFallbackText(step, kind);
-        if (!fallbackText) throw error;
+        if (!fallbackText) {
+            if (error) throw error;
+            throw new Error('Fallback interativo vazio');
+        }
         usedFallback = true;
         if (activeFlows[sessionId] && activeFlows[sessionId][chatId]) {
             activeFlows[sessionId][chatId].action = 'sending_interactive_fallback';
             activeFlows[sessionId][chatId].updatedAt = Date.now();
         }
         emitFlowUsage(sessionId);
-        logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_fallback', {
+        logFlowDebug(sessionId, chatId, flow, stepIndex, stage, {
             kind,
-            evolutionMessages: getEvolutionErrorMessages(error),
+            deliveryMode: FLOW_INTERACTIVE_DELIVERY_MODE,
+            evolutionMessages: error ? getEvolutionErrorMessages(error) : [],
             fallbackText
         });
-        sentMsg = await client.sendMessage(chatId, fallbackText);
+        return await client.sendMessage(chatId, fallbackText);
+    };
+
+    if (shouldUseFlowInteractiveFallback(step, kind)) {
+        sentMsg = await sendFallback(null, 'interactive_send_compatibility_text');
+    } else {
+        try {
+            if (kind === 'buttons') {
+                sentMsg = await client.sendButtons(chatId, payload);
+            } else if (kind === 'list') {
+                sentMsg = await client.sendList(chatId, payload);
+            } else {
+                sentMsg = await client.sendCarousel(chatId, payload);
+            }
+            logFlowDebug(sessionId, chatId, flow, stepIndex, 'interactive_send_success', {
+                kind,
+                sentMessageId: sentMsg && sentMsg.id && sentMsg.id._serialized ? sentMsg.id._serialized : null
+            });
+        } catch (error) {
+            if (!shouldUseFlowInteractiveFallback(step, kind, error)) throw error;
+            sentMsg = await sendFallback(error);
+        }
     }
     await handleSentMessage(sessionId, sentMsg, client);
 
@@ -4291,7 +4326,7 @@ async function processIncomingFlowMessage(sessionId, msg, client) {
             active.updatedAt = Date.now();
 
             if (step && ['buttons', 'list', 'carousel'].includes(step.type)) {
-                const branch = findFlowInteractiveBranch(step, replyId);
+                const branch = findFlowInteractiveBranch(step, replyId) || findFlowInteractiveBranchByText(step, incomingText);
                 const targetIndex = branch && branch.targetId ? getFlowStepIndexById(currentFlowObj, branch.targetId) : -1;
                 await executeFlowStep(sessionId, chatKey, currentFlowObj, targetIndex >= 0 ? targetIndex : getFlowNextStepIndex(currentFlowObj, step, active.step), client);
                 emitFlowUsage(sessionId);
