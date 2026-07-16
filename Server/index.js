@@ -6150,6 +6150,16 @@ io.on('connection', (socket) => {
                         : await resolveChatIdForClient(sessionData.client, targetId);
                 }
 
+                if (sessionData.client && sessionData.client.__provider === 'evolution') {
+                    console.log('[evolution-send-attempt]', JSON.stringify({
+                        sessionId,
+                        originalChatId: chatId,
+                        targetId,
+                        isNewContact: !!isNewContact,
+                        messagePreview: String(message || '').slice(0, 120)
+                    }));
+                }
+
                 const sentMsg = await sessionData.client.sendMessage(targetId, message);
                 await handleSentMessage(sessionId, sentMsg, sessionData.client);
                 
@@ -6189,11 +6199,14 @@ io.on('connection', (socket) => {
                 }
 
             } catch (error) {
-                console.error('Error sending message:', {
+                console.error('[send-message-error]', JSON.stringify({
                     message: error?.message,
                     chatId,
+                    targetId: typeof targetId === 'string' ? targetId : '',
+                    provider: sessionData?.client?.__provider || '',
+                    stack: error?.stack || '',
                     evolutionResponse: error?.evolutionResponse || error?.response?.data || null
-                });
+                }));
                 socket.emit('error', 'Error sending message: ' + error.message);
             }
         }
