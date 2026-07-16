@@ -2658,10 +2658,16 @@ function normalizeFlowStep(step) {
     return normalized;
 }
 
+function createFlowRuntimeId() {
+    return `flow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function normalizeFlowDefinition(flow) {
     if (!flow || typeof flow !== 'object') return flow;
+    const id = String(flow.id || '').trim() || createFlowRuntimeId();
     return {
         ...flow,
+        id,
         steps: Array.isArray(flow.steps) ? flow.steps.map(normalizeFlowStep) : []
     };
 }
@@ -2799,8 +2805,20 @@ function getIncomingMessageReplyId(msg) {
 function loadFlows(sessionId) {
     const store = loadFlowsStore();
     const sid = sessionId ? String(sessionId) : getDefaultSessionId();
-    const flows = store[sid];
-    return Array.isArray(flows) ? flows.map(normalizeFlowDefinition) : [];
+    const flows = Array.isArray(store[sid]) ? store[sid] : [];
+    let changed = false;
+    const normalized = flows.map((flow) => {
+        const normalizedFlow = normalizeFlowDefinition(flow);
+        if (String(flow && flow.id ? flow.id : '').trim() !== normalizedFlow.id) {
+            changed = true;
+        }
+        return normalizedFlow;
+    });
+    if (changed) {
+        store[sid] = normalized;
+        saveData(FLOWS_FILE, store);
+    }
+    return normalized;
 }
 
 function saveFlows(sessionId, flows) {
@@ -8200,9 +8218,7 @@ io.on('connection', (socket) => {
             if (typeof cb === 'function') cb({ ok: false, error: 'Fluxo inválido' });
             return;
         }
-        if (!flow.id) {
-            flow.id = `flow_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-        }
+        flow = normalizeFlowDefinition(flow);
         
         const existingIndex = flows.findIndex(f => String(f.id) === String(flow.id));
         if (existingIndex >= 0) {
@@ -8219,8 +8235,8 @@ io.on('connection', (socket) => {
         }
         
         saveFlows(sessionId, flows);
-        socket.emit('flows-list', flows);
-        socket.emit('flow-usage', getAllFlowsUsage(sessionId));
+        emitToSessionClients(sessionId, 'flows-list', flows);
+        emitFlowUsage(sessionId);
         if (typeof cb === 'function') cb({ ok: true });
     });
 
@@ -8230,7 +8246,7 @@ io.on('connection', (socket) => {
             return;
         }
         const result = stopFlowInstances(sessionId, flowId);
-        socket.emit('flow-usage', getAllFlowsUsage(sessionId));
+        emitFlowUsage(sessionId);
         if (typeof cb === 'function') cb({ ok: true, ...result });
     });
 
@@ -8251,8 +8267,8 @@ io.on('connection', (socket) => {
         }
         flows = flows.filter(f => String(f.id) !== String(flowId));
         saveFlows(sessionId, flows);
-        socket.emit('flows-list', flows);
-        socket.emit('flow-usage', getAllFlowsUsage(sessionId));
+        emitToSessionClients(sessionId, 'flows-list', flows);
+        emitFlowUsage(sessionId);
         if (typeof cb === 'function') cb({ ok: true });
     });
 
