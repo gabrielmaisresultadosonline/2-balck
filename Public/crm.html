@@ -1936,6 +1936,9 @@
             <div id="system-stats-display" style="display:none; padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.15); color: #333; font-size: 0.8rem; font-weight: bold;">
                 <span id="system-stats-text">Conectando...</span>
             </div>
+            <button id="reopenQrBtn" onclick="openQrReconnectModal()" class="back-btn action-btn" style="display:none; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.16); color:#fff; padding:6px 12px; border-radius:10px; cursor:pointer; align-items:center; gap:6px; font-size:0.85rem; font-weight:700;" title="Abrir QR para reconectar">
+                <i class="fas fa-qrcode"></i> Abrir QR
+            </button>
             
             <button id="newChatBtn" onclick="openNewChatModal()" class="back-btn action-btn" style="border:1px solid #e5e7eb; background:white; padding:6px 12px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:0.85rem; color:#111827; font-weight:600;" title="Nova Conversa">
                 <i class="fas fa-comment-medical"></i> Nova conversa
@@ -2293,16 +2296,18 @@
                                 <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 4px; text-transform: uppercase;">Nome do Fluxo</label>
                                 <input type="text" id="flowName" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;">
                             </div>
-                            <div style="width: 150px;">
+                            <div style="flex: 0 0 190px; min-width: 180px;">
                                  <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 4px; text-transform: uppercase;">Gatilho</label>
                                  <select id="flowTriggerType" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;" onchange="toggleTriggerInput()">
                                      <option value="keyword">Palavra-chave</option>
+                                     <option value="manual">Manual</option>
                                      <option value="first_message">Primeira Mensagem</option>
                                  </select>
                             </div>
-                            <div style="flex: 1; min-width: 200px;" id="flowTriggerInputContainer">
-                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 4px; text-transform: uppercase;">Palavra-chave</label>
-                                <input type="text" id="flowTrigger" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px;" placeholder="Ex: menu, oi, comprar">
+                            <div style="flex: 1; min-width: 260px;" id="flowTriggerInputContainer">
+                                <label id="flowTriggerLabel" style="display: block; font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 4px; text-transform: uppercase;">Palavras-chave</label>
+                                <textarea id="flowTrigger" class="form-control" rows="2" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; resize: vertical; min-height: 74px;" placeholder="Ex: menu, oi, comprar&#10;Uma palavra por linha ou separadas por vírgula"></textarea>
+                                <div id="flowTriggerHelp" style="margin-top: 6px; font-size: 0.78rem; color: #64748b;">Você pode adicionar várias palavras-chave separando por vírgula, ponto e vírgula ou uma por linha.</div>
                             </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -2579,6 +2584,31 @@
         window.hideLoading = hideLoading;
         window.addEventListener('load', () => setTimeout(hideLoading, 300));
         window.addEventListener('error', () => setTimeout(hideLoading, 50));
+        window.latestQrData = '';
+        window.qrModalDismissed = false;
+
+        window.updateQrReconnectButton = function() {
+            const btn = document.getElementById('reopenQrBtn');
+            if (!btn) return;
+            btn.style.display = window.latestQrData ? 'inline-flex' : 'none';
+        };
+
+        window.closeQrReconnectModal = function() {
+            const qrModal = document.getElementById('qrModal');
+            window.qrModalDismissed = true;
+            if (qrModal) qrModal.style.display = 'none';
+            window.updateQrReconnectButton();
+        };
+
+        window.openQrReconnectModal = function() {
+            const qrModal = document.getElementById('qrModal');
+            const img = document.getElementById('qrImage');
+            if (!qrModal) return;
+            if (img && window.latestQrData) img.src = window.latestQrData;
+            window.qrModalDismissed = false;
+            qrModal.style.display = 'flex';
+            window.updateQrReconnectButton();
+        };
         window.addEventListener('unhandledrejection', () => setTimeout(hideLoading, 50));
 
         function extractDigits(value) {
@@ -3190,9 +3220,9 @@
                     if(!e.target.closest('button')) editFlow(flow.id);
                 };
                 
-                const triggerText = flow.triggerType === 'keyword' 
-                    ? 'Palavra-chave: ' + (flow.triggerKeyword || '<span style="color:red">Não definida</span>')
-                    : 'Gatilho: ' + (flow.triggerType === 'first_message' ? 'Primeira Mensagem' : 'Manual/Outro');
+                const triggerText = flow.triggerType === 'keyword'
+                    ? 'Palavras-chave: ' + (flow.triggerKeyword || '<span style="color:red">Não definida</span>')
+                    : 'Gatilho: ' + (flow.triggerType === 'first_message' ? 'Primeira Mensagem' : 'Manual');
                 const stepCount = (flow.steps && flow.steps.length) || 0;
 
                 div.innerHTML = `
@@ -3301,25 +3331,36 @@
                 qrModal.className = 'modal';
                 qrModal.style.display = 'flex';
                 qrModal.innerHTML = `
-                    <div class="modal-content" style="text-align:center;">
+                    <div class="modal-content" style="text-align:center; max-width:580px;">
+                        <button onclick="closeQrReconnectModal()" style="position:absolute; top:14px; right:14px; border:none; background:transparent; color:#64748b; font-size:1.35rem; cursor:pointer;" title="Fechar QR">&times;</button>
                         <h3>Conectar WhatsApp</h3>
                         <p>Escaneie o QR Code abaixo com seu WhatsApp para conectar.</p>
                         <img id="qrImage" src="" style="max-width:100%; margin: 20px 0;">
-                        <button onclick="window.location.reload()" class="btn-primary">Atualizar Página</button>
+                        <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
+                            <button onclick="closeQrReconnectModal()" class="btn-secondary">Fechar</button>
+                            <button onclick="window.location.reload()" class="btn-primary">Atualizar Página</button>
+                        </div>
                     </div>
                 `;
                 document.body.appendChild(qrModal);
             }
             
             const img = document.getElementById('qrImage');
-            if (img && data.qr) img.src = data.qr;
-            qrModal.style.display = 'flex';
+            if (data && data.qr) window.latestQrData = data.qr;
+            if (img && window.latestQrData) img.src = window.latestQrData;
+            if (!window.qrModalDismissed) {
+                qrModal.style.display = 'flex';
+            }
+            window.updateQrReconnectButton();
         });
 
         window.socket.on('client-ready', (data) => {
             console.log('Client Ready:', data);
             const qrModal = document.getElementById('qrModal');
             if (qrModal) qrModal.style.display = 'none';
+            window.latestQrData = '';
+            window.qrModalDismissed = false;
+            window.updateQrReconnectButton();
             
             // Re-fetch data
             window.socket.emit('get-chats', window.sessionId);
@@ -3337,6 +3378,13 @@
 
         window.socket.on('session-status', (data) => {
             if (!data || String(data.sessionId || '') !== String(window.sessionId || '')) return;
+            if (data.status === 'connected' || data.status === 'authenticated') {
+                const qrModal = document.getElementById('qrModal');
+                if (qrModal) qrModal.style.display = 'none';
+                window.latestQrData = '';
+                window.qrModalDismissed = false;
+                window.updateQrReconnectButton();
+            }
             if (data.status === 'connected' && window.currentWaChatId) {
                 requestWaChatHistory(window.currentWaChatId, {
                     fullHistory: window.currentWaHistoryMode === 'full'
@@ -3916,6 +3964,7 @@
                 name: 'Novo Fluxo',
                 triggerType: 'keyword',
                 triggerKeyword: '',
+                triggerKeywords: [],
                 steps: []
             };
             showFlowEditor();
@@ -3940,7 +3989,9 @@
 
             document.getElementById('flowName').value = currentFlow.name;
             document.getElementById('flowTriggerType').value = currentFlow.triggerType || 'keyword';
-            document.getElementById('flowTrigger').value = currentFlow.triggerKeyword || '';
+            document.getElementById('flowTrigger').value = Array.isArray(currentFlow.triggerKeywords) && currentFlow.triggerKeywords.length
+                ? currentFlow.triggerKeywords.join('\n')
+                : (currentFlow.triggerKeyword || '');
             toggleTriggerInput();
             renderFlowSteps();
         }
@@ -3956,7 +4007,13 @@
         window.toggleTriggerInput = function() {
             const type = document.getElementById('flowTriggerType').value;
             const container = document.getElementById('flowTriggerInputContainer');
+            const label = document.getElementById('flowTriggerLabel');
+            const help = document.getElementById('flowTriggerHelp');
             if(container) container.style.display = type === 'keyword' ? 'block' : 'none';
+            if (label) label.textContent = 'Palavras-chave';
+            if (help) help.textContent = type === 'keyword'
+                ? 'Você pode adicionar várias palavras-chave separando por vírgula, ponto e vírgula ou uma por linha.'
+                : '';
         };
 
         const FLOW_TIME_UNITS = {
@@ -6010,14 +6067,23 @@
             const name = document.getElementById('flowName').value;
             const triggerType = document.getElementById('flowTriggerType').value;
             const triggerKeyword = document.getElementById('flowTrigger').value;
+            const triggerKeywords = triggerType === 'keyword'
+                ? Array.from(new Set(
+                    String(triggerKeyword || '')
+                        .split(/\r?\n|,|;/)
+                        .map(item => String(item || '').trim())
+                        .filter(Boolean)
+                ))
+                : [];
             
             if(!name) return alert('Dê um nome ao fluxo.');
-            if(triggerType === 'keyword' && !triggerKeyword) return alert('Defina a palavra-chave.');
+            if(triggerType === 'keyword' && !triggerKeywords.length) return alert('Defina pelo menos uma palavra-chave.');
             
             currentFlow.name = name;
             if (!currentFlow.id) currentFlow.id = createFlowDraftId();
             currentFlow.triggerType = triggerType;
-            currentFlow.triggerKeyword = triggerKeyword;
+            currentFlow.triggerKeyword = triggerType === 'keyword' ? triggerKeywords.join(', ') : '';
+            currentFlow.triggerKeywords = triggerKeywords;
 
             const invalidWaitStep = (currentFlow.steps || []).find(step => step && step.type === 'wait_response' && (step.timeoutNext || step.timeoutFlowId || String(step.timeoutMessage || '').trim()) && !step.timeout);
             if (invalidWaitStep) {
@@ -9884,8 +9950,8 @@
                 ]
             };
             const demoFlows = [
-                { id: 'flow_boas_vindas', name: 'Boas-vindas automático', triggerType: 'first_message', triggerKeyword: '', steps: [{ type: 'text', content: 'Olá! Seja bem-vindo(a) ao atendimento ZAPMRO.' }, { type: 'delay', content: '3', time: 3000, timeUnit: 'seconds' }, { type: 'text', content: 'Como posso te ajudar hoje?' }] },
-                { id: 'flow_orcamento', name: 'Qualificação de orçamento', triggerType: 'keyword', triggerKeyword: 'preço', steps: [{ type: 'text', content: 'Legal! Vou te fazer algumas perguntas rápidas para indicar o melhor plano.' }] }
+                { id: 'flow_boas_vindas', name: 'Boas-vindas automático', triggerType: 'first_message', triggerKeyword: '', triggerKeywords: [], steps: [{ type: 'text', content: 'Olá! Seja bem-vindo(a) ao atendimento ZAPMRO.' }, { type: 'delay', content: '3', time: 3000, timeUnit: 'seconds' }, { type: 'text', content: 'Como posso te ajudar hoje?' }] },
+                { id: 'flow_orcamento', name: 'Qualificação de orçamento', triggerType: 'keyword', triggerKeyword: 'preço, valor', triggerKeywords: ['preço', 'valor'], steps: [{ type: 'text', content: 'Legal! Vou te fazer algumas perguntas rápidas para indicar o melhor plano.' }] }
             ];
             const demoGoogleContacts = [
                 { name: 'Fornecedor Agência MRO', email: 'contato@agenciamro.com', phone: '+55 51 98888-1010' },

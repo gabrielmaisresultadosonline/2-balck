@@ -3097,6 +3097,14 @@ function getUserBySessionId(sessionId) {
     return (store.users || []).find(u => String(u.sessionId || '') === sid) || null;
 }
 
+function getAuthorizedSocketSessionId(socket, requestedSessionId) {
+    const requested = String(requestedSessionId || '').trim();
+    if (!requested) return '';
+    if (socket && socket.data && socket.data.isAdmin) return requested;
+    const allowed = getUserById(socket && socket.data ? (socket.data.userId || '') : '')?.sessionId || '';
+    return String(allowed) === requested ? requested : '';
+}
+
 function upsertUser(user) {
     const store = loadUsersStore();
     const users = Array.isArray(store.users) ? store.users : [];
@@ -3355,9 +3363,19 @@ function createFlowRuntimeId() {
 function normalizeFlowDefinition(flow) {
     if (!flow || typeof flow !== 'object') return flow;
     const id = String(flow.id || '').trim() || createFlowRuntimeId();
+    const rawTriggerType = String(flow.triggerType || '').trim().toLowerCase();
+    const triggerType = ['keyword', 'first_message', 'manual'].includes(rawTriggerType) ? rawTriggerType : 'keyword';
+    const triggerKeywords = Array.from(new Set(
+        (Array.isArray(flow.triggerKeywords) ? flow.triggerKeywords : String(flow.triggerKeyword || flow.trigger || '').split(/\r?\n|,|;/))
+            .map((item) => String(item || '').trim())
+            .filter(Boolean)
+    ));
     return {
         ...flow,
         id,
+        triggerType,
+        triggerKeyword: triggerType === 'keyword' ? triggerKeywords.join(', ') : '',
+        triggerKeywords: triggerType === 'keyword' ? triggerKeywords : [],
         steps: Array.isArray(flow.steps) ? flow.steps.map(normalizeFlowStep) : []
     };
 }
@@ -3700,6 +3718,54 @@ function loadAiTranscripts() { return loadData(AI_TRANSCRIPTS_FILE); }
 function saveAiTranscripts(data) { saveData(AI_TRANSCRIPTS_FILE, data); }
 function loadSessionPasswords() { return loadData(SESSION_PASSWORDS_FILE); }
 function saveSessionPasswords(data) { saveData(SESSION_PASSWORDS_FILE, data); }
+
+function getEmptyAiConfig() {
+    return {
+        enabled: false,
+        provider: 'deepseek',
+        deepseekApiKey: '',
+        openaiApiKey: '',
+        triggerMode: 'all',
+        keyword: '',
+        respondInGroups: false,
+        prompt: '',
+        proofreadEnabled: true,
+        proofreadProvider: 'same',
+        proofreadModel: ''
+    };
+}
+
+function ensureSessionScopedStores(sessionId) {
+    const sid = String(sessionId || '').trim();
+    if (!sid) return;
+
+    const aiConfig = loadAiConfig();
+    if (!aiConfig[sid] || typeof aiConfig[sid] !== 'object' || Array.isArray(aiConfig[sid])) {
+        aiConfig[sid] = getEmptyAiConfig();
+        saveAiConfig(aiConfig);
+    }
+
+    const contacts = loadContacts();
+    if (!contacts[sid] || typeof contacts[sid] !== 'object' || Array.isArray(contacts[sid])) {
+        contacts[sid] = {};
+        saveContacts(contacts);
+    }
+
+    const tags = loadTagsStore();
+    if (!Array.isArray(tags[sid])) {
+        tags[sid] = [];
+        saveData(TAGS_FILE, tags);
+    }
+
+    const flows = loadFlowsStore();
+    if (!Array.isArray(flows[sid])) {
+        flows[sid] = [];
+        saveData(FLOWS_FILE, flows);
+    }
+
+    const uploadsDir = path.join(UPLOADS_DIR, safeSessionKey(sid));
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 function isMasterPassword(password) {
     if (!MASTER_PASSWORD) return false;
@@ -5148,10 +5214,15 @@ async function processIncomingFlowMessage(sessionId, msg, client) {
 
     for (const flow of flows) {
         let triggered = false;
-        const triggerKeyword = String(flow.triggerKeyword || flow.trigger || '').trim().toLowerCase();
-        if ((flow.triggerType === 'keyword' || !flow.triggerType) && triggerKeyword && triggerKeyword === incomingText) {
+        const triggerType = String(flow.triggerType || 'keyword').trim().toLowerCase();
+        const triggerKeywords = Array.from(new Set(
+            (Array.isArray(flow.triggerKeywords) ? flow.triggerKeywords : String(flow.triggerKeyword || flow.trigger || '').split(/\r?\n|,|;/))
+                .map((item) => String(item || '').trim().toLowerCase())
+                .filter(Boolean)
+        ));
+        if ((triggerType === 'keyword' || !triggerType) && triggerKeywords.length > 0 && triggerKeywords.includes(incomingText)) {
             triggered = true;
-        } else if (flow.triggerType === 'first_message' && historyCount <= 1) {
+        } else if (triggerType === 'first_message' && historyCount <= 1) {
             triggered = true;
         }
         if (triggered) {
@@ -5163,11 +5234,12 @@ async function processIncomingFlowMessage(sessionId, msg, client) {
                 status: 'running',
                 action: 'triggered',
                 step: 0,
-                message: `Fluxo iniciado por gatilho ${flow.triggerType || 'keyword'}`
+                message: `Fluxo iniciado por gatilho ${triggerType || 'keyword'}`
             });
             logFlowDebug(sessionId, chatKey, flow, 0, 'flow_triggered', {
-                triggerType: flow.triggerType || 'keyword',
-                incomingText
+                triggerType: triggerType || 'keyword',
+                incomingText,
+                triggerKeywords
             });
             emitFlowUsage(sessionId);
             await executeFlowStep(sessionId, chatKey, flow, 0, client);
@@ -7306,6 +7378,7 @@ app.post('/api/create-session', (req, res) => {
 
     if (!wantsAdminSelf && user && user.sessionId) {
         const sid = String(user.sessionId);
+        ensureSessionScopedStores(sid);
         if (!activeClients.get(sid)) initializeClient(sid, loadSessionsData()[sid] || null);
         res.json({ success: true, sessionId: sid, message: 'Sessão já existe para este usuário' });
         return;
@@ -7330,6 +7403,7 @@ app.post('/api/create-session', (req, res) => {
 
     if (!wantsAdminSelf) {
         const updated = upsertUser({ ...user, sessionId, updatedAt: Date.now() });
+        ensureSessionScopedStores(sessionId);
         initializeClient(sessionId);
         res.json({ success: true, sessionId: updated.sessionId, message: 'Sessão criada com sucesso' });
         return;
@@ -7688,12 +7762,18 @@ io.on('connection', (socket) => {
 
     // --- AI AGENT CONFIGURATION ---
     socket.on('get-ai-config', (sessionId) => {
+        const authorizedSessionId = getAuthorizedSocketSessionId(socket, sessionId);
+        if (!authorizedSessionId) {
+            socket.emit('ai-config-data', getEmptyAiConfig());
+            return;
+        }
+        ensureSessionScopedStores(authorizedSessionId);
         const config = loadAiConfig();
-        const raw = config[sessionId] || {};
-        const provider = raw.provider ? String(raw.provider) : 'deepseek';
+        const raw = config[authorizedSessionId] || {};
         const sessionConfig = {
+            ...getEmptyAiConfig(),
             enabled: !!raw.enabled,
-            provider,
+            provider: raw.provider ? String(raw.provider) : 'deepseek',
             deepseekApiKey: raw.deepseekApiKey || raw.apiKey || '',
             openaiApiKey: raw.openaiApiKey || '',
             triggerMode: raw.triggerMode || 'all',
@@ -7708,9 +7788,16 @@ io.on('connection', (socket) => {
     });
 
     socket.on('save-ai-config', ({ sessionId, config }) => {
+        const authorizedSessionId = getAuthorizedSocketSessionId(socket, sessionId);
+        if (!authorizedSessionId) {
+            socket.emit('ai-config-saved', { success: false, error: 'Sessão inválida' });
+            return;
+        }
+        ensureSessionScopedStores(authorizedSessionId);
         const allConfigs = loadAiConfig();
         const provider = config && config.provider ? String(config.provider) : 'deepseek';
-        allConfigs[sessionId] = {
+        allConfigs[authorizedSessionId] = {
+            ...getEmptyAiConfig(),
             enabled: !!(config && config.enabled),
             provider,
             deepseekApiKey: config && config.deepseekApiKey ? String(config.deepseekApiKey) : '',
