@@ -907,6 +907,19 @@ function getGroupsPlusSelfDigits(sessionId) {
     );
 }
 
+function logGroupsPlusAdminDebug(sessionId, event, payload = {}) {
+    try {
+        console.log('[groups-plus-admin]', JSON.stringify({
+            sessionId: String(sessionId || '').trim(),
+            event: String(event || 'unknown'),
+            at: new Date().toISOString(),
+            ...sanitizeConnectionLogValue(payload)
+        }));
+    } catch (error) {
+        console.log(`[groups-plus-admin] ${String(sessionId || '').trim()} ${String(event || 'unknown')}`);
+    }
+}
+
 function extractGroupParticipantRows(raw = {}) {
     const groupMetadata = raw.groupMetadata && typeof raw.groupMetadata === 'object' ? raw.groupMetadata : {};
     const groupsMeta = raw.groupMetadataMap && typeof raw.groupMetadataMap === 'object' ? raw.groupMetadataMap : {};
@@ -932,19 +945,74 @@ function extractGroupParticipantRows(raw = {}) {
 
 function detectKnownGroupAdmin(sessionId, chat) {
     const raw = chat && typeof chat === 'object' ? chat : {};
-    if (raw.isAdmin === true || raw.admin === true || raw.isSuperAdmin === true || raw.superadmin === true) return true;
+    const groupId = normalizeEvolutionChatId(
+        raw.id?._serialized ||
+        raw.id ||
+        raw.remoteJid ||
+        raw.jid ||
+        raw.chatId ||
+        ''
+    );
+    const rawAdminText = String(raw.admin || '').toLowerCase();
+    const rawSuperAdminText = String(raw.superadmin || raw.superAdmin || '').toLowerCase();
+    const directAdmin =
+        raw.isAdmin === true ||
+        raw.admin === true ||
+        raw.isSuperAdmin === true ||
+        raw.superadmin === true ||
+        raw.superAdmin === true ||
+        rawAdminText === 'admin' ||
+        rawAdminText === 'superadmin' ||
+        rawSuperAdminText === 'admin' ||
+        rawSuperAdminText === 'superadmin';
+    if (directAdmin) {
+        logGroupsPlusAdminDebug(sessionId, 'group_direct_admin_true', {
+            groupId,
+            groupName: raw.subject || raw.name || '',
+            rawIsAdmin: raw.isAdmin,
+            rawAdmin: raw.admin,
+            rawIsSuperAdmin: raw.isSuperAdmin,
+            rawSuperadmin: raw.superadmin
+        });
+        return true;
+    }
 
     const selfDigits = getGroupsPlusSelfDigits(sessionId);
-    if (!selfDigits) return false;
-
     const selfCandidates = new Set([
         selfDigits,
         normalizeEvolutionPhone(raw.owner || ''),
         normalizeEvolutionPhone(raw.user || ''),
-        normalizeEvolutionPhone(raw.me || '')
+        normalizeEvolutionPhone(raw.me || ''),
+        normalizeEvolutionPhone(raw.groupMetadata && raw.groupMetadata.owner ? raw.groupMetadata.owner : '')
     ].filter(Boolean));
 
+    if (!selfCandidates.size) {
+        logGroupsPlusAdminDebug(sessionId, 'group_admin_missing_self_candidates', {
+            groupId,
+            groupName: raw.subject || raw.name || '',
+            sessionSelfDigits: selfDigits,
+            owner: raw.owner || '',
+            user: raw.user || '',
+            me: raw.me || '',
+            metadataOwner: raw.groupMetadata && raw.groupMetadata.owner ? raw.groupMetadata.owner : '',
+            participantsCount: extractGroupParticipantRows(raw).length
+        });
+        return false;
+    }
+
     const participants = extractGroupParticipantRows(raw);
+    if (!participants.length) {
+        logGroupsPlusAdminDebug(sessionId, 'group_admin_no_participants', {
+            groupId,
+            groupName: raw.subject || raw.name || '',
+            selfCandidates: Array.from(selfCandidates),
+            owner: raw.owner || '',
+            user: raw.user || '',
+            me: raw.me || ''
+        });
+        return false;
+    }
+
     for (const participant of participants) {
         if (!participant || typeof participant !== 'object') continue;
         const participantDigits = normalizeEvolutionPhone(
@@ -967,10 +1035,41 @@ function detectKnownGroupAdmin(sessionId, chat) {
             String(participant.admin || '').toLowerCase() === 'admin' ||
             String(participant.admin || '').toLowerCase() === 'superadmin'
         ) {
+            logGroupsPlusAdminDebug(sessionId, 'group_admin_match', {
+                groupId,
+                groupName: raw.subject || raw.name || '',
+                selfCandidates: Array.from(selfCandidates),
+                participantDigits,
+                participantAdmin: participant.admin,
+                participantIsAdmin: participant.isAdmin,
+                participantIsSuperAdmin: participant.isSuperAdmin,
+                participantSuperAdmin: participant.superAdmin,
+                participantsCount: participants.length
+            });
             return true;
         }
     }
 
+    logGroupsPlusAdminDebug(sessionId, 'group_admin_not_matched', {
+        groupId,
+        groupName: raw.subject || raw.name || '',
+        selfCandidates: Array.from(selfCandidates),
+        participantsCount: participants.length,
+        sampleParticipants: participants.slice(0, 8).map((participant) => ({
+            id: participant && participant.id && participant.id._serialized ? participant.id._serialized : (
+                participant && (participant.id || participant.jid || participant.lid || participant.phone || participant.number || participant.participant || '')
+            ),
+            digits: normalizeEvolutionPhone(
+                participant && participant.id && participant.id._serialized ? participant.id._serialized : (
+                    participant && (participant.id || participant.jid || participant.lid || participant.phone || participant.number || participant.participant || '')
+                )
+            ),
+            admin: participant && participant.admin,
+            isAdmin: participant && participant.isAdmin,
+            isSuperAdmin: participant && participant.isSuperAdmin,
+            superAdmin: participant && participant.superAdmin
+        }))
+    });
     return false;
 }
 
@@ -1038,7 +1137,14 @@ async function loadKnownGroupsForSession(sessionId, options = {}) {
     if (!sid) return [];
 
     const cachedGroups = listKnownGroupsForSession(sid);
-    if (cachedGroups.length > 0 && !forceRefresh) return cachedGroups;
+    if (cachedGroups.length > 0 && !forceRefresh) {
+        logGroupsPlusAdminDebug(sid, 'groups_cache_hit', {
+            forceRefresh,
+            cachedGroups: cachedGroups.length,
+            adminGroups: cachedGroups.filter((group) => group && group.isAdmin).length
+        });
+        return cachedGroups;
+    }
 
     const sessionData = activeClients.get(sid);
     const liveGroupMap = new Map(cachedGroups.map((group) => [String(group.id), group]));
@@ -1060,6 +1166,10 @@ async function loadKnownGroupsForSession(sessionId, options = {}) {
                 new Promise((_, reject) => setTimeout(() => reject(new Error('groups_fetch_timeout')), 45000))
             ]);
             appendGroups(chats);
+            logGroupsPlusAdminDebug(sid, 'groups_loaded_from_client', {
+                chatsCount: Array.isArray(chats) ? chats.length : 0,
+                groupsAfterClient: liveGroupMap.size
+            });
         } catch (error) {}
     }
 
@@ -1070,10 +1180,24 @@ async function loadKnownGroupsForSession(sessionId, options = {}) {
                 offset: 0
             }));
             appendGroups(rows.map((row) => normalizeEvolutionChatRecord(sid, row)));
+            logGroupsPlusAdminDebug(sid, 'groups_loaded_from_evolution', {
+                rowsCount: Array.isArray(rows) ? rows.length : 0,
+                groupsAfterEvolution: liveGroupMap.size
+            });
         } catch (error) {}
     }
 
     const groups = Array.from(liveGroupMap.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    logGroupsPlusAdminDebug(sid, 'groups_loaded_summary', {
+        forceRefresh,
+        totalGroups: groups.length,
+        adminGroups: groups.filter((group) => group && group.isAdmin).length,
+        sampleGroups: groups.slice(0, 10).map((group) => ({
+            id: group && group.id ? group.id : '',
+            name: group && group.name ? group.name : '',
+            isAdmin: !!(group && group.isAdmin)
+        }))
+    });
     if (groups.length > 0) persistKnownGroupsToCache(sid, groups);
     return groups;
 }
@@ -1092,7 +1216,13 @@ function getChatDisplayNameSafe(chat) {
 
 async function emitGroupsPlusData(sessionId, options = {}) {
     const state = getGroupsPlusSessionData(sessionId);
-    const groups = (await loadKnownGroupsForSession(sessionId, options)).filter((group) => group && group.isAdmin);
+    const allGroups = await loadKnownGroupsForSession(sessionId, options);
+    const groups = allGroups.filter((group) => group && group.isAdmin);
+    logGroupsPlusAdminDebug(sessionId, 'groups_emit_payload', {
+        totalGroups: allGroups.length,
+        adminGroups: groups.length,
+        forceRefresh: !!(options && options.forceRefresh)
+    });
     emitToSessionClients(sessionId, 'groups-plus-data', {
         sessionId,
         groups,
@@ -4100,9 +4230,96 @@ function normalizeBoolean(value, fallback = undefined) {
     return fallback;
 }
 
+function buildAiChatStatusCandidates(sessionId, chatId) {
+    const out = new Set();
+    const base = String(chatId || '').trim();
+    if (!base) return [];
+
+    out.add(base);
+
+    const normalized = normalizeEvolutionChatId(base);
+    if (normalized) out.add(normalized);
+
+    collectPossibleChatIds(sessionId, normalized || base).forEach(candidate => {
+        const value = String(candidate || '').trim();
+        if (value) out.add(value);
+    });
+
+    const cached = getCachedChatByAnyId(sessionId, normalized || base);
+    if (cached && cached.id) out.add(String(cached.id).trim());
+
+    const numericCandidates = new Set();
+    const addDigits = (value) => {
+        const digits = normalizeEvolutionPhone(value);
+        if (digits) numericCandidates.add(digits);
+    };
+
+    addDigits(base);
+    addDigits(normalized);
+    addDigits(cached && cached.phoneNumber ? cached.phoneNumber : '');
+    addDigits(cached && cached.id ? cached.id : '');
+
+    if (/@lid$/i.test(normalized || base)) {
+        const storedPhone = findStoredPhoneForLid(normalized || base);
+        if (storedPhone) numericCandidates.add(storedPhone);
+    }
+
+    for (const digits of numericCandidates) {
+        out.add(`${digits}@c.us`);
+        out.add(`${digits}@s.whatsapp.net`);
+    }
+
+    return Array.from(out).filter(Boolean);
+}
+
+function getAiChatStatusEntry(sessionId, chatId, allStatus = null) {
+    const store = allStatus || loadAiChatStatus();
+    const sessionStore = store && store[sessionId] && typeof store[sessionId] === 'object'
+        ? store[sessionId]
+        : {};
+
+    const candidates = buildAiChatStatusCandidates(sessionId, chatId);
+    for (const candidate of candidates) {
+        if (Object.prototype.hasOwnProperty.call(sessionStore, candidate)) {
+            return {
+                key: candidate,
+                value: sessionStore[candidate],
+                candidates
+            };
+        }
+    }
+
+    return {
+        key: '',
+        value: undefined,
+        candidates
+    };
+}
+
+function resolveAiChatStatusKey(sessionId, chatId, allStatus = null) {
+    const existing = getAiChatStatusEntry(sessionId, chatId, allStatus);
+    if (existing.key) return existing.key;
+
+    const normalized = normalizeEvolutionChatId(chatId);
+    if (normalized) return normalized;
+
+    return String(chatId || '').trim();
+}
+
+function clearAiDebounceTimer(sessionId, chatId) {
+    if (!aiDebounceTimers[sessionId]) return;
+    const candidates = buildAiChatStatusCandidates(sessionId, chatId);
+    for (const candidate of candidates) {
+        if (aiDebounceTimers[sessionId][candidate]) {
+            clearTimeout(aiDebounceTimers[sessionId][candidate]);
+            delete aiDebounceTimers[sessionId][candidate];
+        }
+    }
+}
+
 function getChatAiActive(sessionId, chatId, globalEnabled) {
-    const aiStatus = loadAiChatStatus();
-    const raw = aiStatus && aiStatus[sessionId] ? aiStatus[sessionId][chatId] : undefined;
+    const entry = getAiChatStatusEntry(sessionId, chatId);
+    const raw = entry.value;
     
     // Check if it's an object (new structure for WinBack)
     if (raw && typeof raw === 'object') {
@@ -6038,7 +6255,7 @@ async function processAiMessage(sessionId, chatId, client) {
         const internalInstruction = "\n\nIMPORTANTE: Forneça respostas profissionais, curtas e diretas (idealmente entre 200 a 300 caracteres). É CRUCIAL que sua resposta esteja completa e NÃO seja cortada. Termine sempre a frase e o pensamento. Evite erros.\n\nFORMATAÇÃO: Para palavras em negrito, use APENAS UM asterisco de cada lado (ex: *palavra*), NÃO use dois (**).";
 
         const aiStatus = loadAiChatStatus();
-        const statusObj = aiStatus[sessionId]?.[chatId];
+        const statusObj = getAiChatStatusEntry(sessionId, chatId, aiStatus).value;
         const aiContext = (statusObj && typeof statusObj === 'object' && statusObj.context) ? String(statusObj.context) : '';
         const aiGoal = (statusObj && typeof statusObj === 'object' && statusObj.goal) ? String(statusObj.goal) : '';
 
@@ -6688,6 +6905,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                             const allowGroups = !!config.respondInGroups;
                             if (isGroupChat && !allowGroups) {
                             } else {
+                                const aiStatusEntry = getAiChatStatusEntry(sessionId, msg.from);
                                 const chatStatus = getChatAiActive(sessionId, msg.from, true);
                                 const isAiActive = !!chatStatus;
                         
@@ -6696,7 +6914,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 
                             // WinBack Response Tracking
                             const aiStatus = loadAiChatStatus();
-                            const statusObj = aiStatus[sessionId]?.[msg.from];
+                            const statusObj = aiStatusEntry.value;
                             if (statusObj && typeof statusObj === 'object' && statusObj.winbackCampaignId) {
                                 const campaignId = statusObj.winbackCampaignId;
                                 const wbStats = loadWinbackStats();
@@ -6728,8 +6946,9 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                                             shouldRun = true;
                                             const aiStatus = loadAiChatStatus();
                                             if (!aiStatus[sessionId]) aiStatus[sessionId] = {};
-                                            if (aiStatus[sessionId][msg.from] === undefined) {
-                                                aiStatus[sessionId][msg.from] = true;
+                                            const aiStatusKey = resolveAiChatStatusKey(sessionId, msg.from, aiStatus);
+                                            if (aiStatus[sessionId][aiStatusKey] === undefined) {
+                                                aiStatus[sessionId][aiStatusKey] = true;
                                                 saveAiChatStatus(aiStatus);
                                             }
                                             io.to(sessionData.socketId).emit('ai-chat-status-updated', { chatId: msg.from, active: true });
@@ -6739,7 +6958,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                                         // If running in 'all' mode and status is implicit (undefined), make it explicit in UI (optional)
                                         // But crucially, emit event if it's the first time so UI pulses
                                         const aiStatus = loadAiChatStatus();
-                                        const explicit = aiStatus[sessionId]?.[msg.from];
+                                        const explicit = getAiChatStatusEntry(sessionId, msg.from, aiStatus).value;
                                         if (explicit === undefined) {
                                              io.to(sessionData.socketId).emit('ai-chat-status-updated', { chatId: msg.from, active: true });
                                         }
@@ -6747,17 +6966,18 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                                 
                                     if (shouldRun) {
                                         if (!aiDebounceTimers[sessionId]) aiDebounceTimers[sessionId] = {};
-                                        if (aiDebounceTimers[sessionId][msg.from]) {
-                                            clearTimeout(aiDebounceTimers[sessionId][msg.from]);
+                                        const aiTimerKey = resolveAiChatStatusKey(sessionId, msg.from);
+                                        if (aiDebounceTimers[sessionId][aiTimerKey]) {
+                                            clearTimeout(aiDebounceTimers[sessionId][aiTimerKey]);
                                             console.log(`[AI Debounce] Reset timer for ${msg.from}`);
                                         }
                                         
                                         console.log(`[AI Debounce] Starting 12s timer for ${msg.from}`);
                                         // Debounce de 12 segundos para aguardar o cliente terminar de digitar/enviar múltiplas mensagens
-                                        aiDebounceTimers[sessionId][msg.from] = setTimeout(() => {
+                                        aiDebounceTimers[sessionId][aiTimerKey] = setTimeout(() => {
                                             console.log(`[AI Process] Executing AI for ${msg.from}`);
                                             processAiMessage(sessionId, msg.from, client);
-                                            delete aiDebounceTimers[sessionId][msg.from];
+                                            delete aiDebounceTimers[sessionId][aiTimerKey];
                                         }, 12000); 
                                     } else {
                                         // console.log(`[AI Check] Skipped: Keyword mismatch`);
@@ -8173,17 +8393,15 @@ io.on('connection', (socket) => {
         const config = aiConfig[sessionId];
         const globalEnabled = config && config.enabled;
 
-        const current = normalizeBoolean(allStatus[sessionId][chatId], !!globalEnabled);
+        const statusKey = resolveAiChatStatusKey(sessionId, chatId, allStatus);
+        const current = normalizeBoolean(getAiChatStatusEntry(sessionId, chatId, allStatus).value, !!globalEnabled);
         const next = normalizeBoolean(active, !current);
 
-        allStatus[sessionId][chatId] = next;
+        allStatus[sessionId][statusKey] = next;
         
         saveAiChatStatus(allStatus);
 
-        if (aiDebounceTimers[sessionId] && aiDebounceTimers[sessionId][chatId]) {
-            clearTimeout(aiDebounceTimers[sessionId][chatId]);
-            delete aiDebounceTimers[sessionId][chatId];
-        }
+        clearAiDebounceTimer(sessionId, chatId);
         
         // Notify frontend to update UI
         socket.emit('ai-chat-status-updated', { chatId, active: next });
@@ -8333,7 +8551,7 @@ io.on('connection', (socket) => {
                         if (hide) continue;
 
                         const chatStatus = sessionKanban[displayChatId] || { status: 'todos', tags: [] };
-                        const explicitAiStatus = sessionAiStatus[displayChatId];
+                        const explicitAiStatus = getAiChatStatusEntry(sessionId, displayChatId, aiStatus).value;
                         const isAiActive = normalizeBoolean(explicitAiStatus, !!(globalEnabled || false));
 
                         const cached = cacheById.get(displayChatId) || null;
@@ -9682,7 +9900,13 @@ io.on('connection', (socket) => {
             return;
         }
         const state = getGroupsPlusSessionData(sid);
-        const groups = (await loadKnownGroupsForSession(sid, { forceRefresh })).filter((group) => group && group.isAdmin);
+        const allGroups = await loadKnownGroupsForSession(sid, { forceRefresh });
+        const groups = allGroups.filter((group) => group && group.isAdmin);
+        logGroupsPlusAdminDebug(sid, 'groups_socket_request', {
+            forceRefresh,
+            totalGroups: allGroups.length,
+            adminGroups: groups.length
+        });
         const responsePayload = {
             sessionId: sid,
             groups,
