@@ -992,7 +992,7 @@ function getChatDisplayNameSafe(chat) {
 
 async function emitGroupsPlusData(sessionId, options = {}) {
     const state = getGroupsPlusSessionData(sessionId);
-    const groups = await loadKnownGroupsForSession(sessionId, options);
+    const groups = (await loadKnownGroupsForSession(sessionId, options)).filter((group) => group && group.isAdmin);
     emitToSessionClients(sessionId, 'groups-plus-data', {
         sessionId,
         groups,
@@ -9468,7 +9468,7 @@ io.on('connection', (socket) => {
             return;
         }
         const state = getGroupsPlusSessionData(sid);
-        const groups = await loadKnownGroupsForSession(sid, { forceRefresh });
+        const groups = (await loadKnownGroupsForSession(sid, { forceRefresh })).filter((group) => group && group.isAdmin);
         const responsePayload = {
             sessionId: sid,
             groups,

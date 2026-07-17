@@ -9394,7 +9394,7 @@
             const state = getGroupsPlusState();
             const wrap = document.getElementById('groupsPlusAdminHint');
             if (!wrap) return;
-            const adminGroups = (state.groups || []).filter((group) => group && group.isAdmin);
+            const adminGroups = state.groups || [];
             if (!adminGroups.length) {
                 wrap.style.display = 'none';
                 wrap.innerHTML = '';
@@ -9477,7 +9477,7 @@
             });
             renderGroupsPlusAdminHint();
             if (!groups.length) {
-                wrap.innerHTML = '<div class="groups-plus-empty">Nenhum grupo encontrado. Abra o WhatsApp da sessão e sincronize seus grupos.</div>';
+                wrap.innerHTML = '<div class="groups-plus-empty">Nenhum grupo em que voce seja admin foi encontrado. Abra o WhatsApp da sessao e sincronize seus grupos.</div>';
                 return;
             }
             wrap.innerHTML = groups.map((group) => {
@@ -9494,7 +9494,7 @@
                             <span class="groups-plus-badge ${protection && protection.enabled ? 'green' : 'amber'}">${protection && protection.enabled ? 'Seguro' : 'Livre'}</span>
                         </div>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                            ${group.isAdmin ? '<span class="groups-plus-badge green"><i class="fas fa-crown"></i> Admin</span>' : '<span class="groups-plus-badge slate">Participante</span>'}
+                            <span class="groups-plus-badge green"><i class="fas fa-crown"></i> Admin</span>
                             <span class="groups-plus-badge blue">${postCount} post${postCount === 1 ? '' : 's'}</span>
                             <span class="groups-plus-badge amber">${group.unreadCount || 0} pend.</span>
                         </div>
@@ -9848,15 +9848,15 @@
             if (postsCount) postsCount.textContent = String((state.posts || []).filter((post) => post.active !== false).length);
             if (protectedCount) protectedCount.textContent = String(protectedGroups);
             if (badge) {
-                badge.className = `groups-plus-badge ${selected ? (selected.isAdmin ? 'green' : 'blue') : 'amber'}`;
+                badge.className = `groups-plus-badge ${selected ? 'green' : 'amber'}`;
                 badge.innerHTML = selected
-                    ? `${selected.isAdmin ? '<i class="fas fa-crown"></i>' : '<i class="fas fa-users"></i>'}${escapeHtml(selected.name || selected.id)}`
+                    ? `<i class="fas fa-crown"></i>${escapeHtml(selected.name || selected.id)}`
                     : 'Sem grupo';
             }
             if (headline) {
                 headline.innerHTML = selected
-                    ? `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"><div style="font-weight:800;">${escapeHtml(selected.name || selected.id)}</div>${selected.isAdmin ? '<span class="groups-plus-badge green"><i class="fas fa-crown"></i> Grupo que voce e admin</span>' : '<span class="groups-plus-badge slate">Sem permissao de admin detectada</span>'}</div><div style="margin-top:4px; font-size:0.8rem; color:#64748b;">${escapeHtml(selected.id || '')}</div>`
-                    : 'Selecione um grupo ao lado para começar.';
+                    ? `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"><div style="font-weight:800;">${escapeHtml(selected.name || selected.id)}</div><span class="groups-plus-badge green"><i class="fas fa-crown"></i> Grupo que voce e admin</span></div><div style="margin-top:4px; font-size:0.8rem; color:#64748b;">${escapeHtml(selected.id || '')}</div>`
+                    : 'Nenhum grupo com permissao de admin encontrado.';
             }
             if (selected) fillGroupsPlusSecurityForm(selected.id);
             renderGroupsPlusGroupList();
@@ -9893,7 +9893,7 @@
         if (window.socket) {
             window.socket.on('groups-plus-data', function(data) {
                 const state = getGroupsPlusState();
-                state.groups = Array.isArray(data && data.groups) ? data.groups : [];
+                state.groups = Array.isArray(data && data.groups) ? data.groups.filter((group) => group && group.isAdmin) : [];
                 state.posts = Array.isArray(data && data.posts) ? data.posts : [];
                 state.security = data && data.security && typeof data.security === 'object' ? data.security : {};
                 state.activity = Array.isArray(data && data.activity) ? data.activity : [];
