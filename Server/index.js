@@ -803,8 +803,16 @@ function computeGroupsPlusNextRun(post, baseTs = Date.now()) {
 }
 
 function getGroupsPlusSelfDigits(sessionId) {
-    const sessionData = activeClients.get(String(sessionId || '').trim());
-    return normalizeEvolutionPhone(sessionData && sessionData.phoneNumber ? sessionData.phoneNumber : '');
+    const sid = String(sessionId || '').trim();
+    const sessionData = activeClients.get(sid);
+    const saved = loadSessionsData()[sid];
+    const user = getUserBySessionId(sid);
+    return normalizeEvolutionPhone(
+        (sessionData && sessionData.phoneNumber) ||
+        (saved && saved.phoneNumber) ||
+        (user && user.whatsappNumber) ||
+        ''
+    );
 }
 
 function extractGroupParticipantRows(raw = {}) {
@@ -1659,7 +1667,16 @@ function normalizeEvolutionChatRecord(sessionId, rawChat) {
         unreadCount: Number(chat.unreadCount || chat.unread || 0) || 0,
         timestamp: normalizeEvolutionTimestamp(chat.updatedAt || chat.messageTimestamp || lastMessageObj.messageTimestamp || chat.timestamp),
         lastMessage: lastContent.body || chat.lastMessageText || chat.lastMessage || '',
-        profilePic: sanitizeEvolutionUrl(chat.profilePictureUrl || chat.profilePicUrl || null)
+        profilePic: sanitizeEvolutionUrl(chat.profilePictureUrl || chat.profilePicUrl || null),
+        isAdmin: detectKnownGroupAdmin(sessionId, chat),
+        owner: chat.owner || '',
+        user: chat.user || '',
+        me: chat.me || '',
+        participants: Array.isArray(chat.participants) ? chat.participants : [],
+        groupParticipants: Array.isArray(chat.groupParticipants) ? chat.groupParticipants : [],
+        members: Array.isArray(chat.members) ? chat.members : [],
+        groupMetadata: chat.groupMetadata && typeof chat.groupMetadata === 'object' ? chat.groupMetadata : undefined,
+        groupMetadataMap: chat.groupMetadataMap && typeof chat.groupMetadataMap === 'object' ? chat.groupMetadataMap : undefined
     };
 }
 
@@ -2253,6 +2270,7 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
     if (!sessionData) return;
     const normalized = payload ? evolutionApi.normalizeInstanceState(payload) : { state: 'close', number: null, profileName: null, profilePictureUrl: null };
     const previousStatus = sessionData.status;
+    const user = getUserBySessionId(sessionId);
     const mappedStatus =
         normalized.state === 'open' ? 'connected'
             : normalized.state === 'connecting' ? 'authenticated'
@@ -2298,7 +2316,6 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
             createdAt: (sessions[sessionId] && sessions[sessionId].createdAt) || Date.now()
         };
         saveSessionsData(sessions);
-        const user = getUserBySessionId(sessionId);
         if (user) {
             const updatedUser = upsertUser({
                 ...user,
@@ -2324,6 +2341,21 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
             phoneNumber: sessionData.phoneNumber,
             name: sessionData.name
         });
+    } else if (user && previousStatus !== mappedStatus) {
+        const disconnectNumber = sessionData.phoneNumber || user.whatsappNumber || '';
+        if (mappedStatus === 'reconnecting') {
+            appendUserHistory(user, {
+                type: 'disconnect',
+                label: 'Desconectou',
+                number: disconnectNumber
+            });
+        } else if (mappedStatus === 'auth_failed') {
+            appendUserHistory(user, {
+                type: 'auth_failed',
+                label: 'Falha de autenticacao',
+                number: disconnectNumber
+            });
+        }
     }
 
     emitToSessionClients(sessionId, 'session-status', { sessionId, status: mappedStatus });

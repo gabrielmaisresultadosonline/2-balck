@@ -2586,6 +2586,7 @@
         window.addEventListener('error', () => setTimeout(hideLoading, 50));
         window.latestQrData = '';
         window.qrModalDismissed = false;
+        window.currentSessionStatus = '';
 
         window.updateQrReconnectButton = function() {
             const btn = document.getElementById('reopenQrBtn');
@@ -3320,6 +3321,9 @@
         });
         
         window.socket.on('qr-generated', (data) => {
+            if (!data || String(data.sessionId || '') !== String(window.sessionId || '')) return;
+            if (!data.qr) return;
+            if (window.currentSessionStatus === 'connected' || window.currentSessionStatus === 'authenticated') return;
             console.log('QR Code received');
             hideLoading();
             
@@ -3346,7 +3350,7 @@
             }
             
             const img = document.getElementById('qrImage');
-            if (data && data.qr) window.latestQrData = data.qr;
+            window.latestQrData = data.qr;
             if (img && window.latestQrData) img.src = window.latestQrData;
             if (!window.qrModalDismissed) {
                 qrModal.style.display = 'flex';
@@ -3355,7 +3359,9 @@
         });
 
         window.socket.on('client-ready', (data) => {
+            if (!data || String(data.sessionId || '') !== String(window.sessionId || '')) return;
             console.log('Client Ready:', data);
+            window.currentSessionStatus = 'connected';
             const qrModal = document.getElementById('qrModal');
             if (qrModal) qrModal.style.display = 'none';
             window.latestQrData = '';
@@ -3378,6 +3384,7 @@
 
         window.socket.on('session-status', (data) => {
             if (!data || String(data.sessionId || '') !== String(window.sessionId || '')) return;
+            window.currentSessionStatus = String(data.status || '').trim().toLowerCase();
             if (data.status === 'connected' || data.status === 'authenticated') {
                 const qrModal = document.getElementById('qrModal');
                 if (qrModal) qrModal.style.display = 'none';

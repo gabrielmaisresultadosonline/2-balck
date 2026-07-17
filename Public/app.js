@@ -1023,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function openAdminHistoryModal(u) {
+        window.adminHistoryModalUserId = String((u && u.id) || '');
         const history = Array.isArray(u.history) ? u.history.slice() : [];
         // sort desc by time
         history.sort((a, b) => (b.at || 0) - (a.at || 0));
@@ -1079,7 +1080,10 @@ document.addEventListener('DOMContentLoaded', function() {
             document.head.appendChild(st);
         }
 
-        const close = () => overlay.remove();
+        const close = () => {
+            if (window.adminHistoryModalUserId === String((u && u.id) || '')) window.adminHistoryModalUserId = '';
+            overlay.remove();
+        };
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
         overlay.querySelectorAll('[data-action="close-ahm"]').forEach(b => b.addEventListener('click', close));
         document.addEventListener('keydown', function onEsc(ev) {
@@ -1117,6 +1121,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         users.forEach(u => adminUsersGrid.appendChild(buildAdminCard(u)));
+        const openHistoryUserId = window.adminHistoryModalUserId ? String(window.adminHistoryModalUserId) : '';
+        const historyOverlay = document.getElementById('adminHistoryModalOverlay');
+        if (openHistoryUserId && historyOverlay) {
+            const refreshedUser = users.find(u => String(u.id || '') === openHistoryUserId);
+            if (refreshedUser) openAdminHistoryModal(refreshedUser);
+        }
     }
 
     async function loadAdminUsers() {
