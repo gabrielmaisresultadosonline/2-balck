@@ -802,7 +802,79 @@ function computeGroupsPlusNextRun(post, baseTs = Date.now()) {
     return 0;
 }
 
-function normalizeKnownGroupRecord(chat) {
+function getGroupsPlusSelfDigits(sessionId) {
+    const sessionData = activeClients.get(String(sessionId || '').trim());
+    return normalizeEvolutionPhone(sessionData && sessionData.phoneNumber ? sessionData.phoneNumber : '');
+}
+
+function extractGroupParticipantRows(raw = {}) {
+    const groupMetadata = raw.groupMetadata && typeof raw.groupMetadata === 'object' ? raw.groupMetadata : {};
+    const groupsMeta = raw.groupMetadataMap && typeof raw.groupMetadataMap === 'object' ? raw.groupMetadataMap : {};
+    const candidateArrays = [
+        raw.participants,
+        raw.groupParticipants,
+        raw.members,
+        groupMetadata.participants,
+        groupMetadata.members
+    ];
+
+    Object.values(groupsMeta).forEach((meta) => {
+        if (meta && typeof meta === 'object') {
+            candidateArrays.push(meta.participants, meta.members);
+        }
+    });
+
+    for (const arr of candidateArrays) {
+        if (Array.isArray(arr) && arr.length) return arr;
+    }
+    return [];
+}
+
+function detectKnownGroupAdmin(sessionId, chat) {
+    const raw = chat && typeof chat === 'object' ? chat : {};
+    if (raw.isAdmin === true || raw.admin === true || raw.isSuperAdmin === true || raw.superadmin === true) return true;
+
+    const selfDigits = getGroupsPlusSelfDigits(sessionId);
+    if (!selfDigits) return false;
+
+    const selfCandidates = new Set([
+        selfDigits,
+        normalizeEvolutionPhone(raw.owner || ''),
+        normalizeEvolutionPhone(raw.user || ''),
+        normalizeEvolutionPhone(raw.me || '')
+    ].filter(Boolean));
+
+    const participants = extractGroupParticipantRows(raw);
+    for (const participant of participants) {
+        if (!participant || typeof participant !== 'object') continue;
+        const participantDigits = normalizeEvolutionPhone(
+            participant.id?._serialized ||
+            participant.id ||
+            participant.jid ||
+            participant.lid ||
+            participant.phone ||
+            participant.number ||
+            participant.participant ||
+            ''
+        );
+        if (!participantDigits || !selfCandidates.has(participantDigits)) continue;
+        if (
+            participant.isAdmin === true ||
+            participant.admin === true ||
+            participant.isSuperAdmin === true ||
+            participant.superAdmin === true ||
+            participant.superadmin === true ||
+            String(participant.admin || '').toLowerCase() === 'admin' ||
+            String(participant.admin || '').toLowerCase() === 'superadmin'
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function normalizeKnownGroupRecord(sessionId, chat) {
     const raw = chat && typeof chat === 'object' ? chat : {};
     const rawId = normalizeEvolutionChatId(
         raw.id?._serialized ||
@@ -819,14 +891,15 @@ function normalizeKnownGroupRecord(chat) {
         profilePic: sanitizeEvolutionUrl(raw.profilePic || raw.profilePictureUrl || raw.profilePicUrl || '') || '',
         lastMessage: getChatPreviewSafe(raw.lastMessage || raw.lastMessageText || ''),
         unreadCount: Number(raw.unreadCount || raw.unread || 0) || 0,
-        timestamp: Number(raw.timestamp || raw.updatedAt || raw.messageTimestamp || 0) || 0
+        timestamp: Number(raw.timestamp || raw.updatedAt || raw.messageTimestamp || 0) || 0,
+        isAdmin: detectKnownGroupAdmin(sessionId, raw)
     };
 }
 
-function extractKnownGroupsFromRows(rows = []) {
+function extractKnownGroupsFromRows(sessionId, rows = []) {
     const groups = new Map();
     (Array.isArray(rows) ? rows : []).forEach((row) => {
-        const normalized = normalizeKnownGroupRecord(row);
+        const normalized = normalizeKnownGroupRecord(sessionId, row);
         if (!normalized || !normalized.id) return;
         const existing = groups.get(normalized.id);
         if (!existing || (normalized.timestamp || 0) >= (existing.timestamp || 0)) {
@@ -856,7 +929,7 @@ function persistKnownGroupsToCache(sessionId, groups = []) {
 }
 
 function listKnownGroupsForSession(sessionId) {
-    return extractKnownGroupsFromRows(loadChatCache(sessionId));
+    return extractKnownGroupsFromRows(sessionId, loadChatCache(sessionId));
 }
 
 async function loadKnownGroupsForSession(sessionId, options = {}) {
@@ -871,7 +944,7 @@ async function loadKnownGroupsForSession(sessionId, options = {}) {
     const liveGroupMap = new Map(cachedGroups.map((group) => [String(group.id), group]));
 
     const appendGroups = (rows) => {
-        extractKnownGroupsFromRows(rows).forEach((group) => {
+        extractKnownGroupsFromRows(sid, rows).forEach((group) => {
             if (!group || !group.id) return;
             const existing = liveGroupMap.get(String(group.id));
             if (!existing || (group.timestamp || 0) >= (existing.timestamp || 0)) {
