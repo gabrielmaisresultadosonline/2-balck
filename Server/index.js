@@ -2240,6 +2240,8 @@ function createEvolutionClientWrapper(sessionId) {
 function maybeEmitEvolutionQrToSocket(sessionId, socketId) {
     const sessionData = activeClients.get(sessionId);
     if (!sessionData || !sessionData.latestQr || !socketId) return;
+    if (sessionData.ready === true) return;
+    if (String(sessionData.status || '').trim().toLowerCase() === 'connected') return;
     io.to(socketId).emit('qr-generated', {
         sessionId,
         qr: sessionData.latestQr
@@ -2286,6 +2288,7 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
     }
 
     if (mappedStatus === 'connected') {
+        sessionData.latestQr = null;
         clearReconnect(sessionId);
         stopReadyProbe(sessionId);
         const sessions = loadSessionsData();
@@ -6279,6 +6282,7 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             clearReconnect(sessionId);
             sessionData.status = 'connected';
             sessionData.ready = true;
+            sessionData.latestQr = null;
             stopReadyProbe(sessionId);
             sessionData.phoneNumber = client.info.wid.user;
             sessionData.name = client.info.pushname;

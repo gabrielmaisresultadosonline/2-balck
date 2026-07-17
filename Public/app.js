@@ -1641,6 +1641,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let countdownTimer = null;
         let adminSessionId = ADMIN_SELF_SESSION_ID;
+        let adminSelfStatus = 'syncing';
 
         function setMsg(text, kind) {
             if (!msgEl) return;
@@ -1668,6 +1669,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function showConnected(meta = {}) {
+            adminSelfStatus = 'connected';
             const rawPhone = String(meta.phoneNumber || '').trim();
             if (qrEmpty) {
                 qrEmpty.style.display = '';
@@ -1702,6 +1704,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function setDisconnectedState() {
+            adminSelfStatus = 'disconnected';
             resetQr();
             setAdminSelfMeta({
                 phoneNumber: '',
@@ -1741,6 +1744,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 if (session.status === 'authenticated' || session.status === 'initializing' || session.status === 'reconnecting') {
+                    adminSelfStatus = session.status;
                     resetQr();
                     setMsg('Sessão do admin encontrada. Aguardando sincronização da conexão...', 'info');
                     if (openCrm) openCrm.href = getCrmUrl(adminSessionId);
@@ -1860,7 +1864,9 @@ document.addEventListener('DOMContentLoaded', function() {
             socket.on('qr-generated', (data) => {
                 if (!data) return;
                 if (String(data.sessionId || '') !== String(adminSessionId || ADMIN_SELF_SESSION_ID)) return;
+                if (adminSelfStatus === 'connected') return;
                 if (data.qr) {
+                    adminSelfStatus = 'qr';
                     showQr(data.qr);
                     setMsg('QR Code gerado. Escaneie com o WhatsApp do admin.', 'info');
                 }
@@ -1887,6 +1893,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 if (data.status === 'authenticated' || data.status === 'initializing') {
+                    adminSelfStatus = data.status;
                     resetQr();
                     setAdminSelfMeta({
                         phoneNumber: numberEl && numberEl.textContent !== 'não conectado' ? numberEl.textContent : '',
@@ -1901,6 +1908,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 if (data.status === 'reconnecting' || data.status === 'initializing') {
+                    adminSelfStatus = data.status;
                     resetQr();
                     setAdminSelfMeta({
                         phoneNumber: numberEl && numberEl.textContent !== 'não conectado' ? numberEl.textContent : '',
