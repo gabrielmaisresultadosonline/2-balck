@@ -246,6 +246,7 @@ const WINBACK_CAMPAIGNS_FILE = path.join(__dirname, '../data/winback_campaigns.j
 const WINBACK_STATS_FILE = path.join(__dirname, '../data/winback_stats.json');
 const LID_PHONE_MAP_FILE = path.join(__dirname, '../data/lid_phone_map.json');
 const GROUPS_PLUS_FILE = path.join(__dirname, '../data/groups_plus.json');
+const SESSION_CONNECTION_DIAGNOSTICS_FILE = path.join(__dirname, '../data/session_connection_diagnostics.jsonl');
 
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '').trim();
@@ -681,6 +682,97 @@ function saveData(file, data) {
     } catch (error) {
         console.error(`Error saving data to ${file}:`, error);
     }
+}
+
+function sanitizeConnectionLogValue(value, depth = 0) {
+    if (depth > 3) return '[truncated]';
+    if (value == null) return value;
+    if (typeof value === 'string') return value.length > 600 ? `${value.slice(0, 600)}...[truncated]` : value;
+    if (typeof value === 'number' || typeof value === 'boolean') return value;
+    if (Array.isArray(value)) return value.slice(0, 12).map((item) => sanitizeConnectionLogValue(item, depth + 1));
+    if (typeof value === 'object') {
+        const out = {};
+        Object.keys(value).slice(0, 25).forEach((key) => {
+            out[key] = sanitizeConnectionLogValue(value[key], depth + 1);
+        });
+        return out;
+    }
+    return String(value);
+}
+
+function readSessionConnectionSnapshot(sessionId) {
+    const sid = String(sessionId || '').trim();
+    const sessionData = activeClients.get(sid);
+    const saved = loadSessionsData()[sid];
+    const user = getUserBySessionId(sid);
+    const reconnect = reconnectState.get(sid) || null;
+    return {
+        sessionId: sid,
+        provider: USE_EVOLUTION ? 'evolution' : 'wwebjs',
+        activeStatus: sessionData ? (sessionData.status || '') : '',
+        ready: !!(sessionData && sessionData.ready),
+        phoneNumber: (sessionData && sessionData.phoneNumber) || (saved && saved.phoneNumber) || (user && user.whatsappNumber) || '',
+        name: (sessionData && sessionData.name) || (saved && saved.name) || (user && user.whatsappName) || '',
+        hasSocket: !!(sessionData && sessionData.socketId),
+        hasLatestQr: !!(sessionData && sessionData.latestQr),
+        manuallyStopped: isSessionManuallyStopped(sid),
+        reconnectAttempt: reconnect ? Number(reconnect.attempt || 0) : 0,
+        hasReconnectTimer: !!(reconnect && reconnect.timer),
+        userId: user && user.id ? String(user.id) : '',
+        userEmail: user && user.email ? String(user.email) : ''
+    };
+}
+
+function appendSessionConnectionLog(sessionId, event, payload = {}) {
+    try {
+        const entry = {
+            ts: Date.now(),
+            at: new Date().toISOString(),
+            event: String(event || 'unknown'),
+            ...readSessionConnectionSnapshot(sessionId),
+            payload: sanitizeConnectionLogValue(payload)
+        };
+        fs.appendFileSync(SESSION_CONNECTION_DIAGNOSTICS_FILE, `${JSON.stringify(entry)}\n`);
+        console.log(`[session-conn-log] ${entry.sessionId} ${entry.event}`);
+    } catch (error) {
+        console.error('Erro ao salvar log de conexao de sessao:', error && error.message ? error.message : error);
+    }
+}
+
+async function captureEvolutionConnectionDiagnostics(sessionId, reason, extra = {}) {
+    const sid = String(sessionId || '').trim();
+    if (!sid || !USE_EVOLUTION || !evolutionApi) {
+        appendSessionConnectionLog(sid, 'diagnostic_capture_skipped', {
+            reason,
+            useEvolution: USE_EVOLUTION,
+            hasEvolutionApi: !!evolutionApi,
+            ...extra
+        });
+        return;
+    }
+    let stateResponse = null;
+    let instanceResponse = null;
+    let stateError = null;
+    let instanceError = null;
+    try {
+        stateResponse = await evolutionApi.connectionState(evolutionInstanceName(sid));
+    } catch (error) {
+        stateError = error && error.message ? String(error.message) : String(error);
+    }
+    try {
+        instanceResponse = await evolutionApi.getInstance(evolutionInstanceName(sid));
+    } catch (error) {
+        instanceError = error && error.message ? String(error.message) : String(error);
+    }
+    appendSessionConnectionLog(sid, 'evolution_diagnostic_snapshot', {
+        reason,
+        stateError,
+        instanceError,
+        normalizedState: stateResponse ? evolutionApi.normalizeInstanceState(stateResponse) : null,
+        rawState: stateResponse,
+        rawInstance: instanceResponse,
+        ...extra
+    });
 }
 
 // Wrapper for specific files
@@ -2277,6 +2369,14 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
             : normalized.state === 'close' ? 'reconnecting'
             : normalized.state === 'refused' ? 'auth_failed'
             : normalized.state;
+    if (previousStatus !== mappedStatus) {
+        appendSessionConnectionLog(sessionId, 'evolution_status_transition', {
+            previousStatus,
+            mappedStatus,
+            normalizedState: normalized,
+            source: options && options.source ? options.source : 'evolution'
+        });
+    }
     sessionData.status = mappedStatus;
     sessionData.ready = mappedStatus === 'connected';
     if (normalized.number) {
@@ -2349,11 +2449,21 @@ async function syncEvolutionSessionState(sessionId, payload = null, options = {}
                 label: 'Desconectou',
                 number: disconnectNumber
             });
+            await captureEvolutionConnectionDiagnostics(sessionId, 'mapped_status_reconnecting', {
+                previousStatus,
+                mappedStatus,
+                source: options && options.source ? options.source : 'evolution'
+            });
         } else if (mappedStatus === 'auth_failed') {
             appendUserHistory(user, {
                 type: 'auth_failed',
                 label: 'Falha de autenticacao',
                 number: disconnectNumber
+            });
+            await captureEvolutionConnectionDiagnostics(sessionId, 'mapped_status_auth_failed', {
+                previousStatus,
+                mappedStatus,
+                source: options && options.source ? options.source : 'evolution'
             });
         }
     }
@@ -5725,34 +5835,53 @@ function stopEvolutionConnectionPoll(sessionId) {
 
 function startEvolutionConnectionPoll(sessionId) {
     stopEvolutionConnectionPoll(sessionId);
+    appendSessionConnectionLog(sessionId, 'evolution_poll_started');
     const timer = setInterval(async () => {
         try {
             if (isSessionManuallyStopped(sessionId)) {
+                appendSessionConnectionLog(sessionId, 'evolution_poll_stopped_manual');
                 stopEvolutionConnectionPoll(sessionId);
                 return;
             }
             if (!USE_EVOLUTION || !evolutionApi) {
+                appendSessionConnectionLog(sessionId, 'evolution_poll_stopped_provider_unavailable');
                 stopEvolutionConnectionPoll(sessionId);
                 return;
             }
             const sessionData = activeClients.get(sessionId);
             if (!sessionData || !sessionData.client) {
+                appendSessionConnectionLog(sessionId, 'evolution_poll_stopped_missing_client');
                 stopEvolutionConnectionPoll(sessionId);
                 return;
             }
             if (sessionData.ready === true || sessionData.status === 'connected') {
+                appendSessionConnectionLog(sessionId, 'evolution_poll_stopped_connected');
                 stopEvolutionConnectionPoll(sessionId);
                 return;
             }
             const state = await evolutionApi.connectionState(evolutionInstanceName(sessionId)).catch(() => null);
             if (state) {
-                await syncEvolutionSessionState(sessionId, state, { silent: true });
+                const normalized = evolutionApi.normalizeInstanceState(state);
+                if (normalized.state !== 'open') {
+                    appendSessionConnectionLog(sessionId, 'evolution_poll_state', {
+                        normalizedState: normalized,
+                        rawState: state
+                    });
+                }
+                await syncEvolutionSessionState(sessionId, state, { silent: true, source: 'evolution_poll' });
+            } else {
+                appendSessionConnectionLog(sessionId, 'evolution_poll_empty_state');
             }
             const refreshed = activeClients.get(sessionId);
             if (refreshed && refreshed.ready === true) {
+                appendSessionConnectionLog(sessionId, 'evolution_poll_stopped_ready_after_refresh');
                 stopEvolutionConnectionPoll(sessionId);
             }
-        } catch (e) {}
+        } catch (e) {
+            appendSessionConnectionLog(sessionId, 'evolution_poll_error', {
+                error: e && e.message ? e.message : String(e)
+            });
+        }
     }, 2500);
     evolutionConnectionPollTimers.set(sessionId, timer);
 }
@@ -5842,6 +5971,11 @@ function scheduleReconnect(sessionId, reason) {
     const expDelay = Math.min(maxDelay, baseDelay * Math.pow(2, Math.min(nextAttempt - 1, 5)));
     const jitter = Math.floor(Math.random() * 750);
     const delay = expDelay + jitter;
+    appendSessionConnectionLog(sessionId, 'reconnect_scheduled', {
+        reason: reason || 'unknown',
+        attempt: nextAttempt,
+        delay
+    });
 
     const timer = setTimeout(() => {
         const stateNow = reconnectState.get(sessionId);
@@ -5850,10 +5984,20 @@ function scheduleReconnect(sessionId, reason) {
         const sessions = loadSessionsData();
         const savedSession = sessions[sessionId] || null;
         console.log(`Reconectando sessão: ${sessionId} (motivo: ${reason || 'desconhecido'}, tentativa: ${nextAttempt})`);
+        appendSessionConnectionLog(sessionId, 'reconnect_attempt_start', {
+            reason: reason || 'unknown',
+            attempt: nextAttempt,
+            hasSavedSession: !!savedSession
+        });
         try {
             initializeClient(sessionId, savedSession);
         } catch (e) {
             console.error(`Erro ao reinicializar sessão ${sessionId}:`, e);
+            appendSessionConnectionLog(sessionId, 'reconnect_attempt_error', {
+                reason: reason || 'unknown',
+                attempt: nextAttempt,
+                error: e && e.message ? e.message : String(e)
+            });
             scheduleReconnect(sessionId, 'erro_reinit');
         }
     }, delay);
@@ -6101,6 +6245,10 @@ function generateSessionId() {
 async function initializeClient(sessionId, savedSession = null, retryCount = 0) {
     console.log(`Inicializando sessão: ${sessionId} (Tentativa ${retryCount})`);
     clearSessionManualStop(sessionId);
+    appendSessionConnectionLog(sessionId, 'initialize_client_start', {
+        retryCount,
+        hasSavedSession: !!savedSession
+    });
     const shouldUseConfiguredProxy = String(sessionId) !== ADMIN_SELF_SESSION_ID;
     const proxyUser = shouldUseConfiguredProxy ? getUserBySessionId(sessionId) : null;
     const proxyLabel = proxyUser
@@ -6136,8 +6284,18 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                     proxyConfig = proxyManager.getAssignment(sessionId, proxyLabel);
                 } catch (e) {
                     console.error(`Falha ao atribuir proxy para ${sessionId}:`, e.message);
+                    appendSessionConnectionLog(sessionId, 'initialize_client_proxy_assignment_error', {
+                        error: e && e.message ? e.message : String(e),
+                        retryCount
+                    });
                 }
             }
+            appendSessionConnectionLog(sessionId, 'initialize_client_evolution_boot', {
+                retryCount,
+                hasProxyConfig: !!proxyConfig,
+                proxyHost: proxyConfig && proxyConfig.host ? proxyConfig.host : '',
+                proxyPort: proxyConfig && proxyConfig.port ? proxyConfig.port : ''
+            });
             const known = await evolutionApi.getInstance(evolutionInstanceName(sessionId)).catch(() => null);
             if (webhookConfig && known) {
                 await evolutionApi.setWebhook(evolutionInstanceName(sessionId), webhookConfig).catch(() => null);
@@ -6170,15 +6328,26 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 
             let stateResponse = await evolutionApi.connectionState(evolutionInstanceName(sessionId)).catch(() => null);
             let normalized = stateResponse ? evolutionApi.normalizeInstanceState(stateResponse) : { state: 'close' };
+            appendSessionConnectionLog(sessionId, 'initialize_client_evolution_state', {
+                retryCount,
+                hadKnownInstance: !!known,
+                hadCreateResponse: !!createResponse,
+                normalizedState: normalized,
+                rawState: stateResponse
+            });
 
             let connectResponse = null;
             if (!stateResponse || normalized.state !== 'open') {
                 connectResponse = await evolutionApi.connectInstance(evolutionInstanceName(sessionId)).catch(() => null);
                 if (connectResponse) {
-                    await syncEvolutionSessionState(sessionId, connectResponse, { silent: true });
+                    appendSessionConnectionLog(sessionId, 'initialize_client_connect_response', {
+                        retryCount,
+                        connectResponse
+                    });
+                    await syncEvolutionSessionState(sessionId, connectResponse, { silent: true, source: 'initialize_connect_response' });
                 }
             } else {
-                await syncEvolutionSessionState(sessionId, stateResponse, { silent: true });
+                await syncEvolutionSessionState(sessionId, stateResponse, { silent: true, source: 'initialize_existing_open_state' });
             }
 
             const qrPayload = evolutionApi.normalizeQr(connectResponse || createResponse || {});
@@ -6200,6 +6369,10 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
             return;
         } catch (error) {
             console.error(`Erro ao inicializar sessão Evolution ${sessionId}:`, error && error.message ? error.message : error);
+            appendSessionConnectionLog(sessionId, 'initialize_client_evolution_error', {
+                retryCount,
+                error: error && error.message ? error.message : String(error)
+            });
             const sessionData = activeClients.get(sessionId);
             if (sessionData) {
                 sessionData.status = 'auth_failed';
@@ -6703,6 +6876,9 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
 
     client.on('disconnected', (reason) => {
         console.log(`Cliente desconectado: ${sessionId}`, reason);
+        appendSessionConnectionLog(sessionId, 'client_disconnected_event', {
+            reason: typeof reason === 'string' ? reason : sanitizeConnectionLogValue(reason)
+        });
         const user = getUserBySessionId(sessionId);
         if (isSessionManuallyStopped(sessionId)) {
             const sessionData = activeClients.get(sessionId);
@@ -6715,6 +6891,9 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                 emitToSessionClients(sessionId, 'session-status', { sessionId, status: 'disconnected' });
                 io.to('admin').emit('session-status', { sessionId, status: 'disconnected' });
             }
+            captureEvolutionConnectionDiagnostics(sessionId, 'client_disconnected_manual_stop', {
+                reason: typeof reason === 'string' ? reason : sanitizeConnectionLogValue(reason)
+            }).catch(() => {});
             return;
         }
         const sessionData = activeClients.get(sessionId);
@@ -6733,6 +6912,9 @@ async function initializeClient(sessionId, savedSession = null, retryCount = 0) 
                 number: user.whatsappNumber || (sessionData && sessionData.phoneNumber) || ''
             });
         }
+        captureEvolutionConnectionDiagnostics(sessionId, 'client_disconnected_event', {
+            reason: typeof reason === 'string' ? reason : sanitizeConnectionLogValue(reason)
+        }).catch(() => {});
 
         scheduleReconnect(sessionId, reason || 'disconnected');
     });
